@@ -1,0 +1,32 @@
+{
+  "name": "namogpt",
+  "version": "1.0.0",
+  "description": "NamoGPT - Full-featured ChatGPT alternative powered by LiteLLM proxy with multi-model support for all free AI models across Web, Android, and iOS.",
+  "type": "module",
+  "scripts": {
+    "dev:server": "npm --prefix server run dev",
+    "dev:web": "npm --prefix web run dev",
+    "dev": "node scripts/start-all.js",
+    "build:web": "npm --prefix web run build",
+    "build": "npm --prefix web run build",
+    "start": "node server/server.js",
+    "start:mobile": "npm --prefix mobile start",
+    "install:all": "npm install && npm --prefix server install && npm --prefix web install"
+  },
+  "keywords": [
+    "chatgpt",
+    "litellm",
+    "namogpt",
+    "ai",
+    "gemini",
+    "groq",
+    "deepseek",
+    "nvidia",
+    "react",
+    "pwa",
+    "react-native",
+    "expo"
+  ],
+  "author": "Rohit-Jigar",
+  "license": "MIT"
+}
