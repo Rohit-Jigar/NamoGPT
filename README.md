@@ -3,6 +3,8 @@
 > **Full-featured, multi-model ChatGPT alternative powered by an intelligent LiteLLM Proxy with automatic key rotation, rate-limit failover, and support for all free state-of-the-art AI models across Web, Android, and iOS.**
 
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
+![CI](https://github.com/Rohit-Jigar/NamoGPT/actions/workflows/ci.yml/badge.svg)
+![CD](https://github.com/Rohit-Jigar/NamoGPT/actions/workflows/deploy.yml/badge.svg)
 ![React](https://img.shields.io/badge/frontend-React%2018%20%2B%20Vite%20%2B%20Tailwind-blue)
 ![PWA](https://img.shields.io/badge/PWA-Android%20%26%20iOS%20Ready-purple)
 ![Mobile](https://img.shields.io/badge/mobile-React%20Native%20Expo-orange)
@@ -154,6 +156,13 @@ npx expo start
   eas build -p android --profile preview
   eas build -p ios --profile preview
   ```
+
+---
+
+## 🚀 Free Deployment & CI/CD Pipeline
+
+- 📖 **Complete 100% Free Deployment Guide**: [`FREE_DEPLOYMENT_GUIDE.md`](FREE_DEPLOYMENT_GUIDE.md) (covers Vercel, Render, GitHub Pages, Android APK, and iOS)
+- 🔄 **Automated CI/CD Pipeline Guide**: [`CI_CD_PIPELINE.md`](CI_CD_PIPELINE.md) (covers GitHub Actions matrix testing, linters, and auto-deploy)
 
 ---
 

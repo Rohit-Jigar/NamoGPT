@@ -8,7 +8,8 @@
     "start": "node --env-file=.env server.js",
     "vercel:dev": "vercel dev",
     "deploy": "vercel deploy --prod",
-    "test": "node test-proxy.js"
+    "test": "node test_ci.js",
+    "test:integration": "node test-proxy.js"
   },
   "dependencies": {
     "axios": "^1.6.0",
