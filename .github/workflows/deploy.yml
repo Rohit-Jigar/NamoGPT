@@ -46,3 +46,18 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  deploy-backend-free:
+    name: 🚀 Trigger Free Backend Deployment (Render / Webhook)
+    runs-on: ubuntu-latest
+    needs: deploy-github-pages
+    steps:
+      - name: Trigger Free Web Service Deployment
+        if: ${{ env.RENDER_DEPLOY_HOOK != '' }}
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: |
+          echo "Triggering automated free backend deployment..."
+          curl -f -X POST "$RENDER_DEPLOY_HOOK"
+          echo "✅ Free backend deployment hook dispatched successfully!"
+
