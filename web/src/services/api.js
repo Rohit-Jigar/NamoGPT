@@ -21,7 +21,7 @@ export async function fetchAvailableModels(serverUrl = DEFAULT_SERVER_URL) {
     return [
       {
         id: "gemini",
-        name: "Gemini 2.5 Flash",
+        name: "Gemini 3.8 Flash",
         provider: "Google AI",
         category: "Multimodal & Fast",
         badge: "Recommended",
@@ -34,12 +34,12 @@ export async function fetchAvailableModels(serverUrl = DEFAULT_SERVER_URL) {
       },
       {
         id: "groq",
-        name: "Llama 3.3 70B",
+        name: "GPT-OSS 120B (Groq)",
         provider: "Groq Cloud",
         category: "General Intelligence",
         badge: "Ultra Fast",
         badgeColor: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-        description: "Blazing fast inference (~300 tokens/sec) on Groq LPUs. Exceptional for coding and chat.",
+        description: "Massive 120B open intelligence running at blazing LPU speeds (~300 t/s).",
         supportsVision: false,
         supportsReasoning: false,
         speed: "⚡⚡⚡⚡⚡ 300 t/s",
@@ -47,12 +47,12 @@ export async function fetchAvailableModels(serverUrl = DEFAULT_SERVER_URL) {
       },
       {
         id: "groq-r1",
-        name: "DeepSeek R1 Distill 70B",
+        name: "Qwen 3.8 27B Reasoning (Groq)",
         provider: "Groq Cloud",
         category: "Deep Reasoning",
         badge: "Reasoning",
         badgeColor: "bg-purple-500/10 text-purple-400 border-purple-500/20",
-        description: "DeepSeek R1 distilled into Llama 70B. Chain-of-thought mathematical & logical reasoning.",
+        description: "Advanced mathematical & logical reasoning model accelerated on Groq LPUs (~250 t/s).",
         supportsVision: false,
         supportsReasoning: true,
         speed: "⚡⚡⚡⚡ ~250 t/s",
@@ -60,15 +60,15 @@ export async function fetchAvailableModels(serverUrl = DEFAULT_SERVER_URL) {
       },
       {
         id: "openrouter",
-        name: "Nemotron 3 Ultra 550B",
+        name: "Nemotron 3.5 Lightning (Free)",
         provider: "OpenRouter (Free)",
         category: "High Parameter Free",
-        badge: "Free 550B",
+        badge: "Free 100%",
         badgeColor: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
-        description: "Massive 550B parameter open model with advanced tool calling and agentic capabilities.",
+        description: "Accelerated Nemotron intelligence available 100% free via OpenRouter public tier.",
         supportsVision: false,
         supportsReasoning: true,
-        speed: "⚡⚡ Medium",
+        speed: "⚡⚡ Fast",
         cost: "100% Free"
       },
       {
