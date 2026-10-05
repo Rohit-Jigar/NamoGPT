@@ -125,7 +125,7 @@ Open your browser to:
 ## 🌐 100% Free Cloud Deployment Guide
 
 Want to deploy NamoGPT to the cloud for free with $0.00/month hosting?
-👉 **Read the full [100% Free Deployment Guide](DEPLOYMENT_GUIDE.md)**
+👉 **Read the full [100% Free Deployment Guide](FREE_DEPLOYMENT_GUIDE.md)** (or [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md))
 
 - **Vercel** (Serverless proxy + global frontend)
 - **Render** (Continuous fullstack Node.js server)
