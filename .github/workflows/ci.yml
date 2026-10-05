@@ -39,8 +39,10 @@ jobs:
           node --check server/auth.js
           node --check server/api/index.js
           node --check server/models-metadata.js
+          node --check server/metrics.js
           node --check server/test_ci.js
           node --check scripts/start-all.js
+
 
   test-server:
     name: ⚡ Server & LiteLLM Proxy Tests
@@ -125,8 +127,9 @@ jobs:
 
       - name: Check for Uncommitted API Keys
         run: |
-          # Ensure real API keys are not committed in code
-          ! grep -r "AIzaSy" --exclude=".env.example" --exclude="*.md" . || (echo "Potential Google API key detected!" && exit 1)
-          ! grep -r "gsk_" --exclude=".env.example" --exclude="*.md" . || (echo "Potential Groq API key detected!" && exit 1)
-          ! grep -r "nvapi-" --exclude=".env.example" --exclude="*.md" . || (echo "Potential NVIDIA API key detected!" && exit 1)
+          # Ensure real API keys are not committed in code (ignore .github workflows and docs)
+          ! grep -r "AIzaSy" --exclude-dir=".git" --exclude-dir=".github" --exclude=".env.example" --exclude="*.md" . || (echo "Potential Google API key detected!" && exit 1)
+          ! grep -r "gsk_" --exclude-dir=".git" --exclude-dir=".github" --exclude=".env.example" --exclude="*.md" . || (echo "Potential Groq API key detected!" && exit 1)
+          ! grep -r "nvapi-" --exclude-dir=".git" --exclude-dir=".github" --exclude=".env.example" --exclude="*.md" . || (echo "Potential NVIDIA API key detected!" && exit 1)
           echo "✅ Secret leakage scan passed cleanly"
+
