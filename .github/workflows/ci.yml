@@ -36,6 +36,7 @@ jobs:
       - name: Check JavaScript Syntax
         run: |
           node --check server/server.js
+          node --check server/auth.js
           node --check server/api/index.js
           node --check server/models-metadata.js
           node --check server/test_ci.js

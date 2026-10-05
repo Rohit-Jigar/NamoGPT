@@ -238,3 +238,8 @@ dist/
 build/
 .expo/
 .vercel
+
+# Server user data
+server/data/users.json
+server/data/*.tmp
+

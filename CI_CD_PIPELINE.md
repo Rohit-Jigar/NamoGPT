@@ -44,7 +44,7 @@ Runs automatically on every `push` and `pull_request` to the `main` branch.
 
 | Job Name | Steps Executed | Purpose |
 | :--- | :--- | :--- |
-| **🔍 Syntax & Config Validation** | Validates `config.yaml`, all `package.json` files, `app.json`, and verifies syntax on `server.js`, `api/index.js`, `models-metadata.js`. | Catches syntax errors and malformed configs before any tests run. |
+| **🔍 Syntax & Config Validation** | Validates `config.yaml`, all `package.json` files, `app.json`, and verifies syntax on `server.js`, `auth.js`, `api/index.js`, `models-metadata.js`. | Catches syntax errors and malformed configs before any tests run. |
 | **⚡ Server & LiteLLM Proxy Tests** | Runs matrix testing across **Node.js 18.x, 20.x, and 22.x**; runs automated test suite checking `/health`, `/api/models`, `/v1/chat/completions`, and `/anthropic/models`. | Guarantees the LiteLLM proxy and round-robin load balancer remain reliable across Node runtime versions. |
 | **💻 Web & PWA Frontend Build** | Compiles production assets with Vite, verifies `dist/index.html`, `dist/manifest.json`, and `dist/sw.js`, and uploads artifacts. | Ensures zero bundle breaks, dead imports, or PWA cache issues. |
 | **📱 Mobile App Integrity Check** | Validates Expo structure, mobile dependencies, and `App.js`. | Verifies React Native mobile codebase readiness. |

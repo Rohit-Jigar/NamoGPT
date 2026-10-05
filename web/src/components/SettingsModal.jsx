@@ -57,6 +57,13 @@ export default function SettingsModal() {
       desc: '1,000 free GPU credits on signup',
       url: 'https://build.nvidia.com',
       keyField: 'nvidia'
+    },
+    {
+      id: 'cloudflare',
+      name: 'Cloudflare Workers AI',
+      desc: '10,000 free daily neurons (Llama 3.3 70B)',
+      url: 'https://dash.cloudflare.com/profile/api-tokens',
+      keyField: 'cloudflare'
     }
   ];
 

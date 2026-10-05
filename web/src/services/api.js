@@ -98,6 +98,7 @@ export async function streamChatCompletion({
   systemPrompt = '',
   serverUrl = DEFAULT_SERVER_URL,
   apiKeys = {},
+  token = null,
   signal,
   onChunk,
   onFinish,
@@ -115,12 +116,17 @@ export async function streamChatCompletion({
       'X-Model-Name': model
     };
 
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     // Attach custom user API keys if provided in settings
     if (apiKeys.gemini) headers['X-Gemini-Key'] = apiKeys.gemini;
     if (apiKeys.groq) headers['X-Groq-Key'] = apiKeys.groq;
     if (apiKeys.openrouter) headers['X-OpenRouter-Key'] = apiKeys.openrouter;
     if (apiKeys.nvidia) headers['X-Nvidia-Key'] = apiKeys.nvidia;
     if (apiKeys.aion) headers['X-Aion-Key'] = apiKeys.aion;
+    if (apiKeys.cloudflare) headers['X-Cf-Key'] = apiKeys.cloudflare;
 
     const res = await fetch(`${serverUrl}/v1/chat/completions`, {
       method: 'POST',
@@ -188,3 +194,74 @@ export async function streamChatCompletion({
     throw err;
   }
 }
+
+/**
+ * Authentication & Admin API helpers
+ */
+
+export async function loginApi(serverUrl, { email, password }) {
+  const res = await fetch(`${serverUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Login failed.');
+  return data;
+}
+
+export async function registerApi(serverUrl, { name, email, password }) {
+  const res = await fetch(`${serverUrl}/api/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, email, password })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Registration failed.');
+  return data;
+}
+
+export async function fetchCurrentUser(serverUrl, token) {
+  if (!token) return null;
+  const res = await fetch(`${serverUrl}/api/auth/me`, {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.user || null;
+}
+
+export async function fetchSuperAdminCredentials(serverUrl) {
+  try {
+    const res = await fetch(`${serverUrl}/api/auth/superadmin-credentials`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return {
+      email: 'admin@namogpt.com',
+      password: 'Admin@NamoGPT2026!',
+      role: 'superadmin',
+      name: 'Super Admin',
+      isDefault: true
+    };
+  }
+}
+
+export async function fetchAdminStatus(serverUrl, token) {
+  const res = await fetch(`${serverUrl}/api/admin/status`, {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch admin status.');
+  return data;
+}
+
+export async function fetchAdminUsers(serverUrl, token) {
+  const res = await fetch(`${serverUrl}/api/auth/users`, {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch users list.');
+  return data.users || [];
+}
+

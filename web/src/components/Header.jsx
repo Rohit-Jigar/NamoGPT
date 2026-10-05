@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useChat } from '../context/ChatContext';
+import { useAuth } from '../context/AuthContext';
 import {
   PanelLeft,
   ChevronDown,
@@ -9,7 +10,13 @@ import {
   Zap,
   Eye,
   Brain,
-  Plus
+  Plus,
+  Crown,
+  User,
+  LogIn,
+  LogOut,
+  Settings as SettingsIcon,
+  ShieldCheck
 } from 'lucide-react';
 
 export default function Header() {
@@ -22,17 +29,34 @@ export default function Header() {
     generationStats,
     isGenerating,
     setIsExportOpen,
-    createNewChat
+    createNewChat,
+    setIsSettingsOpen
   } = useChat();
 
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const dropdownRef = useRef(null);
+  const {
+    user,
+    isAuthenticated,
+    isSuperAdmin,
+    setIsAuthModalOpen,
+    setIsAdminModalOpen,
+    demoAdminLogin,
+    logout
+  } = useAuth();
 
-  // Close dropdown on outside click
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+
+  const dropdownRef = useRef(null);
+  const userMenuRef = useRef(null);
+
+  // Close dropdowns on outside click
   useEffect(() => {
     function handleClickOutside(event) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsDropdownOpen(false);
+      }
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
+        setIsUserMenuOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -46,7 +70,7 @@ export default function Header() {
   };
 
   return (
-    <header className="h-14 border-b border-[#303030]/80 bg-[#212121]/90 backdrop-blur-md px-3.5 flex items-center justify-between shrink-0 select-none z-20">
+    <header className="h-14 border-b border-[#303030]/80 bg-[#212121]/90 backdrop-blur-md px-3 sm:px-4 flex items-center justify-between shrink-0 select-none z-20">
       {/* Left: Sidebar Toggle & Model Switcher */}
       <div className="flex items-center space-x-2">
         <button
@@ -61,11 +85,13 @@ export default function Header() {
         <div className="relative" ref={dropdownRef}>
           <button
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-            className="flex items-center space-x-2 px-3 py-1.5 rounded-xl hover:bg-zinc-800/80 transition-colors text-white font-semibold text-base tracking-tight group"
+            className="flex items-center space-x-2 px-2.5 sm:px-3 py-1.5 rounded-xl hover:bg-zinc-800/80 transition-colors text-white font-semibold text-sm sm:text-base tracking-tight group"
           >
-            <span>{currentModelObj.name}</span>
+            <span className="truncate max-w-[140px] sm:max-w-none">{currentModelObj.name}</span>
             <span
-              className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${currentModelObj.badgeColor || 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'}`}
+              className={`text-[10px] font-medium px-2 py-0.5 rounded-full border hidden xs:inline-block ${
+                currentModelObj.badgeColor || 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+              }`}
             >
               {currentModelObj.badge || 'Free'}
             </span>
@@ -99,7 +125,9 @@ export default function Header() {
                         <div className="flex items-center space-x-2">
                           <span className="font-semibold text-sm">{m.name}</span>
                           <span
-                            className={`text-[10px] font-medium px-1.5 py-0.2 rounded border ${m.badgeColor || 'bg-zinc-800 text-zinc-300 border-zinc-700'}`}
+                            className={`text-[10px] font-medium px-1.5 py-0.2 rounded border ${
+                              m.badgeColor || 'bg-zinc-800 text-zinc-300 border-zinc-700'
+                            }`}
                           >
                             {m.badge || 'Free'}
                           </span>
@@ -146,16 +174,29 @@ export default function Header() {
         </div>
       </div>
 
-      {/* Right: Stats & Actions */}
-      <div className="flex items-center space-x-2">
+      {/* Right: Stats, Admin Badge, Export & Auth Profile */}
+      <div className="flex items-center space-x-2 sm:space-x-3">
         {/* Live Generation Stats */}
         {generationStats && isGenerating && (
-          <div className="hidden sm:flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono animate-pulse">
+          <div className="hidden md:flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono animate-pulse">
             <Zap className="w-3.5 h-3.5" />
             <span>{generationStats.tps} t/s</span>
           </div>
         )}
 
+        {/* Super Admin Console Button */}
+        {isSuperAdmin && (
+          <button
+            onClick={() => setIsAdminModalOpen(true)}
+            className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold shadow-sm transition-all hover:scale-105"
+            title="Open Super Admin Console"
+          >
+            <Crown className="w-3.5 h-3.5 fill-current text-amber-400" />
+            <span className="hidden sm:inline">Admin Console</span>
+          </button>
+        )}
+
+        {/* New Chat Button (Mobile) */}
         <button
           onClick={() => createNewChat()}
           className="p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors sm:hidden"
@@ -164,14 +205,99 @@ export default function Header() {
           <Plus className="w-5 h-5" />
         </button>
 
+        {/* Export Conversation Button */}
         <button
           onClick={() => setIsExportOpen(true)}
-          className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-zinc-300 hover:text-white hover:bg-zinc-800 text-xs font-medium border border-zinc-700/60 transition-colors"
+          className="flex items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-zinc-300 hover:text-white hover:bg-zinc-800 text-xs font-medium border border-zinc-700/60 transition-colors"
           title="Export conversation"
         >
           <Share2 className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">Export</span>
         </button>
+
+        {/* User Auth Section */}
+        {isAuthenticated ? (
+          <div className="relative" ref={userMenuRef}>
+            <button
+              onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+              className="flex items-center space-x-2 p-1 pl-2 rounded-full hover:bg-zinc-800 transition-colors border border-zinc-700/60"
+            >
+              <span className="text-xs font-medium text-zinc-300 hidden md:inline max-w-[100px] truncate">
+                {user.name}
+              </span>
+              <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 text-black font-bold text-xs flex items-center justify-center shadow-sm">
+                {user.name ? user.name[0].toUpperCase() : 'U'}
+              </div>
+            </button>
+
+            {isUserMenuOpen && (
+              <div className="absolute right-0 mt-2 w-56 bg-[#171717] border border-[#303030] rounded-2xl shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+                <div className="px-3 py-2 border-b border-zinc-800">
+                  <div className="font-semibold text-xs text-white truncate">{user.name}</div>
+                  <div className="text-[11px] text-zinc-400 truncate font-mono">{user.email}</div>
+                  <div className="mt-1">
+                    <span
+                      className={`text-[9px] font-mono px-2 py-0.5 rounded-full font-semibold ${
+                        isSuperAdmin
+                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                          : 'bg-zinc-800 text-zinc-400 border border-zinc-700'
+                      }`}
+                    >
+                      {isSuperAdmin ? '👑 Super Admin' : '👤 Standard User'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="py-1">
+                  {isSuperAdmin && (
+                    <button
+                      onClick={() => {
+                        setIsAdminModalOpen(true);
+                        setIsUserMenuOpen(false);
+                      }}
+                      className="w-full flex items-center space-x-2 px-3 py-2 text-xs text-amber-300 hover:bg-zinc-800 rounded-lg transition-colors"
+                    >
+                      <Crown className="w-3.5 h-3.5" />
+                      <span>Super Admin Console</span>
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => {
+                      setIsSettingsOpen(true);
+                      setIsUserMenuOpen(false);
+                    }}
+                    className="w-full flex items-center space-x-2 px-3 py-2 text-xs text-zinc-300 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
+                  >
+                    <SettingsIcon className="w-3.5 h-3.5" />
+                    <span>Settings & Keys</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      logout();
+                      setIsUserMenuOpen(false);
+                    }}
+                    className="w-full flex items-center space-x-2 px-3 py-2 text-xs text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Sign Out</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="flex items-center space-x-1.5">
+            <button
+              onClick={() => setIsAuthModalOpen(true)}
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-white text-black hover:bg-zinc-200 text-xs font-semibold transition-all shadow-sm active:scale-95"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span>Sign In</span>
+            </button>
+          </div>
+        )}
       </div>
     </header>
   );

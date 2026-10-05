@@ -163,11 +163,19 @@ eas build -p android --profile preview
 | :--- | :--- | :--- | :--- |
 | `GEMINI_API_KEY_1` | Recommended | Google Gemini API key | `AIzaSy...` |
 | `GROQ_API_KEY_1` | Recommended | Groq Cloud API key | `gsk_...` |
+| `CF_API_TOKEN` | Optional | Cloudflare Workers AI Token | `v4.0.0-xxxx` |
+| `CF_ACCOUNT_ID` | Optional | Cloudflare Account ID | `6ebde4a7...` |
 | `OPEN_ROUTER_API_KEY_1` | Optional | OpenRouter Free models key | `sk-or-...` |
 | `NVIDIA_NIM_API_KEY_1` | Optional | NVIDIA NIM 120B model key | `nvapi-...` |
 | `AION_API_KEY_1` | Optional | AION Labs 2.0 key | `aion-...` |
+| `ADMIN_EMAIL` | Optional | Super Admin Email (default: admin@namogpt.com) | `admin@yourdomain.com` |
+| `ADMIN_PASSWORD` | Optional | Super Admin Password (default: Admin@NamoGPT2026!) | `YourStrongPass2026!` |
 | `LITELLM_MASTER_KEY` | Optional | Master authorization token | `sk-namogpt-master` |
 | `PROXY_PORT` | Optional | Server port (default: 3001) | `3001` |
+
+> 👑 **Super Admin Instant Access on Deployment**:
+> When you deploy to Render or Vercel, the system initializes your Super Admin credentials. On your deployed live URL, click **Sign In** → **"1-Click Login as Super Admin"** (or enter `admin@namogpt.com` / `Admin@NamoGPT2026!`). You will be able to chat with all models using the API keys you placed in the deployment environment variables without entering any keys in client settings!
+
 
 ---
 

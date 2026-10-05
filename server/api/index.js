@@ -44,17 +44,46 @@ export function loadConfig() {
   return cachedConfig;
 }
 
-function resolveApiKey(maybeEnv) {
+export function resolveApiKey(maybeEnv) {
   if (!maybeEnv) return null;
   if (typeof maybeEnv !== 'string') return maybeEnv;
   if (maybeEnv.startsWith('os.environ/')) {
     const varName = maybeEnv.replace(/^os\.environ\//, '');
-    return process.env[varName] || null;
+    if (process.env[varName]) return process.env[varName];
+
+    // Check base name without indexed _1 suffix
+    if (varName.endsWith('_1')) {
+      const base = varName.replace(/_1$/, '');
+      if (process.env[base]) return process.env[base];
+    }
+    // Check OpenRouter variations
+    if (varName.includes('OPEN_ROUTER')) {
+      const alt = varName.replace('OPEN_ROUTER', 'OPENROUTER');
+      if (process.env[alt]) return process.env[alt];
+      if (process.env.OPENROUTER_API_KEY) return process.env.OPENROUTER_API_KEY;
+      if (process.env.OPEN_ROUTER_API_KEY) return process.env.OPEN_ROUTER_API_KEY;
+    }
+    // Check NVIDIA NIM variations
+    if (varName.includes('NVIDIA')) {
+      if (process.env.NVIDIA_NIM_API_KEY) return process.env.NVIDIA_NIM_API_KEY;
+      if (process.env.NVIDIA_API_KEY) return process.env.NVIDIA_API_KEY;
+    }
+    // Check Cloudflare variations
+    if (varName.includes('CF_API_TOKEN')) {
+      if (process.env.CF_API_TOKEN) return process.env.CF_API_TOKEN;
+      if (process.env.CLOUDFLARE_API_TOKEN) return process.env.CLOUDFLARE_API_TOKEN;
+      if (process.env.CLOUDFLARE_API_KEY) return process.env.CLOUDFLARE_API_KEY;
+    }
+    // Check AION variations
+    if (varName.includes('AION')) {
+      if (process.env.AION_API_KEY) return process.env.AION_API_KEY;
+    }
+    return null;
   }
   return maybeEnv;
 }
 
-function buildPools(cfg) {
+export function buildPools(cfg) {
   if (cachedPools) return cachedPools;
   
   const pools = {};
@@ -66,7 +95,14 @@ function buildPools(cfg) {
     
     const params = entry.litellm_params || {};
     const apiKey = resolveApiKey(params.api_key);
-    const apiBase = params.api_base || null;
+    let apiBase = params.api_base || null;
+
+    // Expand Cloudflare Account ID template if provided
+    if (apiBase && apiBase.includes('${CF_ACCOUNT_ID}')) {
+      const accId = process.env.CF_ACCOUNT_ID || '';
+      apiBase = apiBase.replace('${CF_ACCOUNT_ID}', accId);
+    }
+    
     const rpm = params.rpm || null;
     
     pools[name].items.push({
@@ -125,11 +161,15 @@ function inferApiBaseFromModel(model) {
   if (model.startsWith('groq/')) return 'https://api.groq.com/openai/v1';
   if (model.startsWith('openrouter/')) return 'https://openrouter.ai/api/v1';
   if (model.startsWith('nvidia/') || model.includes('nvidia')) return 'https://integrate.api.nvidia.com/v1';
-  if (model.includes('@cf/')) return null;
+  if (model.includes('@cf/')) {
+    const acc = process.env.CF_ACCOUNT_ID || '';
+    return acc ? `https://api.cloudflare.com/client/v4/accounts/${acc}/ai/v1` : 'https://api.cloudflare.com/client/v4/ai/v1';
+  }
   return 'https://api.openai.com/v1';
 }
 
 function modelForUpstream(model) {
+  if (model.includes('@cf/')) return model.replace(/^openai\//, '');
   return model.replace(/^(gemini|groq|openrouter|openai|nvidia)\//, '');
 }
 
@@ -341,9 +381,11 @@ export default async function handler(req, res) {
 
     // Normalization of model aliases
     if (!modelName) modelName = 'gemini';
-    if (modelName.startsWith('gemini')) modelName = 'gemini';
-    else if (modelName.includes('deepseek-r1') && pools['groq-r1']) modelName = 'groq-r1';
-    else if (modelName.includes('llama-3.1-8b') && pools['groq-instant']) modelName = 'groq-instant';
+    if (modelName === 'cloudflare' || modelName.includes('cloudflare')) modelName = 'cloudflare';
+    else if (modelName.startsWith('gemini')) modelName = 'gemini';
+    else if (modelName.includes('deepseek-r1') && (modelName.includes('openrouter') || !pools['groq-r1'])) modelName = 'openrouter-r1';
+    else if (modelName.includes('deepseek-r1') || modelName === 'groq-r1') modelName = 'groq-r1';
+    else if (modelName.includes('instant') || modelName === 'groq-instant') modelName = 'groq-instant';
     else if (modelName.includes('llama') || modelName.includes('groq')) modelName = 'groq';
     else if (modelName.includes('nemotron') && pools['openrouter']) modelName = 'openrouter';
     else if (modelName.includes('nvidia') && pools['nvidia']) modelName = 'nvidia';
@@ -361,6 +403,8 @@ export default async function handler(req, res) {
       req.headers['x-openrouter-key'] ||
       req.headers['x-nvidia-key'] ||
       req.headers['x-aion-key'] ||
+      req.headers['x-cf-key'] ||
+      req.headers['x-cloudflare-key'] ||
       null;
 
     const tried = [];

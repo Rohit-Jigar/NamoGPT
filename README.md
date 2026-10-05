@@ -60,6 +60,14 @@ graph TD
 - **📱 Run Anywhere (Web, Android & iPhone)**:
   - **PWA (Progressive Web App)**: Install instantly on any iPhone ("Add to Home Screen") or Android device ("Install App") for a native, fullscreen app experience.
   - **React Native / Expo**: Full cross-platform mobile codebase in `mobile/` ready for native APK and iOS IPA compilation.
+- **🔐 Built-in Authentication & Super Admin Console**:
+  - Full user registration and JWT authentication system.
+  - Pre-seeded **Super Admin** account (`admin@namogpt.com` / `Admin@NamoGPT2026!`) for immediate deployment evaluation.
+  - Interactive Admin Console displaying live `.env` key detection status, server uptime, and user directory.
+- **📱 True Cross-Device Responsiveness**:
+  - Pixel-perfect, adaptive layout across desktop, tablets, and phones (iPhone SE up to Pro Max and iPads).
+  - Dynamic `100dvh` viewport handling eliminating mobile browser address bar clipping.
+  - Responsive mobile drawer with backdrop overlay.
 - **🧠 Chain-of-Thought Reasoning**: Collapsible thought blocks for DeepSeek R1 and reasoning models.
 - **💻 Rich Markdown & Code Blocks**: Code syntax highlighting, copy-code button, language tags, tables, and LaTeX math equations ($E=mc^2$).
 - **🎙️ Voice Dictation & Text-to-Speech**: Speech-to-text mic input with Web Speech API and text-to-speech voice read-aloud.
@@ -80,6 +88,7 @@ graph TD
 | **Nemotron 3 Ultra** | OpenRouter (Free) | 550 Billion | ⚡⚡ Medium | Open architecture, tool calling |
 | **DeepSeek R1 Free** | OpenRouter (Free) | Flagship 671B | ⚡ Steady | Uncensored full reasoning |
 | **Nemotron Super 120B**| NVIDIA NIM | 120 Billion | ⚡⚡⚡ Fast | Accelerated enterprise STEM models |
+| **Llama 3.3 70B (Cloudflare)** | Cloudflare Workers AI | 70 Billion | ⚡⚡⚡ Fast | 10,000 Free Daily Neurons on the Edge |
 | **AION 2.0** | AION Labs | Specialized | ⚡⚡ Medium | Complex instructional adherence |
 
 ---
@@ -159,10 +168,19 @@ npx expo start
 
 ---
 
-## 🚀 Free Deployment & CI/CD Pipeline
+## 🚀 Free Deployment, LiteLLM Setup & CI/CD
 
-- 📖 **Complete 100% Free Deployment Guide**: [`FREE_DEPLOYMENT_GUIDE.md`](FREE_DEPLOYMENT_GUIDE.md) (covers Vercel, Render, GitHub Pages, Android APK, and iOS)
+- 🔑 **LiteLLM Setup & Free API Keys Guide**: [`LITELLM_SETUP_GUIDE.md`](LITELLM_SETUP_GUIDE.md) (covers `LITELLM_MASTER_KEY`, Cloudflare Workers AI `CF_API_TOKEN` & Account ID, Gemini, Groq, OpenRouter, and NVIDIA NIM setup)
+- 📖 **Complete 100% Free Deployment Guide**: [`FREE_DEPLOYMENT_GUIDE.md`](FREE_DEPLOYMENT_GUIDE.md) (covers Render, Vercel, GitHub Pages, Android APK, and iOS)
 - 🔄 **Automated CI/CD Pipeline Guide**: [`CI_CD_PIPELINE.md`](CI_CD_PIPELINE.md) (covers GitHub Actions matrix testing, linters, and auto-deploy)
+
+### 👑 Pre-Seeded Super Admin Credentials
+For testing and immediate deployment evaluation:
+- **Email**: `admin@namogpt.com` *(or set via `ADMIN_EMAIL` in `.env`)*
+- **Password**: `Admin@NamoGPT2026!` *(or set via `ADMIN_PASSWORD` in `.env`)*
+- **Role**: `superadmin`
+- **1-Click Login**: Simply click **"1-Click Login as Super Admin"** on the Sign In page.
+
 
 ---
 

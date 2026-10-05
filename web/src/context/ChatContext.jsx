@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { fetchAvailableModels, streamChatCompletion, DEFAULT_SERVER_URL } from '../services/api';
+import { useAuth } from './AuthContext';
 
 const ChatContext = createContext();
 
@@ -7,6 +8,8 @@ const STORAGE_KEY_CHATS = 'namogpt_chats_v1';
 const STORAGE_KEY_SETTINGS = 'namogpt_settings_v1';
 
 export function ChatProvider({ children }) {
+  const { token } = useAuth();
+
   // Chats State
   const [chats, setChats] = useState(() => {
     try {
@@ -212,6 +215,7 @@ export function ChatProvider({ children }) {
         systemPrompt: settings.systemPrompt,
         serverUrl: settings.serverUrl,
         apiKeys: settings.apiKeys,
+        token: token,
         signal: controller.signal,
         onChunk: (delta, fullText) => {
           tokenCount++;

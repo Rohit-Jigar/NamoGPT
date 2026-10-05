@@ -332,8 +332,76 @@ model_list:
       api_key: os.environ/GROQ_API_KEY_7
       rpm: 20
 
+  # Groq DeepSeek R1 Distill 70B Pool
+  - model_name: groq-r1
+    litellm_params:
+      model: groq/deepseek-r1-distill-llama-70b
+      api_key: os.environ/GROQ_API_KEY_1
+      rpm: 30
+
+  - model_name: groq-r1
+    litellm_params:
+      model: groq/deepseek-r1-distill-llama-70b
+      api_key: os.environ/GROQ_API_KEY_2
+      rpm: 30
+
+  - model_name: groq-r1
+    litellm_params:
+      model: groq/deepseek-r1-distill-llama-70b
+      api_key: os.environ/GROQ_API_KEY_3
+      rpm: 30
+
+  - model_name: groq-r1
+    litellm_params:
+      model: groq/deepseek-r1-distill-llama-70b
+      api_key: os.environ/GROQ_API_KEY_4
+      rpm: 30
+
+  # Groq Instant (Llama 3.1 8B Instant) Pool
+  - model_name: groq-instant
+    litellm_params:
+      model: groq/llama-3.1-8b-instant
+      api_key: os.environ/GROQ_API_KEY_1
+      rpm: 30
+
+  - model_name: groq-instant
+    litellm_params:
+      model: groq/llama-3.1-8b-instant
+      api_key: os.environ/GROQ_API_KEY_2
+      rpm: 30
+
+  - model_name: groq-instant
+    litellm_params:
+      model: groq/llama-3.1-8b-instant
+      api_key: os.environ/GROQ_API_KEY_3
+      rpm: 30
+
+  # OpenRouter DeepSeek R1 Free Pool
+  - model_name: openrouter-r1
+    litellm_params:
+      model: openrouter/deepseek/deepseek-r1:free
+      api_base: https://openrouter.ai/api/v1
+      api_key: os.environ/OPEN_ROUTER_API_KEY_1
+      rpm: 20
+
+  - model_name: openrouter-r1
+    litellm_params:
+      model: openrouter/deepseek/deepseek-r1:free
+      api_base: https://openrouter.ai/api/v1
+      api_key: os.environ/OPEN_ROUTER_API_KEY_2
+      rpm: 20
+
+  # Cloudflare Workers AI Pool (100% Free 10,000 neurons/day)
+  - model_name: cloudflare
+    litellm_params:
+      model: openai/@cf/meta/llama-3.3-70b-instruct
+      api_base: https://api.cloudflare.com/client/v4/ai/v1
+      api_key: os.environ/CF_API_TOKEN
+      rpm: 50
+
 litellm_settings:
   drop_params: true
   
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY
+

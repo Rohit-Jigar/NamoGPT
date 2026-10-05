@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useChat } from '../context/ChatContext';
+import { useAuth } from '../context/AuthContext';
 import {
   MessageSquare,
   Plus,
@@ -12,7 +13,10 @@ import {
   X,
   PanelLeftClose,
   Sparkles,
-  Bot
+  Bot,
+  Crown,
+  LogIn,
+  User
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -30,9 +34,31 @@ export default function Sidebar() {
     setIsSettingsOpen
   } = useChat();
 
+  const {
+    user,
+    isAuthenticated,
+    isSuperAdmin,
+    setIsAuthModalOpen,
+    setIsAdminModalOpen
+  } = useAuth();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [editingChatId, setEditingChatId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
+
+  function handleSelectChat(id) {
+    selectChat(id);
+    if (window.innerWidth < 768) {
+      setIsSidebarOpen(false);
+    }
+  }
+
+  function handleCreateNewChat() {
+    createNewChat();
+    if (window.innerWidth < 768) {
+      setIsSidebarOpen(false);
+    }
+  }
 
   // Group chats by date
   const filteredChats = useMemo(() => {
@@ -98,7 +124,7 @@ export default function Sidebar() {
             return (
               <div
                 key={chat.id}
-                onClick={() => !isEditing && selectChat(chat.id)}
+                onClick={() => !isEditing && handleSelectChat(chat.id)}
                 className={`group relative flex items-center justify-between px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors ${
                   isActive
                     ? 'bg-[#212121] text-white font-medium'
@@ -228,7 +254,7 @@ export default function Sidebar() {
           </div>
 
           <button
-            onClick={() => createNewChat()}
+            onClick={handleCreateNewChat}
             className="w-full flex items-center justify-between px-3 py-2.5 bg-[#212121] hover:bg-[#2f2f2f] text-white rounded-xl text-sm font-medium border border-[#303030] transition-all shadow-sm group"
           >
             <div className="flex items-center space-x-2">
@@ -274,32 +300,74 @@ export default function Sidebar() {
           )}
         </div>
 
-        {/* Footer: User profile & Settings */}
-        <div className="p-3 border-t border-[#303030] bg-[#171717] space-y-1">
+        {/* Footer: User profile, Admin console & Settings */}
+        <div className="p-3 border-t border-[#303030] bg-[#171717] space-y-1.5">
           {chats.length > 0 && (
             <button
               onClick={() => {
                 if (confirm('Clear all conversation history?')) clearAllChats();
               }}
-              className="w-full flex items-center space-x-2.5 px-3 py-2 text-xs text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
+              className="w-full flex items-center space-x-2.5 px-3 py-1.5 text-xs text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
             >
-              <Trash2 className="w-4 h-4 text-zinc-500 group-hover:text-rose-400" />
+              <Trash2 className="w-3.5 h-3.5 text-zinc-500 group-hover:text-rose-400" />
               <span>Clear all chats</span>
             </button>
           )}
 
-          <button
-            onClick={() => setIsSettingsOpen(true)}
-            className="w-full flex items-center justify-between px-3 py-2 text-sm text-zinc-300 hover:text-white hover:bg-[#212121] rounded-lg transition-colors"
-          >
-            <div className="flex items-center space-x-2.5">
-              <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 text-black font-semibold text-xs flex items-center justify-center shadow-sm">
-                N
+          {/* Super Admin Quick Access */}
+          {isSuperAdmin && (
+            <button
+              onClick={() => setIsAdminModalOpen(true)}
+              className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-xl transition-all"
+            >
+              <div className="flex items-center space-x-2">
+                <Crown className="w-4 h-4 text-amber-400 fill-current" />
+                <span>Super Admin Console</span>
               </div>
-              <span className="font-medium text-xs">Settings & Keys</span>
+              <span className="text-[9px] font-mono uppercase bg-amber-500/20 px-1.5 py-0.5 rounded">
+                Telemetry
+              </span>
+            </button>
+          )}
+
+          {/* User Profile or Sign In Card */}
+          {isAuthenticated ? (
+            <div className="flex items-center justify-between px-2.5 py-2 rounded-xl bg-[#212121] border border-zinc-800">
+              <div className="flex items-center space-x-2 min-w-0">
+                <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 text-black font-bold text-xs flex items-center justify-center shrink-0">
+                  {user.name ? user.name[0].toUpperCase() : 'U'}
+                </div>
+                <div className="truncate">
+                  <div className="text-xs font-medium text-white truncate leading-tight">{user.name}</div>
+                  <div className="text-[10px] text-zinc-400 font-mono truncate">{user.role}</div>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsSettingsOpen(true)}
+                className="p-1 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-700/60"
+                title="Settings"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
             </div>
-            <Settings className="w-4 h-4 text-zinc-400" />
-          </button>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setIsAuthModalOpen(true)}
+                className="flex-1 flex items-center justify-center space-x-2 px-3 py-2 text-xs font-semibold text-white bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-xl transition-colors"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Sign In / Register</span>
+              </button>
+              <button
+                onClick={() => setIsSettingsOpen(true)}
+                className="p-2 text-zinc-400 hover:text-white bg-zinc-800/60 hover:bg-zinc-800 rounded-xl border border-zinc-700/60"
+                title="Settings"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
       </aside>
     </>

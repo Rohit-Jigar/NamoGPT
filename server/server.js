@@ -4,8 +4,19 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
-import handler from './api/index.js';
+import handler, { loadConfig, buildPools } from './api/index.js';
 import openapi from './openapi.js';
+import {
+  registerUser,
+  loginUser,
+  getUserById,
+  getAllUsers,
+  authMiddleware,
+  requireAdmin,
+  seedSuperAdmin,
+  SUPER_ADMIN_CREDENTIALS
+} from './auth.js';
+import { AVAILABLE_MODELS } from './models-metadata.js';
 
 // Load .env from server dir or root
 if (fs.existsSync(path.resolve(process.cwd(), '.env'))) {
@@ -16,18 +27,152 @@ if (fs.existsSync(path.resolve(process.cwd(), '.env'))) {
   dotenv.config();
 }
 
+// Ensure Super Admin account is pre-seeded
+seedSuperAdmin();
+
 const app = express();
 const port = Number(process.env.PROXY_PORT || process.env.PORT || 3001);
 
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Model-Name', 'X-Gemini-Key', 'X-Groq-Key', 'X-OpenRouter-Key', 'X-Nvidia-Key', 'X-Aion-Key']
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Model-Name',
+    'X-Gemini-Key',
+    'X-Groq-Key',
+    'X-OpenRouter-Key',
+    'X-Nvidia-Key',
+    'X-Aion-Key',
+    'X-Cf-Key',
+    'X-Cloudflare-Key',
+    'X-Api-Key'
+  ]
 }));
 
 app.use(morgan('dev'));
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
+
+// Attach global auth middleware to decode JWT or LiteLLM Master Key
+app.use(authMiddleware);
+
+// --- AUTHENTICATION ROUTES ---
+
+// 1. Register new user
+app.post('/api/auth/register', (req, res) => {
+  try {
+    const { name, email, password } = req.body || {};
+    const result = registerUser({ name, email, password });
+    return res.status(201).json({
+      success: true,
+      message: 'Account created successfully.',
+      ...result
+    });
+  } catch (err) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+// 2. Login user
+app.post('/api/auth/login', (req, res) => {
+  try {
+    const { email, password } = req.body || {};
+    const result = loginUser({ email, password });
+    return res.status(200).json({
+      success: true,
+      message: 'Logged in successfully.',
+      ...result
+    });
+  } catch (err) {
+    return res.status(401).json({ success: false, error: err.message });
+  }
+});
+
+// 3. Current user profile
+app.get('/api/auth/me', (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ success: false, error: 'Unauthorized. Please log in.' });
+  }
+  const user = getUserById(req.user.id);
+  if (!user) {
+    return res.status(404).json({ success: false, error: 'User not found.' });
+  }
+  return res.status(200).json({ success: true, user });
+});
+
+// 4. List all users (Super Admin only)
+app.get('/api/auth/users', requireAdmin, (req, res) => {
+  try {
+    const users = getAllUsers();
+    return res.status(200).json({ success: true, users });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 5. Public Super Admin Credentials info (for 1-click evaluation & deployment login)
+app.get('/api/auth/superadmin-credentials', (_req, res) => {
+  return res.status(200).json({
+    email: SUPER_ADMIN_CREDENTIALS.email,
+    password: SUPER_ADMIN_CREDENTIALS.password,
+    role: SUPER_ADMIN_CREDENTIALS.role,
+    name: SUPER_ADMIN_CREDENTIALS.name,
+    isDefault: SUPER_ADMIN_CREDENTIALS.email === 'admin@namogpt.com'
+  });
+});
+
+// --- ADMIN & DIAGNOSTIC ROUTES ---
+
+function maskKey(key) {
+  if (!key || typeof key !== 'string') return null;
+  if (key.length <= 8) return '••••••••';
+  return `${key.slice(0, 4)}...${key.slice(-4)}`;
+}
+
+// Admin System Telemetry & Environment Inspection
+app.get('/api/admin/status', requireAdmin, (req, res) => {
+  try {
+    const cfg = loadConfig();
+    const pools = buildPools(cfg);
+
+    // Scan environment for provider keys (non-empty only)
+    const envKeys = {
+      gemini: Object.keys(process.env).filter(k => k.startsWith('GEMINI_API_KEY') && Boolean(process.env[k]?.trim())).map(k => maskKey(process.env[k])),
+      groq: Object.keys(process.env).filter(k => k.startsWith('GROQ_API_KEY') && Boolean(process.env[k]?.trim())).map(k => maskKey(process.env[k])),
+      openrouter: Object.keys(process.env).filter(k => (k.startsWith('OPEN_ROUTER_API_KEY') || k.startsWith('OPENROUTER_API_KEY')) && Boolean(process.env[k]?.trim())).map(k => maskKey(process.env[k])),
+      nvidia: Object.keys(process.env).filter(k => (k.startsWith('NVIDIA_NIM_API_KEY') || k.startsWith('NVIDIA_API_KEY')) && Boolean(process.env[k]?.trim())).map(k => maskKey(process.env[k])),
+      cloudflare: process.env.CF_API_TOKEN?.trim() ? [maskKey(process.env.CF_API_TOKEN)] : [],
+      aion: Object.keys(process.env).filter(k => k.startsWith('AION_API_KEY') && Boolean(process.env[k]?.trim())).map(k => maskKey(process.env[k]))
+    };
+
+    const poolSummary = {};
+    for (const [name, pool] of Object.entries(pools)) {
+      poolSummary[name] = {
+        configuredCount: pool.items.filter(it => Boolean(it.apiKey)).length,
+        totalItems: pool.items.length
+      };
+    }
+
+    return res.status(200).json({
+      success: true,
+      server: {
+        uptime: Math.floor(process.uptime()),
+        memory: process.memoryUsage(),
+        nodeVersion: process.version,
+        platform: process.platform,
+        masterKeyConfigured: Boolean(process.env.LITELLM_MASTER_KEY),
+        cloudflareAccountIdConfigured: Boolean(process.env.CF_ACCOUNT_ID)
+      },
+      keysDetected: envKeys,
+      poolSummary,
+      registeredUsersCount: getAllUsers().length
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 // Swagger & OpenAPI
 app.get('/openapi.json', (_req, res) => res.json(openapi));
@@ -70,7 +215,14 @@ if (activeWebDist) {
   // Single page app fallback for GET requests that are not API paths
   app.get('*', (req, res, next) => {
     const p = req.path;
-    if (p.startsWith('/v1') || p.startsWith('/api') || p === '/health' || p.startsWith('/docs') || p.startsWith('/openapi')) {
+    if (
+      p.startsWith('/v1') ||
+      p.startsWith('/api') ||
+      p === '/health' ||
+      p.startsWith('/docs') ||
+      p.startsWith('/openapi') ||
+      p.startsWith('/anthropic')
+    ) {
       return next();
     }
     res.sendFile(path.join(activeWebDist, 'index.html'));
@@ -89,6 +241,8 @@ app.listen(port, () => {
   ║  💻 Web UI: http://localhost:${port}                             ║
   ║  ⚡ OpenAI API: http://localhost:${port}/v1/chat/completions     ║
   ║  📋 Model Catalog: http://localhost:${port}/api/models            ║
+  ║  🔐 Auth Endpoints: http://localhost:${port}/api/auth/login        ║
+  ║  👑 Super Admin: ${SUPER_ADMIN_CREDENTIALS.email}                  ║
   ║  📖 API Docs: http://localhost:${port}/docs                       ║
   ╚═══════════════════════════════════════════════════════════════╝
   `);

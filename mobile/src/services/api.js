@@ -1,4 +1,4 @@
-export const DEFAULT_MOBILE_SERVER = 'http://10.0.2.2:3001'; // Default for Android Emulator or localhost
+export const DEFAULT_MOBILE_SERVER = 'http://10.0.2.2:3001'; // Default for Android Emulator, or LAN IP (e.g. http://192.168.1.x:3001)
 
 export const FALLBACK_MODELS = [
   {
@@ -29,11 +29,29 @@ export const FALLBACK_MODELS = [
     supportsVision: false
   },
   {
+    id: "groq-instant",
+    name: "Llama 3.1 8B Instant",
+    provider: "Groq Cloud",
+    badge: "Lowest Latency",
+    description: "Near-instantaneous responses",
+    speed: "⚡⚡⚡⚡ 750 t/s",
+    supportsVision: false
+  },
+  {
     id: "openrouter",
     name: "Nemotron 3 Ultra 550B",
     provider: "OpenRouter",
     badge: "Free 550B",
     description: "Massive open model",
+    speed: "⚡ Steady",
+    supportsVision: false
+  },
+  {
+    id: "openrouter-r1",
+    name: "DeepSeek R1 (OpenRouter)",
+    provider: "OpenRouter",
+    badge: "Free Tier",
+    description: "Flagship reasoning open model",
     speed: "⚡ Steady",
     supportsVision: false
   },
@@ -44,6 +62,15 @@ export const FALLBACK_MODELS = [
     badge: "NVIDIA",
     description: "Accelerated enterprise intelligence",
     speed: "⚡ Fast",
+    supportsVision: false
+  },
+  {
+    id: "cloudflare",
+    name: "Llama 3.3 70B (Cloudflare)",
+    provider: "Cloudflare Workers AI",
+    badge: "10k Free Neurons",
+    description: "Edge accelerated serverless inference",
+    speed: "⚡⚡ Fast",
     supportsVision: false
   }
 ];
@@ -63,6 +90,7 @@ export async function sendMobileMessage({
   messages,
   model,
   serverUrl,
+  token = null,
   apiKeys = {}
 }) {
   const headers = {
@@ -70,10 +98,15 @@ export async function sendMobileMessage({
     'X-Model-Name': model
   };
 
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   if (apiKeys.gemini) headers['X-Gemini-Key'] = apiKeys.gemini;
   if (apiKeys.groq) headers['X-Groq-Key'] = apiKeys.groq;
   if (apiKeys.openrouter) headers['X-OpenRouter-Key'] = apiKeys.openrouter;
   if (apiKeys.nvidia) headers['X-Nvidia-Key'] = apiKeys.nvidia;
+  if (apiKeys.cloudflare) headers['X-Cf-Key'] = apiKeys.cloudflare;
 
   const res = await fetch(`${serverUrl}/v1/chat/completions`, {
     method: 'POST',
@@ -92,4 +125,41 @@ export async function sendMobileMessage({
 
   const data = await res.json();
   return data.choices?.[0]?.message?.content || 'No response';
+}
+
+export async function mobileLoginApi(serverUrl, { email, password }) {
+  const res = await fetch(`${serverUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Login failed');
+  return data;
+}
+
+export async function mobileRegisterApi(serverUrl, { name, email, password }) {
+  const res = await fetch(`${serverUrl}/api/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, email, password })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Registration failed');
+  return data;
+}
+
+export async function mobileFetchSuperAdminCredentials(serverUrl) {
+  try {
+    const res = await fetch(`${serverUrl}/api/auth/superadmin-credentials`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return {
+      email: 'admin@namogpt.com',
+      password: 'Admin@NamoGPT2026!',
+      role: 'superadmin',
+      name: 'Super Admin'
+    };
+  }
 }

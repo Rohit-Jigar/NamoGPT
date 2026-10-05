@@ -150,5 +150,24 @@ export const AVAILABLE_MODELS = [
     upstreamModel: "openai/aion-labs/aion-2.0",
     keyEnvVar: "AION_API_KEY",
     icon: "aion"
+  },
+  {
+    id: "cloudflare",
+    name: "Llama 3.3 70B (Cloudflare)",
+    provider: "Cloudflare Workers AI",
+    category: "Edge Accelerated",
+    badge: "Free 10k Neurons",
+    badgeColor: "bg-orange-500/10 text-orange-400 border-orange-500/20",
+    description: "Serverless edge inference powered by Cloudflare Workers AI with 10k free daily neurons.",
+    contextWindow: "128,000 tokens",
+    maxTokens: 4096,
+    supportsVision: false,
+    supportsAudio: false,
+    supportsReasoning: false,
+    speed: "⚡⚡⚡ Fast",
+    cost: "100% Free",
+    upstreamModel: "openai/@cf/meta/llama-3.3-70b-instruct",
+    keyEnvVar: "CF_API_TOKEN",
+    icon: "cloudflare"
   }
 ];
