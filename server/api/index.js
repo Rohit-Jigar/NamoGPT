@@ -383,11 +383,12 @@ export default async function handler(req, res) {
     if (!modelName) modelName = 'gemini';
     if (modelName === 'cloudflare' || modelName.includes('cloudflare')) modelName = 'cloudflare';
     else if (modelName.startsWith('gemini')) modelName = 'gemini';
-    else if (modelName.includes('deepseek-r1') && (modelName.includes('openrouter') || !pools['groq-r1'])) modelName = 'openrouter-r1';
-    else if (modelName.includes('deepseek-r1') || modelName === 'groq-r1') modelName = 'groq-r1';
-    else if (modelName.includes('instant') || modelName === 'groq-instant') modelName = 'groq-instant';
-    else if (modelName.includes('llama') || modelName.includes('groq')) modelName = 'groq';
-    else if (modelName.includes('nemotron') && pools['openrouter']) modelName = 'openrouter';
+    else if (modelName === 'groq-r1' || (modelName.includes('qwen') && !modelName.includes('openrouter'))) modelName = 'groq-r1';
+    else if (modelName === 'openrouter-r1' || (modelName.includes('qwen') && modelName.includes('openrouter')) || modelName.includes('deepseek-r1')) modelName = 'openrouter-r1';
+    else if (modelName.includes('instant') || modelName === 'groq-instant' || modelName.includes('gpt-oss-20b')) modelName = 'groq-instant';
+    else if (modelName.includes('gpt-oss') || modelName.includes('groq') || modelName.includes('llama')) modelName = 'groq';
+    else if (modelName.includes('nemotron') && modelName.includes('super')) modelName = 'nvidia';
+    else if (modelName.includes('nemotron') || modelName.includes('openrouter')) modelName = 'openrouter';
     else if (modelName.includes('nvidia') && pools['nvidia']) modelName = 'nvidia';
     else if (modelName.includes('aion') && pools['aion-2.0']) modelName = 'aion-2.0';
 
@@ -429,7 +430,8 @@ export default async function handler(req, res) {
       try {
         const resp = await forwardRequest(item, forwardPath, req);
         
-        if (resp.status >= 200 && resp.status < 500) {
+        // Only 2xx responses are treated as success; 4xx/5xx failover to next key in pool
+        if (resp.status >= 200 && resp.status < 300) {
           for (const h of Object.keys(resp.headers || {})) {
             if (['transfer-encoding', 'connection', 'content-encoding'].includes(h)) continue;
             res.setHeader(h, resp.headers[h]);
@@ -445,12 +447,14 @@ export default async function handler(req, res) {
           return res.status(resp.status).send(resp.data);
         }
         
-        lastErr = new Error(`upstream ${resp.status}`);
+        lastErr = new Error(`upstream status ${resp.status}`);
+        console.warn(`[NamoGPT] Upstream returned ${resp.status} for ${modelName} (key index ${idx}), attempting failover...`);
       } catch (err) {
         lastErr = err;
         console.error(`Attempt ${attempt} for ${modelName} failed:`, err.message);
       }
     }
+
 
     // If all configured keys failed (e.g. rate limit), return fallback or 502
     if (lastErr && tried.length === 0) {
