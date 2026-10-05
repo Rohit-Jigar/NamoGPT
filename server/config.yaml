@@ -33,38 +33,33 @@ model_list:
   # Groq Pool
   - model_name: groq
     litellm_params:
-      model: groq/llama-3.3-70b-versatile
+      model: groq/openai/gpt-oss-120b
       api_key: os.environ/GROQ_API_KEY_1
 
   - model_name: groq
     litellm_params:
-      model: groq/llama-3.3-70b-versatile
+      model: groq/qwen/qwen3.8-27b
+      api_key: os.environ/GROQ_API_KEY_1
+
+  - model_name: groq
+    litellm_params:
+      model: groq/openai/gpt-oss-120b
       api_key: os.environ/GROQ_API_KEY_2
 
   - model_name: groq
     litellm_params:
-      model: groq/llama-3.3-70b-versatile
+      model: groq/qwen/qwen3.8-27b
+      api_key: os.environ/GROQ_API_KEY_2
+
+  - model_name: groq
+    litellm_params:
+      model: groq/openai/gpt-oss-120b
       api_key: os.environ/GROQ_API_KEY_3
 
   - model_name: groq
     litellm_params:
       model: groq/llama-3.3-70b-versatile
-      api_key: os.environ/GROQ_API_KEY_4
-
-  - model_name: groq
-    litellm_params:
-      model: groq/llama-3.3-70b-versatile
-      api_key: os.environ/GROQ_API_KEY_5
-
-  - model_name: groq
-    litellm_params:
-      model: groq/llama-3.3-70b-versatile
-      api_key: os.environ/GROQ_API_KEY_6
-
-  - model_name: groq
-    litellm_params:
-      model: groq/llama-3.3-70b-versatile
-      api_key: os.environ/GROQ_API_KEY_7
+      api_key: os.environ/GROQ_API_KEY_1
 
   - model_name: aion-2.0
     litellm_params:
