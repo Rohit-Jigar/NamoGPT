@@ -83,6 +83,19 @@ export async function fetchAvailableModels(serverUrl = DEFAULT_SERVER_URL) {
         supportsReasoning: true,
         speed: "⚡⚡⚡ Fast",
         cost: "Free Credits"
+      },
+      {
+        id: "9router",
+        name: "Claude 3.5 Sonnet (via 9Router)",
+        provider: "9Router Bridge",
+        category: "Coding & Reasoning",
+        badge: "9Router Local",
+        badgeColor: "bg-orange-500/10 text-orange-400 border-orange-500/20",
+        description: "Routes locally via 9Router (port 20128) with 3-tier smart fallback and 40+ provider support.",
+        supportsVision: true,
+        supportsReasoning: true,
+        speed: "⚡⚡⚡ Fast",
+        cost: "Local Bridge"
       }
     ];
   }
@@ -127,6 +140,7 @@ export async function streamChatCompletion({
     if (apiKeys.nvidia) headers['X-Nvidia-Key'] = apiKeys.nvidia;
     if (apiKeys.aion) headers['X-Aion-Key'] = apiKeys.aion;
     if (apiKeys.cloudflare) headers['X-Cf-Key'] = apiKeys.cloudflare;
+    if (apiKeys.ninerouter || apiKeys['9router']) headers['X-9Router-Key'] = apiKeys.ninerouter || apiKeys['9router'];
 
     const res = await fetch(`${serverUrl}/v1/chat/completions`, {
       method: 'POST',

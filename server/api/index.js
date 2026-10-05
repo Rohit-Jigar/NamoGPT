@@ -78,6 +78,12 @@ export function resolveApiKey(maybeEnv) {
     if (varName.includes('AION')) {
       if (process.env.AION_API_KEY) return process.env.AION_API_KEY;
     }
+    // Check 9Router variations
+    if (varName.includes('NINEROUTER') || varName.includes('9ROUTER')) {
+      if (process.env.NINEROUTER_API_KEY) return process.env.NINEROUTER_API_KEY;
+      if (process.env['9ROUTER_API_KEY']) return process.env['9ROUTER_API_KEY'];
+      return 'sk-9router-local';
+    }
     return null;
   }
   return maybeEnv;
@@ -301,7 +307,7 @@ export default async function handler(req, res) {
   // CORS Headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Model-Name, X-Gemini-Key, X-Groq-Key, X-OpenRouter-Key, X-Nvidia-Key, X-Aion-Key');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Model-Name, X-Gemini-Key, X-Groq-Key, X-OpenRouter-Key, X-Nvidia-Key, X-Aion-Key, X-Cf-Key, X-9Router-Key, X-NineRouter-Key');
   
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -391,6 +397,7 @@ export default async function handler(req, res) {
     else if (modelName.includes('nemotron') || modelName.includes('openrouter')) modelName = 'openrouter';
     else if (modelName.includes('nvidia') && pools['nvidia']) modelName = 'nvidia';
     else if (modelName.includes('aion') && pools['aion-2.0']) modelName = 'aion-2.0';
+    else if (modelName === '9router' || modelName.includes('9router')) modelName = '9router';
 
     const pool = pools[modelName] || pools['gemini'] || pools['groq'] || Object.values(pools)[0];
     if (!pool) {
@@ -406,6 +413,8 @@ export default async function handler(req, res) {
       req.headers['x-aion-key'] ||
       req.headers['x-cf-key'] ||
       req.headers['x-cloudflare-key'] ||
+      req.headers['x-9router-key'] ||
+      req.headers['x-ninerouter-key'] ||
       null;
 
     const tried = [];

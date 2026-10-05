@@ -17,6 +17,7 @@ import {
   SUPER_ADMIN_CREDENTIALS
 } from './auth.js';
 import { AVAILABLE_MODELS } from './models-metadata.js';
+import { getMetrics } from './metrics.js';
 
 // Load .env from server dir or root
 if (fs.existsSync(path.resolve(process.cwd(), '.env'))) {
@@ -47,6 +48,8 @@ app.use(cors({
     'X-Aion-Key',
     'X-Cf-Key',
     'X-Cloudflare-Key',
+    'X-9Router-Key',
+    'X-NineRouter-Key',
     'X-Api-Key'
   ]
 }));
@@ -144,7 +147,8 @@ app.get('/api/admin/status', requireAdmin, (req, res) => {
       openrouter: Object.keys(process.env).filter(k => (k.startsWith('OPEN_ROUTER_API_KEY') || k.startsWith('OPENROUTER_API_KEY')) && Boolean(process.env[k]?.trim())).map(k => maskKey(process.env[k])),
       nvidia: Object.keys(process.env).filter(k => (k.startsWith('NVIDIA_NIM_API_KEY') || k.startsWith('NVIDIA_API_KEY')) && Boolean(process.env[k]?.trim())).map(k => maskKey(process.env[k])),
       cloudflare: process.env.CF_API_TOKEN?.trim() ? [maskKey(process.env.CF_API_TOKEN)] : [],
-      aion: Object.keys(process.env).filter(k => k.startsWith('AION_API_KEY') && Boolean(process.env[k]?.trim())).map(k => maskKey(process.env[k]))
+      aion: Object.keys(process.env).filter(k => k.startsWith('AION_API_KEY') && Boolean(process.env[k]?.trim())).map(k => maskKey(process.env[k])),
+      ninerouter: process.env.NINEROUTER_API_KEY ? [maskKey(process.env.NINEROUTER_API_KEY)] : ['sk-9router-local (auto)']
     };
 
     const poolSummary = {};
@@ -171,6 +175,43 @@ app.get('/api/admin/status', requireAdmin, (req, res) => {
     });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Prometheus Standard Metrics Scrape Endpoint
+app.get('/metrics', getMetrics);
+
+// 9Router Live Connectivity Ping Helper
+app.get('/api/9router/ping', async (req, res) => {
+  const baseUrl = (req.query.url || 'http://localhost:20128/v1').replace(/\/$/, '');
+  const apiKey = req.query.apiKey || process.env.NINEROUTER_API_KEY || '';
+  const startTime = Date.now();
+  try {
+    const axios = (await import('axios')).default;
+    const axiosRes = await axios.get(`${baseUrl}/models`, {
+      headers: {
+        'Accept': 'application/json',
+        ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {})
+      },
+      timeout: 5000,
+      validateStatus: () => true
+    });
+    const latency = Date.now() - startTime;
+    return res.status(200).json({
+      success: axiosRes.status >= 200 && axiosRes.status < 300,
+      status: axiosRes.status,
+      latency,
+      data: axiosRes.data,
+      url: `${baseUrl}/models`
+    });
+  } catch (err) {
+    const latency = Date.now() - startTime;
+    return res.status(200).json({
+      success: false,
+      error: err.message,
+      latency,
+      url: `${baseUrl}/models`
+    });
   }
 });
 

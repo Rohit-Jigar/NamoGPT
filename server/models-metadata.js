@@ -169,5 +169,23 @@ export const AVAILABLE_MODELS = [
     upstreamModel: "openai/@cf/meta/llama-3.3-70b-instruct",
     keyEnvVar: "CF_API_TOKEN",
     icon: "cloudflare"
+  },
+  {
+    id: "9router",
+    name: "Claude 3.5 Sonnet (via 9Router)",
+    provider: "9Router Bridge",
+    category: "Coding & Reasoning",
+    badge: "9Router Local",
+    badgeColor: "bg-orange-500/10 text-orange-400 border-orange-500/20",
+    description: "Routes locally via 9Router (port 20128) with 3-tier smart fallback and 40+ provider support.",
+    contextWindow: "200,000 tokens",
+    maxTokens: 8192,
+    supportsVision: true,
+    supportsReasoning: true,
+    speed: "⚡⚡⚡ Fast",
+    cost: "Local Bridge",
+    upstreamModel: "openai/claude-3-5-sonnet",
+    keyEnvVar: "NINEROUTER_API_KEY",
+    icon: "router"
   }
 ];

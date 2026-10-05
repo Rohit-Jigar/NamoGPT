@@ -71,7 +71,8 @@ export default function AdminModal() {
     { id: 'openrouter', name: 'OpenRouter Free Tier (Nemotron & DeepSeek)', icon: '🔵', envVar: 'OPEN_ROUTER_API_KEY_1..7' },
     { id: 'nvidia', name: 'NVIDIA NIM (Nemotron Super 120B)', icon: '🟢', envVar: 'NVIDIA_NIM_API_KEY_1..5' },
     { id: 'cloudflare', name: 'Cloudflare Workers AI (10k Neurons)', icon: '🟠', envVar: 'CF_API_TOKEN' },
-    { id: 'aion', name: 'AION Labs 2.0 Engine', icon: '🔴', envVar: 'AION_API_KEY_1..8' }
+    { id: 'aion', name: 'AION Labs 2.0 Engine', icon: '🔴', envVar: 'AION_API_KEY_1..8' },
+    { id: 'ninerouter', name: '9Router Bridge (Port 20128)', icon: '🔄', envVar: 'NINEROUTER_API_KEY' }
   ];
 
   return (

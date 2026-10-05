@@ -8,20 +8,149 @@ import {
   Sparkles,
   ExternalLink,
   Check,
-  ShieldCheck
+  ShieldCheck,
+  Router,
+  Activity,
+  CheckCircle2,
+  XCircle,
+  Loader2,
+  Zap
 } from 'lucide-react';
 
 export default function SettingsModal() {
   const { isSettingsOpen, setIsSettingsOpen, settings, updateSettings } = useChat();
 
   const [activeTab, setActiveTab] = useState('keys');
-  const [formData, setFormData] = useState(settings);
+  const [formData, setFormData] = useState(() => ({
+    ...settings,
+    apiKeys: {
+      gemini: '',
+      groq: '',
+      openrouter: '',
+      nvidia: '',
+      aion: '',
+      cloudflare: '',
+      ninerouter: '',
+      ...(settings.apiKeys || {})
+    },
+    nineRouter: {
+      enabled: settings.nineRouter?.enabled ?? true,
+      baseUrl: settings.nineRouter?.baseUrl || 'http://localhost:20128/v1',
+      apiKey: settings.nineRouter?.apiKey || settings.apiKeys?.ninerouter || ''
+    }
+  }));
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [isPinging, setIsPinging] = useState(false);
+  const [pingResult, setPingResult] = useState(null);
 
   if (!isSettingsOpen) return null;
 
+  async function handlePing9Router() {
+    setIsPinging(true);
+    setPingResult(null);
+
+    const baseUrl = (formData.nineRouter?.baseUrl || 'http://localhost:20128/v1').replace(/\/$/, '');
+    const pingEndpoint = `${baseUrl}/models`;
+    const apiKey = formData.nineRouter?.apiKey || formData.apiKeys?.ninerouter || '';
+    const startTime = performance.now();
+
+    try {
+      // 1. Direct browser fetch to 9router /v1/models
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+      const headers = { Accept: 'application/json' };
+      if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+
+      const res = await fetch(pingEndpoint, {
+        method: 'GET',
+        headers,
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      const latency = Math.round(performance.now() - startTime);
+
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const count = Array.isArray(data?.data)
+          ? data.data.length
+          : Array.isArray(data)
+          ? data.length
+          : 0;
+        setPingResult({
+          success: true,
+          latency,
+          message: `Live bridge connected on port 20128 (${latency}ms latency${
+            count > 0 ? ` • ${count} upstream models detected` : ' • HTTP 200 OK'
+          })`
+        });
+        return;
+      } else {
+        setPingResult({
+          success: false,
+          latency,
+          message: `9Router reached but responded with HTTP ${res.status}: ${res.statusText}`
+        });
+        return;
+      }
+    } catch (directErr) {
+      // 2. Direct browser fetch failed (e.g. CORS restrictions on localhost:20128 or network).
+      // Fallback: ping via backend server /api/9router/ping
+      try {
+        const proxyRes = await fetch(
+          `${formData.serverUrl || ''}/api/9router/ping?url=${encodeURIComponent(baseUrl)}${
+            apiKey ? `&apiKey=${encodeURIComponent(apiKey)}` : ''
+          }`
+        );
+        const latency = Math.round(performance.now() - startTime);
+        if (proxyRes.ok) {
+          const data = await proxyRes.json();
+          if (data.success) {
+            const count = Array.isArray(data.data?.data)
+              ? data.data.data.length
+              : 0;
+            setPingResult({
+              success: true,
+              latency: data.latency || latency,
+              message: `Live bridge connected via server proxy (${data.latency || latency}ms latency${
+                count > 0 ? ` • ${count} models reported` : ' • HTTP 200 OK'
+              })`
+            });
+            return;
+          }
+        }
+      } catch (proxyErr) {
+        // Fall through to error
+      }
+
+      const latency = Math.round(performance.now() - startTime);
+      setPingResult({
+        success: false,
+        latency,
+        message:
+          directErr.name === 'AbortError'
+            ? `Connection timed out after 4 seconds. Ensure 9Router is actively running at ${baseUrl}.`
+            : `Could not connect to ${pingEndpoint}. Please ensure 9Router is running on port 20128.`
+      });
+    } finally {
+      setIsPinging(false);
+    }
+  }
+
   function handleSave() {
-    updateSettings(formData);
+    updateSettings({
+      ...formData,
+      apiKeys: {
+        ...formData.apiKeys,
+        ninerouter: formData.nineRouter?.apiKey || formData.apiKeys?.ninerouter || ''
+      },
+      nineRouter: {
+        enabled: formData.nineRouter?.enabled ?? true,
+        baseUrl: formData.nineRouter?.baseUrl || 'http://localhost:20128/v1',
+        apiKey: formData.nineRouter?.apiKey || ''
+      }
+    });
     setSavedSuccess(true);
     setTimeout(() => {
       setSavedSuccess(false);
@@ -64,6 +193,13 @@ export default function SettingsModal() {
       desc: '10,000 free daily neurons (Llama 3.3 70B)',
       url: 'https://dash.cloudflare.com/profile/api-tokens',
       keyField: 'cloudflare'
+    },
+    {
+      id: '9router',
+      name: '9Router Local Bridge',
+      desc: 'Local bridge on port 20128 (Claude 3.5 & GPT-4o)',
+      url: 'http://localhost:20128/v1/models',
+      keyField: 'ninerouter'
     }
   ];
 
@@ -120,6 +256,17 @@ export default function SettingsModal() {
           >
             <Server className="w-3.5 h-3.5" />
             <span>LiteLLM Server</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('9router')}
+            className={`flex items-center space-x-2 px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
+              activeTab === '9router'
+                ? 'border-orange-500 text-orange-400'
+                : 'border-transparent text-zinc-400 hover:text-white'
+            }`}
+          >
+            <Router className="w-3.5 h-3.5" />
+            <span>9Router Bridge</span>
           </button>
         </div>
 
@@ -225,6 +372,163 @@ export default function SettingsModal() {
                   placeholder="http://localhost:3001"
                   className="w-full bg-[#212121] text-xs text-white placeholder-zinc-500 px-3 py-2 rounded-lg border border-zinc-800 focus:border-emerald-500 outline-none font-mono"
                 />
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: 9Router Local Bridge */}
+          {activeTab === '9router' && (
+            <div className="space-y-4">
+              <div className="p-3.5 rounded-xl bg-orange-500/10 border border-orange-500/20 text-xs text-orange-300 flex items-start gap-2.5">
+                <Router className="w-5 h-5 text-orange-400 shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-semibold text-white">9Router Local Bridge Integration</div>
+                  <div className="text-[11px] text-zinc-300 mt-0.5 leading-relaxed">
+                    Routes queries locally through 9Router on port 20128 with smart 3-tier fallback and 40+ provider capabilities (Claude 3.5 Sonnet, GPT-4o, etc.).
+                  </div>
+                </div>
+              </div>
+
+              {/* Enable / Disable Switch */}
+              <div className="p-4 rounded-xl bg-[#212121] border border-zinc-800 flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-semibold text-white flex items-center gap-2">
+                    <span>Enable 9Router Bridge</span>
+                    <span
+                      className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                        formData.nineRouter?.enabled
+                          ? 'bg-orange-500/20 text-orange-400 border-orange-500/30'
+                          : 'bg-zinc-800 text-zinc-500 border-zinc-700'
+                      }`}
+                    >
+                      {formData.nineRouter?.enabled ? 'Active' : 'Disabled'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-zinc-400 mt-0.5">
+                    Allow NamoGPT to route requests through the local 9Router bridge.
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.nineRouter?.enabled ?? true}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        nineRouter: {
+                          ...formData.nineRouter,
+                          enabled: e.target.checked
+                        }
+                      })
+                    }
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-600"></div>
+                </label>
+              </div>
+
+              {/* 9Router Base URL */}
+              <div className="space-y-1.5 p-4 rounded-xl bg-[#212121] border border-zinc-800">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-white">9Router Base URL</label>
+                  <span className="text-[10px] text-zinc-500 font-mono">Port 20128</span>
+                </div>
+                <p className="text-[11px] text-zinc-400">
+                  OpenAI-compatible HTTP endpoint where 9Router listens for requests.
+                </p>
+                <input
+                  type="text"
+                  value={formData.nineRouter?.baseUrl ?? 'http://localhost:20128/v1'}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      nineRouter: {
+                        ...formData.nineRouter,
+                        baseUrl: e.target.value
+                      }
+                    })
+                  }
+                  placeholder="http://localhost:20128/v1"
+                  className="w-full bg-zinc-900 text-xs text-white placeholder-zinc-500 px-3 py-2 rounded-lg border border-zinc-700/60 focus:border-orange-500 outline-none font-mono"
+                />
+              </div>
+
+              {/* Optional API Key */}
+              <div className="space-y-1.5 p-4 rounded-xl bg-[#212121] border border-zinc-800">
+                <label className="text-xs font-semibold text-white">9Router API Key (Optional)</label>
+                <p className="text-[11px] text-zinc-400">
+                  Only needed if you configured an authorization token on your local 9Router proxy.
+                </p>
+                <input
+                  type="password"
+                  value={formData.nineRouter?.apiKey ?? ''}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      nineRouter: {
+                        ...formData.nineRouter,
+                        apiKey: e.target.value
+                      }
+                    })
+                  }
+                  placeholder="Leave blank or enter custom key..."
+                  className="w-full bg-zinc-900 text-xs text-white placeholder-zinc-500 px-3 py-2 rounded-lg border border-zinc-700/60 focus:border-orange-500 outline-none"
+                />
+              </div>
+
+              {/* Connectivity Ping Button & Status */}
+              <div className="p-4 rounded-xl bg-[#212121] border border-zinc-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-semibold text-white flex items-center gap-1.5">
+                      <Activity className="w-3.5 h-3.5 text-orange-400" />
+                      <span>Live Bridge Connectivity Ping</span>
+                    </div>
+                    <p className="text-[11px] text-zinc-400 mt-0.5">
+                      Sends a live HTTP GET request to <code className="text-orange-300 font-mono text-[10px]">{(formData.nineRouter?.baseUrl || 'http://localhost:20128/v1').replace(/\/$/, '')}/models</code>.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handlePing9Router}
+                    disabled={isPinging}
+                    className="flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white text-xs font-semibold transition-all shadow-md shadow-orange-950/30 shrink-0"
+                  >
+                    {isPinging ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Testing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="w-3.5 h-3.5" />
+                        <span>Ping 9Router</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {pingResult && (
+                  <div
+                    className={`p-3 rounded-xl border text-xs flex items-start gap-2.5 animate-in fade-in duration-150 ${
+                      pingResult.success
+                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                        : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                    }`}
+                  >
+                    {pingResult.success ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    ) : (
+                      <XCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                    )}
+                    <div className="flex-1 space-y-0.5">
+                      <div className="font-semibold">
+                        {pingResult.success ? 'Bridge Operational' : 'Bridge Unreachable'}
+                      </div>
+                      <div className="text-[11px] text-zinc-300">{pingResult.message}</div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

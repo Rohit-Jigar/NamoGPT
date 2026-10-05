@@ -43,7 +43,14 @@ export function ChatProvider({ children }) {
         groq: '',
         openrouter: '',
         nvidia: '',
-        aion: ''
+        aion: '',
+        cloudflare: '',
+        ninerouter: ''
+      },
+      nineRouter: {
+        enabled: true,
+        baseUrl: 'http://localhost:20128/v1',
+        apiKey: ''
       },
       serverUrl: DEFAULT_SERVER_URL,
       temperature: 0.7,
@@ -303,6 +310,10 @@ export function ChatProvider({ children }) {
       apiKeys: {
         ...prev.apiKeys,
         ...(partial.apiKeys || {})
+      },
+      nineRouter: {
+        ...(prev.nineRouter || {}),
+        ...(partial.nineRouter || {})
       }
     }));
   }

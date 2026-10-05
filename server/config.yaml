@@ -362,6 +362,21 @@ model_list:
       api_key: os.environ/CF_API_TOKEN
       rpm: 50
 
+  # 9Router Local Bridge Pool (Port 20128)
+  - model_name: 9router
+    litellm_params:
+      model: openai/claude-3-5-sonnet
+      api_base: http://localhost:20128/v1
+      api_key: os.environ/NINEROUTER_API_KEY
+      rpm: 120
+
+  - model_name: 9router
+    litellm_params:
+      model: openai/gpt-4o
+      api_base: http://localhost:20128/v1
+      api_key: os.environ/NINEROUTER_API_KEY
+      rpm: 120
+
 litellm_settings:
   drop_params: true
   

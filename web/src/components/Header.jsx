@@ -30,7 +30,8 @@ export default function Header() {
     isGenerating,
     setIsExportOpen,
     createNewChat,
-    setIsSettingsOpen
+    setIsSettingsOpen,
+    settings
   } = useChat();
 
   const {
@@ -106,7 +107,9 @@ export default function Header() {
               </div>
 
               <div className="max-h-[360px] overflow-y-auto py-1 space-y-1">
-                {models.map((m) => {
+                {models
+                  .filter((m) => m.id !== '9router' || settings?.nineRouter?.enabled !== false)
+                  .map((m) => {
                   const isSelected = m.id === selectedModel;
                   return (
                     <div
