@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { fetchAvailableModels, streamChatCompletion, DEFAULT_SERVER_URL } from '../services/api';
+import { fetchAvailableModels, streamChatCompletion, searchWebAPI, DEFAULT_SERVER_URL } from '../services/api';
 import { useAuth } from './AuthContext';
 
 const ChatContext = createContext();
@@ -26,6 +26,10 @@ export function ChatProvider({ children }) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStats, setGenerationStats] = useState(null); // { tps, elapsed }
 
+  // Advanced Feature Toggles (ChatGPT-style Web Search & Thinking Mode)
+  const [isWebSearchEnabled, setIsWebSearchEnabled] = useState(false);
+  const [isThinkingModeEnabled, setIsThinkingModeEnabled] = useState(false);
+
   // UI Modals & Sidebar State
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -51,9 +55,15 @@ export function ChatProvider({ children }) {
         nvidia: '',
         aion: '',
         cloudflare: '',
-        ninerouter: ''
+        ninerouter: '',
+        omnirouter: ''
       },
       nineRouter: {
+        enabled: true,
+        baseUrl: 'http://localhost:20128/v1',
+        apiKey: ''
+      },
+      omniRouter: {
         enabled: true,
         baseUrl: 'http://localhost:20128/v1',
         apiKey: ''
@@ -166,10 +176,31 @@ export function ChatProvider({ children }) {
       chatId = createNewChat(selectedModel);
     }
 
+    // 1. Check for real-time web search
+    let searchResults = [];
+    let augmentedPrompt = promptText.trim();
+
+    if (isWebSearchEnabled && promptText.trim()) {
+      try {
+        searchResults = await searchWebAPI(promptText.trim(), settings.serverUrl);
+        if (searchResults.length > 0) {
+          let searchContext = '\n\n=== LIVE REAL-TIME WEB SEARCH RESULTS ===\n';
+          searchResults.forEach((r, idx) => {
+            searchContext += `[${idx + 1}] ${r.title}\nURL: ${r.url}\nSummary: ${r.snippet}\n\n`;
+          });
+          searchContext += 'Instructions: Synthesize the above web search results to answer the query accurately. Cite your references using Markdown links [Title](URL).\n=========================================\n\n';
+          augmentedPrompt = `${searchContext}User Question: ${promptText.trim()}`;
+        }
+      } catch (err) {
+        console.warn('Live web search error:', err);
+      }
+    }
+
     const userMessage = {
       id: `msg-${Date.now()}`,
       role: 'user',
       content: promptText.trim(),
+      sources: searchResults.length > 0 ? searchResults : null,
       attachment: attachment ? {
         name: attachment.name,
         type: attachment.type,
@@ -215,17 +246,44 @@ export function ChatProvider({ children }) {
     // Build payload messages
     const chatInstance = chats.find((c) => c.id === chatId);
     const historyMessages = chatInstance ? chatInstance.messages : [];
+
+    // Multimodal image processing: if image attachment is present
+    let effectiveModel = selectedModel;
+    const hasImage = attachment && attachment.dataUrl?.startsWith('data:image');
+
+    // Auto-route to a vision model if current model does not support vision
+    if (hasImage && !['gemini', 'groq-vision', '9router', 'omnirouter'].includes(selectedModel)) {
+      effectiveModel = 'gemini';
+    }
+
+    // Format current user message with image payload if applicable
+    let finalUserContent;
+    if (hasImage) {
+      finalUserContent = [
+        { type: 'text', text: augmentedPrompt || 'Please inspect and analyze this image.' },
+        { type: 'image_url', image_url: { url: attachment.dataUrl } }
+      ];
+    } else {
+      finalUserContent = augmentedPrompt;
+    }
+
     const outgoingMessages = [
       ...historyMessages.map((m) => ({ role: m.role, content: m.content })),
-      { role: 'user', content: promptText }
+      { role: 'user', content: finalUserContent }
     ];
+
+    // Thinking mode system prompt injection
+    let effectiveSystemPrompt = settings.systemPrompt || '';
+    if (isThinkingModeEnabled || effectiveModel === 'deepseek-r1') {
+      effectiveSystemPrompt += '\n\n[Thinking Mode Active]: Think methodically step-by-step. Wrap your entire internal thought and reasoning process inside <think>...</think> tags before providing your direct final answer.';
+    }
 
     try {
       await streamChatCompletion({
         messages: outgoingMessages,
-        model: selectedModel,
-        temperature: settings.temperature,
-        systemPrompt: settings.systemPrompt,
+        model: effectiveModel,
+        temperature: isThinkingModeEnabled ? 0.6 : settings.temperature,
+        systemPrompt: effectiveSystemPrompt,
         serverUrl: settings.serverUrl,
         apiKeys: settings.apiKeys,
         token: token,
@@ -320,6 +378,10 @@ export function ChatProvider({ children }) {
       nineRouter: {
         ...(prev.nineRouter || {}),
         ...(partial.nineRouter || {})
+      },
+      omniRouter: {
+        ...(prev.omniRouter || {}),
+        ...(partial.omniRouter || {})
       }
     }));
   }
@@ -335,6 +397,10 @@ export function ChatProvider({ children }) {
         setSelectedModel,
         isGenerating,
         generationStats,
+        isWebSearchEnabled,
+        setIsWebSearchEnabled,
+        isThinkingModeEnabled,
+        setIsThinkingModeEnabled,
         isSidebarOpen,
         setIsSidebarOpen,
         isSettingsOpen,

@@ -31,17 +31,25 @@ export default function SettingsModal() {
       aion: '',
       cloudflare: '',
       ninerouter: '',
+      omnirouter: '',
       ...(settings.apiKeys || {})
     },
     nineRouter: {
       enabled: settings.nineRouter?.enabled ?? true,
       baseUrl: settings.nineRouter?.baseUrl || 'http://localhost:20128/v1',
       apiKey: settings.nineRouter?.apiKey || settings.apiKeys?.ninerouter || ''
+    },
+    omniRouter: {
+      enabled: settings.omniRouter?.enabled ?? true,
+      baseUrl: settings.omniRouter?.baseUrl || 'http://localhost:20128/v1',
+      apiKey: settings.omniRouter?.apiKey || settings.apiKeys?.omnirouter || ''
     }
   }));
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [isPinging, setIsPinging] = useState(false);
   const [pingResult, setPingResult] = useState(null);
+  const [isPingingOmni, setIsPingingOmni] = useState(false);
+  const [pingOmniResult, setPingOmniResult] = useState(null);
 
   if (!isSettingsOpen) return null;
 
@@ -138,17 +146,102 @@ export default function SettingsModal() {
     }
   }
 
+  async function handlePingOmniRouter() {
+    setIsPingingOmni(true);
+    setPingOmniResult(null);
+
+    const baseUrl = (formData.omniRouter?.baseUrl || 'http://localhost:20128/v1').replace(/\/$/, '');
+    const pingEndpoint = `${baseUrl}/models`;
+    const apiKey = formData.omniRouter?.apiKey || formData.apiKeys?.omnirouter || '';
+    const startTime = performance.now();
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+      const headers = { Accept: 'application/json' };
+      if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+
+      const res = await fetch(pingEndpoint, {
+        method: 'GET',
+        headers,
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      const latency = Math.round(performance.now() - startTime);
+
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const count = Array.isArray(data?.data) ? data.data.length : 0;
+        setPingOmniResult({
+          success: true,
+          latency,
+          message: `OmniRouter bridge connected on port 20128 (${latency}ms latency${
+            count > 0 ? ` • ${count} upstream models active` : ' • HTTP 200 OK'
+          })`
+        });
+        return;
+      } else {
+        setPingOmniResult({
+          success: false,
+          latency,
+          message: `OmniRouter responded with HTTP ${res.status}: ${res.statusText}`
+        });
+        return;
+      }
+    } catch (directErr) {
+      try {
+        const proxyRes = await fetch(
+          `${formData.serverUrl || ''}/api/omnirouter/ping?url=${encodeURIComponent(baseUrl)}${
+            apiKey ? `&apiKey=${encodeURIComponent(apiKey)}` : ''
+          }`
+        );
+        const latency = Math.round(performance.now() - startTime);
+        if (proxyRes.ok) {
+          const data = await proxyRes.json();
+          if (data.success) {
+            setPingOmniResult({
+              success: true,
+              latency: data.latency || latency,
+              message: `OmniRouter connected via server proxy (${data.latency || latency}ms latency)`
+            });
+            return;
+          }
+        }
+      } catch {}
+
+      const latency = Math.round(performance.now() - startTime);
+      setPingOmniResult({
+        success: false,
+        latency,
+        message:
+          directErr.name === 'AbortError'
+            ? `Connection timed out after 4 seconds. Ensure OmniRouter is running at ${baseUrl}.`
+            : `Could not connect to ${pingEndpoint}. Please ensure OmniRoute / OmniRouter is running.`
+      });
+    } finally {
+      setIsPingingOmni(false);
+    }
+  }
+
   function handleSave() {
     updateSettings({
       ...formData,
       apiKeys: {
         ...formData.apiKeys,
-        ninerouter: formData.nineRouter?.apiKey || formData.apiKeys?.ninerouter || ''
+        ninerouter: formData.nineRouter?.apiKey || formData.apiKeys?.ninerouter || '',
+        omnirouter: formData.omniRouter?.apiKey || formData.apiKeys?.omnirouter || ''
       },
       nineRouter: {
         enabled: formData.nineRouter?.enabled ?? true,
         baseUrl: formData.nineRouter?.baseUrl || 'http://localhost:20128/v1',
         apiKey: formData.nineRouter?.apiKey || ''
+      },
+      omniRouter: {
+        enabled: formData.omniRouter?.enabled ?? true,
+        baseUrl: formData.omniRouter?.baseUrl || 'http://localhost:20128/v1',
+        apiKey: formData.omniRouter?.apiKey || ''
       }
     });
     setSavedSuccess(true);
@@ -162,35 +255,35 @@ export default function SettingsModal() {
     {
       id: 'gemini',
       name: 'Google Gemini AI',
-      desc: 'Free 1M token context window & vision',
-      url: 'https://aistudio.google.com/apikey',
+      desc: 'Free Gemini 2.5 Flash, 1M context, vision OCR & reasoning',
+      url: 'https://aistudio.google.com/app/apikey',
       keyField: 'gemini'
     },
     {
       id: 'groq',
       name: 'Groq Cloud',
-      desc: 'Blazing 300 t/s LPU inference',
+      desc: 'Free DeepSeek R1 Distill, Llama 3.2 90B Vision, Llama 3.3 (~300 t/s)',
       url: 'https://console.groq.com/keys',
       keyField: 'groq'
     },
     {
       id: 'openrouter',
       name: 'OpenRouter Free Tier',
-      desc: 'Free Nemotron 550B & DeepSeek R1',
+      desc: 'Free access to open-source models ending in :free',
       url: 'https://openrouter.ai/keys',
       keyField: 'openrouter'
     },
     {
       id: 'nvidia',
       name: 'NVIDIA NIM',
-      desc: '1,000 free GPU credits on signup',
+      desc: '1,000 free enterprise inference GPU credits on signup',
       url: 'https://build.nvidia.com',
       keyField: 'nvidia'
     },
     {
       id: 'cloudflare',
       name: 'Cloudflare Workers AI',
-      desc: '10,000 free daily neurons (Llama 3.3 70B)',
+      desc: '10,000 free daily neurons (Llama 3.3 70B & Vision)',
       url: 'https://dash.cloudflare.com/profile/api-tokens',
       keyField: 'cloudflare'
     },
@@ -200,6 +293,13 @@ export default function SettingsModal() {
       desc: 'Local bridge on port 20128 (Claude 3.5 & GPT-4o)',
       url: 'http://localhost:20128/v1/models',
       keyField: 'ninerouter'
+    },
+    {
+      id: 'omnirouter',
+      name: 'OmniRouter AI Gateway',
+      desc: 'Universal gateway for 60+ providers on port 20128 with failover',
+      url: 'http://localhost:20128/v1/models',
+      keyField: 'omnirouter'
     }
   ];
 
@@ -266,7 +366,7 @@ export default function SettingsModal() {
             }`}
           >
             <Router className="w-3.5 h-3.5" />
-            <span>9Router Bridge</span>
+            <span>AI Bridges (9Router / Omni)</span>
           </button>
         </div>
 
@@ -529,6 +629,155 @@ export default function SettingsModal() {
                     </div>
                   </div>
                 )}
+              </div>
+
+              {/* OmniRouter Universal Gateway Section */}
+              <div className="pt-4 border-t border-zinc-800 space-y-4">
+                <div className="p-3.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-300 flex items-start gap-2.5">
+                  <Router className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-semibold text-white">OmniRouter / OmniRoute Gateway Integration</div>
+                    <div className="text-[11px] text-zinc-300 mt-0.5 leading-relaxed">
+                      Connects locally through OmniRoute gateway on port 20128 aggregating 60+ upstream AI providers with auto-fallback and unified rate-limit bypass.
+                    </div>
+                  </div>
+                </div>
+
+                {/* OmniRouter Switch */}
+                <div className="p-4 rounded-xl bg-[#212121] border border-zinc-800 flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-semibold text-white flex items-center gap-2">
+                      <span>Enable OmniRouter Gateway</span>
+                      <span
+                        className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                          formData.omniRouter?.enabled
+                            ? 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+                            : 'bg-zinc-800 text-zinc-500 border-zinc-700'
+                        }`}
+                      >
+                        {formData.omniRouter?.enabled ? 'Active' : 'Disabled'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-zinc-400 mt-0.5">
+                      Route queries through local OmniRoute multi-provider gateway.
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.omniRouter?.enabled ?? true}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          omniRouter: {
+                            ...formData.omniRouter,
+                            enabled: e.target.checked
+                          }
+                        })
+                      }
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+
+                {/* OmniRouter Base URL */}
+                <div className="space-y-1.5 p-4 rounded-xl bg-[#212121] border border-zinc-800">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-white">OmniRouter Base URL</label>
+                    <span className="text-[10px] text-zinc-500 font-mono">Port 20128</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={formData.omniRouter?.baseUrl ?? 'http://localhost:20128/v1'}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        omniRouter: {
+                          ...formData.omniRouter,
+                          baseUrl: e.target.value
+                        }
+                      })
+                    }
+                    placeholder="http://localhost:20128/v1"
+                    className="w-full bg-zinc-900 text-xs text-white placeholder-zinc-500 px-3 py-2 rounded-lg border border-zinc-700/60 focus:border-blue-500 outline-none font-mono"
+                  />
+                </div>
+
+                {/* Optional OmniRouter Key */}
+                <div className="space-y-1.5 p-4 rounded-xl bg-[#212121] border border-zinc-800">
+                  <label className="text-xs font-semibold text-white">OmniRouter API Key (Optional)</label>
+                  <input
+                    type="password"
+                    value={formData.omniRouter?.apiKey ?? ''}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        omniRouter: {
+                          ...formData.omniRouter,
+                          apiKey: e.target.value
+                        }
+                      })
+                    }
+                    placeholder="Leave blank or enter custom gateway token..."
+                    className="w-full bg-zinc-900 text-xs text-white placeholder-zinc-500 px-3 py-2 rounded-lg border border-zinc-700/60 focus:border-blue-500 outline-none"
+                  />
+                </div>
+
+                {/* OmniRouter Ping Button & Status */}
+                <div className="p-4 rounded-xl bg-[#212121] border border-zinc-800 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-semibold text-white flex items-center gap-1.5">
+                        <Activity className="w-3.5 h-3.5 text-blue-400" />
+                        <span>OmniRouter Connectivity Test</span>
+                      </div>
+                      <p className="text-[11px] text-zinc-400 mt-0.5">
+                        Tests connection to <code className="text-blue-300 font-mono text-[10px]">{(formData.omniRouter?.baseUrl || 'http://localhost:20128/v1').replace(/\/$/, '')}/models</code>.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handlePingOmniRouter}
+                      disabled={isPingingOmni}
+                      className="flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-semibold transition-all shadow-md shadow-blue-950/30 shrink-0"
+                    >
+                      {isPingingOmni ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Testing...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="w-3.5 h-3.5" />
+                          <span>Ping OmniRouter</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {pingOmniResult && (
+                    <div
+                      className={`p-3 rounded-xl border text-xs flex items-start gap-2.5 animate-in fade-in duration-150 ${
+                        pingOmniResult.success
+                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                          : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                      }`}
+                    >
+                      {pingOmniResult.success ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      ) : (
+                        <XCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                      )}
+                      <div className="flex-1 space-y-0.5">
+                        <div className="font-semibold">
+                          {pingOmniResult.success ? 'OmniRouter Connected' : 'OmniRouter Unreachable'}
+                        </div>
+                        <div className="text-[11px] text-zinc-300">{pingOmniResult.message}</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}

@@ -8,11 +8,21 @@ import {
   MicOff,
   X,
   FileText,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Globe,
+  Brain
 } from 'lucide-react';
 
 export default function ChatInput() {
-  const { sendMessage, isGenerating, stopGeneration } = useChat();
+  const {
+    sendMessage,
+    isGenerating,
+    stopGeneration,
+    isWebSearchEnabled,
+    setIsWebSearchEnabled,
+    isThinkingModeEnabled,
+    setIsThinkingModeEnabled
+  } = useChat();
 
   const [prompt, setPrompt] = useState('');
   const [attachment, setAttachment] = useState(null);
@@ -183,6 +193,36 @@ export default function ChatInput() {
                 title={isListening ? 'Stop recording' : 'Voice input'}
               >
                 {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+              </button>
+
+              {/* Web Search Toggle */}
+              <button
+                type="button"
+                onClick={() => setIsWebSearchEnabled(!isWebSearchEnabled)}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
+                  isWebSearchEnabled
+                    ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40 shadow-sm shadow-blue-500/10'
+                    : 'text-zinc-400 hover:text-white hover:bg-zinc-700/50'
+                }`}
+                title={isWebSearchEnabled ? 'Web search enabled (live internet results)' : 'Enable web search'}
+              >
+                <Globe className={`w-3.5 h-3.5 ${isWebSearchEnabled ? 'text-blue-400' : ''}`} />
+                <span className="text-[11px]">Search</span>
+              </button>
+
+              {/* Thinking Mode Toggle */}
+              <button
+                type="button"
+                onClick={() => setIsThinkingModeEnabled(!isThinkingModeEnabled)}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
+                  isThinkingModeEnabled
+                    ? 'bg-purple-500/20 text-purple-400 border border-purple-500/40 shadow-sm shadow-purple-500/10'
+                    : 'text-zinc-400 hover:text-white hover:bg-zinc-700/50'
+                }`}
+                title={isThinkingModeEnabled ? 'Thinking mode enabled (step-by-step reasoning)' : 'Enable thinking mode'}
+              >
+                <Brain className={`w-3.5 h-3.5 ${isThinkingModeEnabled ? 'text-purple-400' : ''}`} />
+                <span className="text-[11px]">Think</span>
               </button>
             </div>
 

@@ -19,7 +19,9 @@ import {
   Brain,
   Code,
   ArrowDown,
-  FileText
+  FileText,
+  Globe,
+  ExternalLink
 } from 'lucide-react';
 
 export default function ChatArea() {
@@ -163,12 +165,23 @@ export default function ChatArea() {
 
               // Check for <think> reasoning tags
               let reasoningContent = '';
+              let isStillThinking = false;
               let finalContent = msg.content || '';
               if (!isUser && finalContent.includes('<think>')) {
-                const match = finalContent.match(/<think>([\s\S]*?)<\/think>/);
-                if (match) {
-                  reasoningContent = match[1].trim();
-                  finalContent = finalContent.replace(/<think>[\s\S]*?<\/think>/, '').trim();
+                if (finalContent.includes('</think>')) {
+                  const match = finalContent.match(/<think>([\s\S]*?)<\/think>/);
+                  if (match) {
+                    reasoningContent = match[1].trim();
+                    finalContent = finalContent.replace(/<think>[\s\S]*?<\/think>/, '').trim();
+                  }
+                } else {
+                  // Currently streaming the thought process
+                  const partialMatch = finalContent.match(/<think>([\s\S]*)$/);
+                  if (partialMatch) {
+                    reasoningContent = partialMatch[1].trim();
+                    finalContent = '';
+                    isStillThinking = true;
+                  }
                 }
               }
 
@@ -240,27 +253,63 @@ export default function ChatArea() {
                           </div>
                         )}
 
-                        {/* Collapsible Reasoning Block (DeepSeek R1) */}
+                        {/* Real-Time Web Search Sources (if present) */}
+                        {msg.sources && msg.sources.length > 0 && (
+                          <div className="mb-3 space-y-1.5 p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs">
+                            <div className="flex items-center gap-1.5 font-semibold text-blue-300 text-[11px]">
+                              <Globe className="w-3.5 h-3.5 text-blue-400" />
+                              <span>Live Search Sources ({msg.sources.length})</span>
+                            </div>
+                            <div className="flex items-center gap-2 overflow-x-auto py-1 scrollbar-none">
+                              {msg.sources.map((src, idx) => (
+                                <a
+                                  key={idx}
+                                  href={src.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#1e1e1e] hover:bg-[#282828] border border-zinc-700/60 text-zinc-300 hover:text-white transition-all shrink-0 max-w-[210px] group/src"
+                                >
+                                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />
+                                  <span className="truncate text-[11px]">{src.title}</span>
+                                  <ExternalLink className="w-2.5 h-2.5 text-zinc-500 group-hover/src:text-blue-300 shrink-0 ml-auto" />
+                                </a>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Collapsible Reasoning Block (DeepSeek R1 / Thinking Mode) */}
                         {reasoningContent && (
-                          <div className="mb-3 rounded-xl border border-purple-500/30 bg-purple-950/20 overflow-hidden">
+                          <div className="mb-3 rounded-xl border border-purple-500/30 bg-purple-950/20 overflow-hidden shadow-sm shadow-purple-950/20">
                             <button
                               onClick={() =>
-                                setOpenReasoning((prev) => ({ ...prev, [msg.id]: !prev[msg.id] }))
+                                setOpenReasoning((prev) => ({
+                                  ...prev,
+                                  [msg.id]: prev[msg.id] === undefined ? false : !prev[msg.id]
+                                }))
                               }
                               className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-purple-300 hover:bg-purple-900/30 transition-colors"
                             >
-                              <div className="flex items-center gap-1.5">
-                                <Brain className="w-3.5 h-3.5 text-purple-400" />
-                                <span>Chain of Thought Reasoning</span>
+                              <div className="flex items-center gap-2">
+                                <Brain
+                                  className={`w-3.5 h-3.5 text-purple-400 ${
+                                    isStillThinking ? 'animate-pulse' : ''
+                                  }`}
+                                />
+                                <span>
+                                  {isStillThinking
+                                    ? 'Thinking through response...'
+                                    : 'Thought Process (Completed)'}
+                                </span>
                               </div>
-                              {openReasoning[msg.id] ? (
-                                <ChevronDown className="w-3.5 h-3.5" />
+                              {openReasoning[msg.id] ?? isStillThinking ? (
+                                <ChevronDown className="w-3.5 h-3.5 text-purple-400" />
                               ) : (
-                                <ChevronRight className="w-3.5 h-3.5" />
+                                <ChevronRight className="w-3.5 h-3.5 text-purple-400" />
                               )}
                             </button>
-                            {openReasoning[msg.id] && (
-                              <div className="p-3 text-xs text-zinc-300 font-mono bg-black/20 border-t border-purple-500/20 whitespace-pre-wrap leading-relaxed">
+                            {(openReasoning[msg.id] ?? isStillThinking) && (
+                              <div className="p-3 text-xs text-zinc-300 font-mono bg-black/30 border-t border-purple-500/20 whitespace-pre-wrap leading-relaxed max-h-72 overflow-y-auto">
                                 {reasoningContent}
                               </div>
                             )}

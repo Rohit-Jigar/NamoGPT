@@ -23,15 +23,41 @@ export async function fetchAvailableModels(serverUrl = DEFAULT_SERVER_URL) {
     return [
       {
         id: "gemini",
-        name: "Gemini 3.8 Flash",
+        name: "Gemini 2.5 Flash (Vision & Reasoning)",
         provider: "Google AI",
         category: "Multimodal & Fast",
         badge: "Recommended",
         badgeColor: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-        description: "Ultra-fast multimodal reasoning, coding, and 1M token context window.",
+        description: "Ultra-fast multimodal reasoning, image vision, OCR, coding, and 1M token context window.",
         supportsVision: true,
         supportsReasoning: true,
         speed: "⚡⚡⚡ Fast",
+        cost: "Free Tier"
+      },
+      {
+        id: "groq-vision",
+        name: "Llama 3.2 90B Vision (Groq)",
+        provider: "Groq Cloud",
+        category: "Vision & Multimodal",
+        badge: "Free Vision",
+        badgeColor: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+        description: "Free multimodal image understanding, chart reading, and OCR accelerated on Groq LPUs.",
+        supportsVision: true,
+        supportsReasoning: false,
+        speed: "⚡⚡⚡⚡ ~250 t/s",
+        cost: "Free Tier"
+      },
+      {
+        id: "deepseek-r1",
+        name: "DeepSeek R1 (Thinking Mode)",
+        provider: "Groq Cloud / DeepSeek",
+        category: "Thinking & Deep Reasoning",
+        badge: "Thinking Mode",
+        badgeColor: "bg-purple-500/10 text-purple-400 border-purple-500/20",
+        description: "Full chain-of-thought mathematical & logical reasoning with expandable thinking process.",
+        supportsVision: false,
+        supportsReasoning: true,
+        speed: "⚡⚡⚡⚡ ~250 t/s",
         cost: "Free Tier"
       },
       {
@@ -45,19 +71,6 @@ export async function fetchAvailableModels(serverUrl = DEFAULT_SERVER_URL) {
         supportsVision: false,
         supportsReasoning: false,
         speed: "⚡⚡⚡⚡⚡ 300 t/s",
-        cost: "Free Tier"
-      },
-      {
-        id: "groq-r1",
-        name: "Qwen 3.8 27B Reasoning (Groq)",
-        provider: "Groq Cloud",
-        category: "Deep Reasoning",
-        badge: "Reasoning",
-        badgeColor: "bg-purple-500/10 text-purple-400 border-purple-500/20",
-        description: "Advanced mathematical & logical reasoning model accelerated on Groq LPUs (~250 t/s).",
-        supportsVision: false,
-        supportsReasoning: true,
-        speed: "⚡⚡⚡⚡ ~250 t/s",
         cost: "Free Tier"
       },
       {
@@ -98,9 +111,64 @@ export async function fetchAvailableModels(serverUrl = DEFAULT_SERVER_URL) {
         supportsReasoning: true,
         speed: "⚡⚡⚡ Fast",
         cost: "Local Bridge"
+      },
+      {
+        id: "omnirouter",
+        name: "OmniRouter Universal Gateway",
+        provider: "OmniRouter Bridge",
+        category: "Universal AI Proxy",
+        badge: "OmniRouter",
+        badgeColor: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+        description: "Routes locally via OmniRoute/OmniRouter (port 20128) across 60+ providers with auto-fallback.",
+        supportsVision: true,
+        supportsReasoning: true,
+        speed: "⚡⚡⚡ Fast",
+        cost: "Local Bridge"
       }
     ];
   }
+}
+
+/**
+ * Free Real-time Web Search Service
+ * Queries backend /api/search or falls back to direct browser Wikipedia OpenSearch with CORS
+ */
+export async function searchWebAPI(query, serverUrl = DEFAULT_SERVER_URL) {
+  if (!query || !query.trim()) return [];
+
+  // 1. Try NamoGPT Backend Search
+  try {
+    const res = await fetch(`${serverUrl}/api/search?q=${encodeURIComponent(query)}&limit=5`);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.results) && data.results.length > 0) {
+        return data.results;
+      }
+    }
+  } catch (err) {
+    console.warn('[WebSearch] Backend search endpoint unreachable:', err.message);
+  }
+
+  // 2. Direct Browser Fallback: Wikipedia OpenSearch (native browser CORS)
+  try {
+    const wikiUrl = `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(query)}&limit=4&namespace=0&format=json&origin=*`;
+    const wikiRes = await fetch(wikiUrl);
+    if (wikiRes.ok) {
+      const data = await wikiRes.json();
+      const titles = data[1] || [];
+      const snippets = data[2] || [];
+      const urls = data[3] || [];
+      return titles.map((title, i) => ({
+        title,
+        snippet: snippets[i] || '',
+        url: urls[i]
+      }));
+    }
+  } catch (err) {
+    console.warn('[WebSearch] Browser fallback search failed:', err.message);
+  }
+
+  return [];
 }
 
 /**
@@ -143,6 +211,7 @@ export async function streamChatCompletion({
     if (apiKeys.aion) headers['X-Aion-Key'] = apiKeys.aion;
     if (apiKeys.cloudflare) headers['X-Cf-Key'] = apiKeys.cloudflare;
     if (apiKeys.ninerouter || apiKeys['9router']) headers['X-9Router-Key'] = apiKeys.ninerouter || apiKeys['9router'];
+    if (apiKeys.omnirouter) headers['X-OmniRouter-Key'] = apiKeys.omnirouter;
 
     const res = await fetch(`${serverUrl}/v1/chat/completions`, {
       method: 'POST',

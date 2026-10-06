@@ -18,6 +18,7 @@ import {
 } from './auth.js';
 import { AVAILABLE_MODELS } from './models-metadata.js';
 import { getMetrics } from './metrics.js';
+import { searchWeb, formatSearchContext } from './search.js';
 
 // Load .env from server dir or root
 if (fs.existsSync(path.resolve(process.cwd(), '.env'))) {
@@ -196,6 +197,58 @@ app.get('/api/9router/ping', async (req, res) => {
       timeout: 5000,
       validateStatus: () => true
     });
+    const latency = Date.now() - startTime;
+    return res.status(200).json({
+      success: axiosRes.status >= 200 && axiosRes.status < 300,
+      status: axiosRes.status,
+      latency,
+      data: axiosRes.data,
+      url: `${baseUrl}/models`
+    });
+  } catch (err) {
+    const latency = Date.now() - startTime;
+    return res.status(200).json({
+      success: false,
+      error: err.message,
+      latency,
+      url: `${baseUrl}/models`
+    });
+  }
+});
+
+// Real-Time Free Web Search Endpoint (DuckDuckGo & Wikipedia)
+app.get('/api/search', async (req, res) => {
+  try {
+    const q = req.query.q;
+    if (!q || !q.trim()) {
+      return res.status(400).json({ success: false, error: 'Query parameter q is required.' });
+    }
+    const maxResults = Math.min(Number(req.query.limit) || 5, 10);
+    const results = await searchWeb(q.trim(), maxResults);
+    return res.status(200).json({
+      success: true,
+      query: q.trim(),
+      count: results.length,
+      results
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
+});
+
+// OmniRouter Health Ping Endpoint
+app.get('/api/omnirouter/ping', async (req, res) => {
+  const baseUrl = (req.query.url || process.env.OMNIROUTER_BASE_URL || 'http://localhost:20128/v1').replace(/\/$/, '');
+  const apiKey = req.query.apiKey || process.env.OMNIROUTER_API_KEY || '';
+  const startTime = Date.now();
+
+  try {
+    const headers = { Accept: 'application/json' };
+    if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+    const axiosRes = await axios.get(`${baseUrl}/models`, { headers, timeout: 3000 });
     const latency = Date.now() - startTime;
     return res.status(200).json({
       success: axiosRes.status >= 200 && axiosRes.status < 300,
