@@ -35,7 +35,13 @@ export function ChatProvider({ children }) {
   const [settings, setSettings] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_SETTINGS);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.serverUrl && parsed.serverUrl.includes('github.io')) {
+          parsed.serverUrl = DEFAULT_SERVER_URL;
+        }
+        return parsed;
+      }
     } catch {}
     return {
       apiKeys: {

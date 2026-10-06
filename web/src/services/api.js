@@ -5,7 +5,9 @@
 
 export const DEFAULT_SERVER_URL = window.location.port === '5173'
   ? 'http://localhost:3001'
-  : window.location.origin;
+  : (window.location.hostname.includes('github.io')
+      ? 'https://namogpt.onrender.com'
+      : window.location.origin);
 
 export async function fetchAvailableModels(serverUrl = DEFAULT_SERVER_URL) {
   try {
