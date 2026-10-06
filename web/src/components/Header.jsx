@@ -16,7 +16,9 @@ import {
   LogIn,
   LogOut,
   Settings as SettingsIcon,
-  ShieldCheck
+  ShieldCheck,
+  Compass,
+  Bot
 } from 'lucide-react';
 
 export default function Header() {
@@ -31,7 +33,11 @@ export default function Header() {
     setIsExportOpen,
     createNewChat,
     setIsSettingsOpen,
-    settings
+    settings,
+    currentPersona,
+    setIsPersonaOpen,
+    setIsDeepResearchOpen,
+    setIsMemoryOpen
   } = useChat();
 
   const {
@@ -175,6 +181,16 @@ export default function Header() {
             </div>
           )}
         </div>
+
+        {/* AI Persona Selector Button */}
+        <button
+          onClick={() => setIsPersonaOpen(true)}
+          className="hidden sm:flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-zinc-800/80 hover:bg-zinc-800 border border-zinc-700/60 text-zinc-300 hover:text-white text-xs font-medium transition-colors"
+          title="Switch AI Persona or Custom GPT"
+        >
+          <Bot className="w-3.5 h-3.5 text-emerald-400" />
+          <span className="truncate max-w-[120px]">{currentPersona?.name || 'Persona'}</span>
+        </button>
       </div>
 
       {/* Right: Stats, Admin Badge, Export & Auth Profile */}
@@ -206,6 +222,16 @@ export default function Header() {
           title="New Chat"
         >
           <Plus className="w-5 h-5" />
+        </button>
+
+        {/* Autonomous Deep Research Button */}
+        <button
+          onClick={() => setIsDeepResearchOpen(true)}
+          className="hidden md:flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-xs font-semibold shadow-sm transition-all hover:scale-105"
+          title="Autonomous Deep Research Mode"
+        >
+          <Compass className="w-3.5 h-3.5 text-indigo-400" />
+          <span className="hidden lg:inline">Deep Research</span>
         </button>
 
         {/* Export Conversation Button */}
@@ -264,6 +290,39 @@ export default function Header() {
                       <span>Super Admin Console</span>
                     </button>
                   )}
+
+                  <button
+                    onClick={() => {
+                      setIsPersonaOpen(true);
+                      setIsUserMenuOpen(false);
+                    }}
+                    className="w-full flex items-center space-x-2 px-3 py-2 text-xs text-zinc-300 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
+                  >
+                    <Bot className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>AI Personas & GPTs</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setIsMemoryOpen(true);
+                      setIsUserMenuOpen(false);
+                    }}
+                    className="w-full flex items-center space-x-2 px-3 py-2 text-xs text-zinc-300 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
+                  >
+                    <Brain className="w-3.5 h-3.5 text-purple-400" />
+                    <span>Long-Term Memory</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setIsDeepResearchOpen(true);
+                      setIsUserMenuOpen(false);
+                    }}
+                    className="w-full flex items-center space-x-2 px-3 py-2 text-xs text-zinc-300 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
+                  >
+                    <Compass className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Deep Research</span>
+                  </button>
 
                   <button
                     onClick={() => {

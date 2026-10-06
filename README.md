@@ -60,19 +60,23 @@ graph TD
 - **📱 Run Anywhere (Web, Android & iPhone)**:
   - **PWA (Progressive Web App)**: Install instantly on any iPhone ("Add to Home Screen") or Android device ("Install App") for a native, fullscreen app experience.
   - **React Native / Expo**: Full cross-platform mobile codebase in `mobile/` ready for native APK and iOS IPA compilation.
+- **🌐 Real-Time Web Search**: Zero API key required! Real-time internet retrieval via DuckDuckGo and Wikipedia with live search source carousels and clickable citations.
+- **👁️ Free Vision & Multimodal Processing**: Analyze photos, diagrams, architecture charts, and OCR receipts using Gemini 2.5 Flash (1M tokens) and Groq Llama 3.2 90B Vision.
+- **🧠 Thinking Mode & Chain-of-Thought**: DeepSeek R1 reasoning with collapsible thought accordion showing step-by-step logic.
+- **⚡ Code Interpreter & Sandbox Runner**: Run JavaScript (Node.js isolated VM) and Python code right inside the chat window with real-time terminal output, exit codes, and execution timers.
+- **📑 Document Intelligence & RAG Engine**: Upload `.csv`, `.pdf`, `.txt`, `.md`, `.json` files. In-memory Okapi BM25 similarity scoring, overlapping text chunking, and structured CSV tabular parsing.
+- **🧭 Autonomous Deep Research Mode**: Decomposes complex topics into parallel research vectors, queries real-time web sources, cross-checks findings, and synthesizes comprehensive research dossiers.
+- **💾 Long-Term Memory**: Remembers user preferences, coding styles, and facts across conversations with automatic pattern detection ("Remember that I use...") and semantic recall.
+- **🤖 AI Personas & Custom GPTs**: Switch between Software Architect, Academic Researcher, Financial Analyst, Socratic Tutor, Senior Data Scientist, or create your own custom AI personas.
+- **🔀 9Router & OmniRouter Integration**: Universal local bridge (port `20128`) connecting NamoGPT to 60+ upstream providers with live ping tests.
 - **🔐 Built-in Authentication & Super Admin Console**:
   - Full user registration and JWT authentication system.
   - Pre-seeded **Super Admin** account (`admin@namogpt.com` / `Admin@NamoGPT2026!`) for immediate deployment evaluation.
   - Interactive Admin Console displaying live `.env` key detection status, server uptime, and user directory.
 - **📱 True Cross-Device Responsiveness**:
-  - Pixel-perfect, adaptive layout across desktop, tablets, and phones (iPhone SE up to Pro Max and iPads).
-  - Dynamic `100dvh` viewport handling eliminating mobile browser address bar clipping.
-  - Responsive mobile drawer with backdrop overlay.
-- **🧠 Chain-of-Thought Reasoning**: Collapsible thought blocks for DeepSeek R1 and reasoning models.
-- **💻 Rich Markdown & Code Blocks**: Code syntax highlighting, copy-code button, language tags, tables, and LaTeX math equations ($E=mc^2$).
+  - PWA installable on iOS and Android with fullscreen native feel.
+  - Responsive layout across phones, tablets, and desktops (`100dvh` viewport).
 - **🎙️ Voice Dictation & Text-to-Speech**: Speech-to-text mic input with Web Speech API and text-to-speech voice read-aloud.
-- **📎 Multimodal Attachments**: Image and document upload preview support.
-- **🔑 Dynamic Key Pooling**: Supports multi-key load balancing per provider in `config.yaml` or directly in the UI Settings modal.
 - **📤 Export Chats**: Export any conversation to Markdown (.md), JSON, or plain text (.txt).
 
 ---
@@ -81,15 +85,26 @@ graph TD
 
 | Model Name | Upstream Provider | Parameter Scale | Speed | Strengths |
 | :--- | :--- | :--- | :--- | :--- |
-| **Gemini 2.5 Flash** | Google AI Studio | SOTA MoE | ⚡⚡⚡ Fast | 1,048,576 Token Context, Vision, Code |
-| **Llama 3.3 70B** | Groq Cloud | 70 Billion | ⚡⚡⚡⚡⚡ ~300 t/s | Near-instant responses, general chat |
-| **DeepSeek R1 Distill** | Groq Cloud | 70 Billion | ⚡⚡⚡⚡ ~250 t/s | Mathematical, logical reasoning |
-| **Llama 3.1 8B Instant** | Groq Cloud | 8 Billion | ⚡⚡⚡⚡⚡ ~750 t/s | Ultra-low latency quick replies |
-| **Nemotron 3 Ultra** | OpenRouter (Free) | 550 Billion | ⚡⚡ Medium | Open architecture, tool calling |
-| **DeepSeek R1 Free** | OpenRouter (Free) | Flagship 671B | ⚡ Steady | Uncensored full reasoning |
+| **Gemini 2.5 Flash** | Google AI Studio | SOTA MoE | ⚡⚡⚡ Fast | 1,048,576 Context, Vision, Code, Free Tier |
+| **Llama 3.2 90B Vision** | Groq Cloud | 90 Billion | ⚡⚡⚡⚡ ~250 t/s | Free multimodal vision, diagram OCR |
+| **DeepSeek R1 Distill** | Groq Cloud | 70 Billion | ⚡⚡⚡⚡ ~250 t/s | Mathematical, logical reasoning & thoughts |
+| **Llama 3.3 70B** | Groq Cloud | 70 Billion | ⚡⚡⚡⚡⚡ ~300 t/s | Ultra-fast open intelligence |
+| **Nemotron 3.5 Lightning** | OpenRouter (Free) | 550 Billion | ⚡⚡ Medium | Open architecture, tool calling |
 | **Nemotron Super 120B**| NVIDIA NIM | 120 Billion | ⚡⚡⚡ Fast | Accelerated enterprise STEM models |
-| **Llama 3.3 70B (Cloudflare)** | Cloudflare Workers AI | 70 Billion | ⚡⚡⚡ Fast | 10,000 Free Daily Neurons on the Edge |
-| **AION 2.0** | AION Labs | Specialized | ⚡⚡ Medium | Complex instructional adherence |
+| **9Router Bridge** | Local 9Router (20128) | Multi-Model | ⚡⚡⚡ Fast | Smart fallback & 40+ providers |
+| **OmniRouter Bridge** | OmniRoute (20128) | Multi-Model | ⚡⚡⚡ Fast | 60+ upstream provider gateway |
+
+---
+
+## 🔑 Where to Get 100% Free API Keys
+
+All services below have generous free tiers with zero credit card required:
+- **Google Gemini**: [aistudio.google.com/apikey](https://aistudio.google.com/apikey) *(Free 1M token context & vision)*
+- **Groq Cloud**: [console.groq.com/keys](https://console.groq.com/keys) *(Free ~300 t/s Llama 3.3, Llama 3.2 Vision, DeepSeek R1)*
+- **OpenRouter (Free)**: [openrouter.ai/keys](https://openrouter.ai/keys) *(Free public models tagged `:free`)*
+- **NVIDIA NIM**: [build.nvidia.com](https://build.nvidia.com) *(1,000 free API credits for Nemotron models)*
+- **Cloudflare Workers AI**: [dash.cloudflare.com](https://dash.cloudflare.com) *(10,000 free neurons daily)*
+- **9Router / OmniRouter**: [github.com/diegosouzapw/OmniRoute](https://github.com/diegosouzapw/OmniRoute) *(Open-source AI router on localhost:20128)*
 
 ---
 
@@ -114,10 +129,6 @@ Copy `.env.example` to `.env`:
 cp .env.example .env
 ```
 *(Or enter your keys directly in the NamoGPT web UI via **Settings ⚙️**)*.
-
-Get your 100% free keys:
-- **Google Gemini**: [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
-- **Groq Cloud**: [console.groq.com/keys](https://console.groq.com/keys)
 - **OpenRouter**: [openrouter.ai/keys](https://openrouter.ai/keys)
 - **NVIDIA NIM**: [build.nvidia.com](https://build.nvidia.com)
 

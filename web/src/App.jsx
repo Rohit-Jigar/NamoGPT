@@ -9,9 +9,21 @@ import SettingsModal from './components/SettingsModal';
 import ExportModal from './components/ExportModal';
 import AuthModal from './components/AuthModal';
 import AdminModal from './components/AdminModal';
+import DeepResearchModal from './components/DeepResearchModal';
+import MemoryModal from './components/MemoryModal';
+import PersonaSelectorModal from './components/PersonaSelectorModal';
 
 function MainApp() {
-  const { createNewChat, setIsSettingsOpen } = useChat();
+  const {
+    createNewChat,
+    setIsSettingsOpen,
+    isDeepResearchOpen,
+    setIsDeepResearchOpen,
+    isMemoryOpen,
+    setIsMemoryOpen,
+    isPersonaOpen,
+    setIsPersonaOpen
+  } = useChat();
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -41,6 +53,18 @@ function MainApp() {
       <ExportModal />
       <AuthModal />
       <AdminModal />
+      <DeepResearchModal
+        isOpen={isDeepResearchOpen}
+        onClose={() => setIsDeepResearchOpen(false)}
+      />
+      <MemoryModal
+        isOpen={isMemoryOpen}
+        onClose={() => setIsMemoryOpen(false)}
+      />
+      <PersonaSelectorModal
+        isOpen={isPersonaOpen}
+        onClose={() => setIsPersonaOpen(false)}
+      />
     </div>
   );
 }

@@ -10,7 +10,9 @@ import {
   FileText,
   Image as ImageIcon,
   Globe,
-  Brain
+  Brain,
+  Compass,
+  Bot
 } from 'lucide-react';
 
 export default function ChatInput() {
@@ -21,7 +23,10 @@ export default function ChatInput() {
     isWebSearchEnabled,
     setIsWebSearchEnabled,
     isThinkingModeEnabled,
-    setIsThinkingModeEnabled
+    setIsThinkingModeEnabled,
+    setIsDeepResearchOpen,
+    setIsPersonaOpen,
+    currentPersona
   } = useChat();
 
   const [prompt, setPrompt] = useState('');
@@ -87,15 +92,34 @@ export default function ChatInput() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (uploadEvent) => {
-      setAttachment({
-        name: file.name,
-        type: file.type,
-        dataUrl: uploadEvent.target?.result
-      });
-    };
-    reader.readAsDataURL(file);
+    const isImage = file.type.startsWith('image/');
+
+    if (isImage) {
+      const reader = new FileReader();
+      reader.onload = (uploadEvent) => {
+        setAttachment({
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          dataUrl: uploadEvent.target?.result
+        });
+      };
+      reader.readAsDataURL(file);
+    } else {
+      // Read text-based document (txt, md, json, csv, py, js, etc.)
+      const reader = new FileReader();
+      reader.onload = (uploadEvent) => {
+        const text = uploadEvent.target?.result || '';
+        setAttachment({
+          name: file.name,
+          type: file.type || 'text/plain',
+          size: file.size,
+          textContent: text,
+          isDocument: true
+        });
+      };
+      reader.readAsText(file);
+    }
     e.target.value = ''; // Reset input
   }
 
@@ -126,23 +150,31 @@ export default function ChatInput() {
       <div className="max-w-3xl mx-auto w-full space-y-2">
         {/* Attachment Pill Preview */}
         {attachment && (
-          <div className="flex items-center gap-2 p-2 rounded-xl bg-zinc-800/90 border border-zinc-700/60 w-fit max-w-sm animate-in fade-in duration-150">
+          <div className="flex items-center gap-2 p-2 rounded-xl bg-zinc-800/95 border border-zinc-700/80 w-fit max-w-sm animate-in fade-in duration-150 shadow-md">
             {attachment.dataUrl?.startsWith('data:image') ? (
               <img
                 src={attachment.dataUrl}
                 alt="preview"
-                className="w-10 h-10 rounded object-cover"
+                className="w-10 h-10 rounded-lg object-cover border border-zinc-700/50"
               />
             ) : (
-              <FileText className="w-5 h-5 text-emerald-400" />
+              <div className="w-10 h-10 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
+                <FileText className="w-5 h-5 text-emerald-400" />
+              </div>
             )}
             <div className="text-xs truncate">
-              <div className="font-medium text-white truncate max-w-[180px]">{attachment.name}</div>
-              <div className="text-[10px] text-zinc-400">Attached</div>
+              <div className="font-semibold text-white truncate max-w-[180px]">{attachment.name}</div>
+              <div className="text-[10px] text-zinc-400 font-mono">
+                {attachment.isDocument
+                  ? `${Math.round((attachment.textContent?.length || 0) / 100) / 10}k chars • Document Context`
+                  : attachment.size
+                  ? `${Math.round(attachment.size / 1024)} KB`
+                  : 'Image Attached'}
+              </div>
             </div>
             <button
               onClick={() => setAttachment(null)}
-              className="p-1 hover:text-rose-400 text-zinc-400 rounded-full hover:bg-zinc-700/60 ml-2"
+              className="p-1 hover:text-rose-400 text-zinc-400 rounded-full hover:bg-zinc-700/60 ml-2 transition-colors"
               title="Remove attachment"
             >
               <X className="w-3.5 h-3.5" />
@@ -223,6 +255,28 @@ export default function ChatInput() {
               >
                 <Brain className={`w-3.5 h-3.5 ${isThinkingModeEnabled ? 'text-purple-400' : ''}`} />
                 <span className="text-[11px]">Think</span>
+              </button>
+
+              {/* Autonomous Deep Research Button */}
+              <button
+                type="button"
+                onClick={() => setIsDeepResearchOpen(true)}
+                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium text-zinc-400 hover:text-indigo-300 hover:bg-indigo-500/10 transition-all border border-transparent hover:border-indigo-500/30"
+                title="Open Deep Research Mode"
+              >
+                <Compass className="w-3.5 h-3.5 text-indigo-400" />
+                <span className="text-[11px]">Research</span>
+              </button>
+
+              {/* AI Persona Quick Button */}
+              <button
+                type="button"
+                onClick={() => setIsPersonaOpen(true)}
+                className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium text-zinc-400 hover:text-emerald-300 hover:bg-emerald-500/10 transition-all border border-transparent hover:border-emerald-500/30"
+                title={`Active Persona: ${currentPersona?.name || 'Standard'}`}
+              >
+                <Bot className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-[11px] truncate max-w-[90px]">{currentPersona?.name || 'Persona'}</span>
               </button>
             </div>
 

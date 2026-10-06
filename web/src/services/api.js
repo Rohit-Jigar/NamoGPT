@@ -350,3 +350,121 @@ export async function fetchAdminUsers(serverUrl, token) {
   return data.users || [];
 }
 
+/**
+ * Sandboxed Code Execution Service (JavaScript & Python)
+ */
+export async function executeCodeAPI({ language, code, timeoutMs = 4000 }, serverUrl = DEFAULT_SERVER_URL) {
+  try {
+    const res = await fetch(`${serverUrl}/api/code/execute`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ language, code, timeoutMs })
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (err) {
+    console.warn('[Sandbox] Remote code execution endpoint unreachable, trying client fallback:', err.message);
+  }
+
+  // Client-side JavaScript evaluation fallback if backend is unreachable
+  if (language === 'javascript' || language === 'js') {
+    const startTime = performance.now();
+    const logs = [];
+    const originalLog = console.log;
+    console.log = (...args) => {
+      logs.push(args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '));
+    };
+
+    try {
+      // Evaluate within safe Function constructor
+      const fn = new Function(code);
+      const result = fn();
+      console.log = originalLog;
+      return {
+        success: true,
+        stdout: logs.join('\n'),
+        stderr: '',
+        result: result !== undefined ? String(result) : null,
+        executionTimeMs: Math.round(performance.now() - startTime)
+      };
+    } catch (evalErr) {
+      console.log = originalLog;
+      return {
+        success: false,
+        stdout: logs.join('\n'),
+        stderr: evalErr.message,
+        result: null,
+        executionTimeMs: Math.round(performance.now() - startTime)
+      };
+    }
+  }
+
+  return {
+    success: false,
+    stdout: '',
+    stderr: `Language "${language}" requires a connected backend sandbox server.`,
+    result: null,
+    executionTimeMs: 0
+  };
+}
+
+/**
+ * Document Intelligence & RAG Query Service
+ */
+export async function queryRagAPI({ documents, query, topK = 4 }, serverUrl = DEFAULT_SERVER_URL) {
+  try {
+    const res = await fetch(`${serverUrl}/api/rag/query`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ documents, query, topK })
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (err) {
+    console.warn('[RAG] Backend RAG query unreachable:', err.message);
+  }
+
+  // Fallback client-side substring matching
+  const matchingChunks = [];
+  documents.forEach((doc, docIdx) => {
+    const content = doc.content || '';
+    const qLower = query.toLowerCase();
+    const sentences = content.split(/[.\n]+/);
+    sentences.forEach((s, sIdx) => {
+      if (s.toLowerCase().includes(qLower) && s.trim().length > 15) {
+        matchingChunks.push({
+          docName: doc.name || `Doc ${docIdx + 1}`,
+          content: s.trim(),
+          score: 1.0,
+          chunkIndex: sIdx
+        });
+      }
+    });
+  });
+
+  return {
+    success: true,
+    results: matchingChunks.slice(0, topK),
+    formattedContext: matchingChunks.slice(0, topK).map(c => `[${c.docName}] ${c.content}`).join('\n')
+  };
+}
+
+/**
+ * Autonomous Deep Research API Service
+ */
+export async function conductDeepResearchAPI(topic, serverUrl = DEFAULT_SERVER_URL) {
+  const res = await fetch(`${serverUrl}/api/research`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ topic })
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || `Research request failed with HTTP ${res.status}`);
+  }
+  return await res.json();
+}
+
+

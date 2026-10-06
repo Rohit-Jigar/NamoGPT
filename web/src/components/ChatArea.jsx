@@ -21,8 +21,12 @@ import {
   ArrowDown,
   FileText,
   Globe,
-  ExternalLink
+  ExternalLink,
+  Play,
+  Terminal,
+  Loader2
 } from 'lucide-react';
+import { executeCodeAPI } from '../services/api';
 
 export default function ChatArea() {
   const {
@@ -40,6 +44,23 @@ export default function ChatArea() {
   const [editPrompt, setEditPrompt] = useState('');
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [openReasoning, setOpenReasoning] = useState({});
+  const [executionOutputs, setExecutionOutputs] = useState({});
+  const [executingId, setExecutingId] = useState(null);
+
+  async function handleRunCode(lang, code, blockId) {
+    setExecutingId(blockId);
+    try {
+      const res = await executeCodeAPI({ language: lang, code });
+      setExecutionOutputs((prev) => ({ ...prev, [blockId]: res }));
+    } catch (err) {
+      setExecutionOutputs((prev) => ({
+        ...prev,
+        [blockId]: { success: false, stdout: '', stderr: err.message, executionTimeMs: 0 }
+      }));
+    } finally {
+      setExecutingId(null);
+    }
+  }
 
   const messagesEndRef = useRef(null);
   const scrollContainerRef = useRef(null);
@@ -328,7 +349,11 @@ export default function ChatArea() {
 
                                 if (!inline && match) {
                                   const lang = match[1];
-                                  const codeBlockId = `code-${Math.random()}`;
+                                  const codeBlockId = `code-${lang}-${codeStr.slice(0, 16).replace(/\W/g, '')}`;
+                                  const isRunnable = ['javascript', 'js', 'python', 'py'].includes(lang.toLowerCase());
+                                  const execOutput = executionOutputs[codeBlockId];
+                                  const isExecuting = executingId === codeBlockId;
+
                                   return (
                                     <div className="my-3 rounded-xl border border-zinc-800 bg-[#171717] overflow-hidden">
                                       <div className="flex items-center justify-between px-3 py-1.5 bg-[#212121] border-b border-zinc-800 text-[11px] font-mono text-zinc-400">
@@ -336,26 +361,78 @@ export default function ChatArea() {
                                           <Code className="w-3.5 h-3.5 text-emerald-400" />
                                           <span>{lang}</span>
                                         </div>
-                                        <button
-                                          onClick={() => copyToClipboard(codeStr, codeBlockId)}
-                                          className="flex items-center gap-1 text-zinc-400 hover:text-white transition-colors"
-                                        >
-                                          {copiedId === codeBlockId ? (
-                                            <>
-                                              <Check className="w-3.5 h-3.5 text-emerald-400" />
-                                              <span className="text-emerald-400">Copied!</span>
-                                            </>
-                                          ) : (
-                                            <>
-                                              <Copy className="w-3.5 h-3.5" />
-                                              <span>Copy code</span>
-                                            </>
+                                        <div className="flex items-center gap-2">
+                                          {isRunnable && (
+                                            <button
+                                              onClick={() => handleRunCode(lang, codeStr, codeBlockId)}
+                                              disabled={isExecuting}
+                                              className="flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 border border-emerald-500/20 transition-all font-semibold"
+                                              title="Execute in sandboxed environment"
+                                            >
+                                              {isExecuting ? (
+                                                <Loader2 className="w-3 h-3 animate-spin" />
+                                              ) : (
+                                                <Play className="w-3 h-3 fill-current" />
+                                              )}
+                                              <span>{isExecuting ? 'Running...' : 'Run'}</span>
+                                            </button>
                                           )}
-                                        </button>
+                                          <button
+                                            onClick={() => copyToClipboard(codeStr, codeBlockId)}
+                                            className="flex items-center gap-1 text-zinc-400 hover:text-white transition-colors"
+                                          >
+                                            {copiedId === codeBlockId ? (
+                                              <>
+                                                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                                <span className="text-emerald-400">Copied!</span>
+                                              </>
+                                            ) : (
+                                              <>
+                                                <Copy className="w-3.5 h-3.5" />
+                                                <span>Copy code</span>
+                                              </>
+                                            )}
+                                          </button>
+                                        </div>
                                       </div>
                                       <pre className="p-3.5 overflow-x-auto text-xs font-mono text-emerald-300/90 leading-relaxed bg-[#141414]">
                                         <code>{children}</code>
                                       </pre>
+                                      {/* Terminal Output Console */}
+                                      {execOutput && (
+                                        <div className="border-t border-zinc-800 bg-[#0c0c0c] p-3 text-xs font-mono select-text">
+                                          <div className="flex items-center justify-between pb-1.5 mb-2 border-b border-zinc-800 text-[11px]">
+                                            <div className="flex items-center gap-1.5 text-zinc-400">
+                                              <Terminal className="w-3.5 h-3.5 text-amber-400" />
+                                              <span className="font-semibold text-zinc-200">Terminal</span>
+                                              <span className="text-zinc-600">•</span>
+                                              <span className={execOutput.success ? 'text-emerald-400 font-medium' : 'text-rose-400 font-medium'}>
+                                                {execOutput.success ? 'Success' : 'Execution Error'}
+                                              </span>
+                                              {execOutput.executionTimeMs !== undefined && (
+                                                <span className="text-zinc-500 text-[10px]">({execOutput.executionTimeMs}ms)</span>
+                                              )}
+                                            </div>
+                                            <button
+                                              onClick={() => setExecutionOutputs((prev) => ({ ...prev, [codeBlockId]: null }))}
+                                              className="text-zinc-500 hover:text-zinc-300 text-[10px]"
+                                            >
+                                              Clear
+                                            </button>
+                                          </div>
+                                          {execOutput.stdout && (
+                                            <pre className="text-zinc-200 whitespace-pre-wrap font-mono leading-relaxed">{execOutput.stdout}</pre>
+                                          )}
+                                          {execOutput.stderr && (
+                                            <pre className="text-rose-400 whitespace-pre-wrap font-mono leading-relaxed">{execOutput.stderr}</pre>
+                                          )}
+                                          {execOutput.result !== null && execOutput.result !== undefined && (
+                                            <div className="text-emerald-400 font-mono mt-1 pt-1 border-t border-zinc-800/60">
+                                              Return: {String(execOutput.result)}
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
                                     </div>
                                   );
                                 }

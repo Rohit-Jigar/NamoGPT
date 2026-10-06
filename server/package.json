@@ -8,7 +8,7 @@
     "start": "node --env-file=.env server.js",
     "vercel:dev": "vercel dev",
     "deploy": "vercel deploy --prod",
-    "test": "node test_ci.js",
+    "test": "node test_ci.js && node test_engines.js",
     "test:integration": "node test-proxy.js"
   },
   "dependencies": {

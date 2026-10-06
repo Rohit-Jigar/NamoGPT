@@ -1,11 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { fetchAvailableModels, streamChatCompletion, searchWebAPI, DEFAULT_SERVER_URL } from '../services/api';
+import { autoDetectMemory, getRelevantMemories, formatMemoryContext } from '../services/memory';
+import { getAllPersonas } from '../services/personas';
 import { useAuth } from './AuthContext';
 
 const ChatContext = createContext();
 
 const STORAGE_KEY_CHATS = 'namogpt_chats_v1';
 const STORAGE_KEY_SETTINGS = 'namogpt_settings_v1';
+const STORAGE_KEY_PERSONA = 'namogpt_active_persona_v1';
 
 export function ChatProvider({ children }) {
   const { token } = useAuth();
@@ -34,6 +37,28 @@ export function ChatProvider({ children }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
+  const [isDeepResearchOpen, setIsDeepResearchOpen] = useState(false);
+  const [isMemoryOpen, setIsMemoryOpen] = useState(false);
+  const [isPersonaOpen, setIsPersonaOpen] = useState(false);
+
+  // Active AI Persona / Custom GPT
+  const [currentPersona, setCurrentPersona] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_PERSONA);
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return getAllPersonas()[0] || null;
+  });
+
+  useEffect(() => {
+    if (currentPersona) {
+      try {
+        localStorage.setItem(STORAGE_KEY_PERSONA, JSON.stringify(currentPersona));
+      } catch (err) {
+        console.warn('Failed to persist active persona', err);
+      }
+    }
+  }, [currentPersona]);
 
   // Settings State
   const [settings, setSettings] = useState(() => {
@@ -176,24 +201,42 @@ export function ChatProvider({ children }) {
       chatId = createNewChat(selectedModel);
     }
 
-    // 1. Check for real-time web search
+    // 1. Long-Term Memory Auto-Detection & Context Injection
+    if (promptText.trim()) {
+      autoDetectMemory(promptText.trim());
+    }
+    const relevantMemories = getRelevantMemories(promptText.trim(), 3);
+    const memoryContext = formatMemoryContext(relevantMemories);
+
+    // 2. Attached Document Intelligence (Text / CSV / Markdown / JSON)
+    let documentContext = '';
+    if (attachment && attachment.textContent) {
+      documentContext = `\n\n=== ATTACHED DOCUMENT: ${attachment.name} ===\n${attachment.textContent.slice(0, 16000)}\n=========================================\nInstructions: Base your response on the attached document content. Extract relevant data, analyze patterns, or answer questions with clear citations.\n\n`;
+    }
+
+    // 3. Real-time web search
     let searchResults = [];
-    let augmentedPrompt = promptText.trim();
+    let searchContext = '';
 
     if (isWebSearchEnabled && promptText.trim()) {
       try {
         searchResults = await searchWebAPI(promptText.trim(), settings.serverUrl);
         if (searchResults.length > 0) {
-          let searchContext = '\n\n=== LIVE REAL-TIME WEB SEARCH RESULTS ===\n';
+          searchContext = '\n\n=== LIVE REAL-TIME WEB SEARCH RESULTS ===\n';
           searchResults.forEach((r, idx) => {
             searchContext += `[${idx + 1}] ${r.title}\nURL: ${r.url}\nSummary: ${r.snippet}\n\n`;
           });
           searchContext += 'Instructions: Synthesize the above web search results to answer the query accurately. Cite your references using Markdown links [Title](URL).\n=========================================\n\n';
-          augmentedPrompt = `${searchContext}User Question: ${promptText.trim()}`;
         }
       } catch (err) {
         console.warn('Live web search error:', err);
       }
+    }
+
+    // Assemble final augmented prompt
+    let augmentedPrompt = promptText.trim();
+    if (documentContext || searchContext || memoryContext) {
+      augmentedPrompt = `${memoryContext ? memoryContext + '\n\n' : ''}${documentContext}${searchContext}User Prompt: ${promptText.trim()}`;
     }
 
     const userMessage = {
@@ -272,8 +315,11 @@ export function ChatProvider({ children }) {
       { role: 'user', content: finalUserContent }
     ];
 
-    // Thinking mode system prompt injection
+    // Persona and Thinking mode system prompt injection
     let effectiveSystemPrompt = settings.systemPrompt || '';
+    if (currentPersona && currentPersona.systemPrompt) {
+      effectiveSystemPrompt = `${currentPersona.systemPrompt}\n\n${effectiveSystemPrompt}`.trim();
+    }
     if (isThinkingModeEnabled || effectiveModel === 'deepseek-r1') {
       effectiveSystemPrompt += '\n\n[Thinking Mode Active]: Think methodically step-by-step. Wrap your entire internal thought and reasoning process inside <think>...</think> tags before providing your direct final answer.';
     }
@@ -407,6 +453,14 @@ export function ChatProvider({ children }) {
         setIsSettingsOpen,
         isExportOpen,
         setIsExportOpen,
+        isDeepResearchOpen,
+        setIsDeepResearchOpen,
+        isMemoryOpen,
+        setIsMemoryOpen,
+        isPersonaOpen,
+        setIsPersonaOpen,
+        currentPersona,
+        setCurrentPersona,
         settings,
         updateSettings,
         createNewChat,

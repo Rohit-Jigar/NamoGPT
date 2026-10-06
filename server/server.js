@@ -19,6 +19,9 @@ import {
 import { AVAILABLE_MODELS } from './models-metadata.js';
 import { getMetrics } from './metrics.js';
 import { searchWeb, formatSearchContext } from './search.js';
+import { queryRag, formatRagContext } from './rag.js';
+import { executeCode } from './sandbox.js';
+import { conductDeepResearch } from './research.js';
 
 // Load .env from server dir or root
 if (fs.existsSync(path.resolve(process.cwd(), '.env'))) {
@@ -230,6 +233,86 @@ app.get('/api/search', async (req, res) => {
       query: q.trim(),
       count: results.length,
       results
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
+});
+
+// --- RAG (Retrieval-Augmented Generation) ROUTE ---
+app.post('/api/rag/query', (req, res) => {
+  try {
+    const { documents, query, topK } = req.body || {};
+    if (!query || typeof query !== 'string' || !query.trim()) {
+      return res.status(400).json({ success: false, error: 'Query parameter "query" is required.' });
+    }
+    if (!documents || (!Array.isArray(documents) && typeof documents !== 'object' && typeof documents !== 'string')) {
+      return res.status(400).json({ success: false, error: 'Valid "documents" array or payload is required.' });
+    }
+
+    const rankedChunks = queryRag({
+      documents,
+      query: query.trim(),
+      topK: Number(topK) || 4
+    });
+    const formattedContext = formatRagContext(rankedChunks);
+
+    return res.status(200).json({
+      success: true,
+      query: query.trim(),
+      count: rankedChunks.length,
+      results: rankedChunks,
+      formattedContext
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
+});
+
+// --- SANDBOX CODE EXECUTION ROUTE ---
+app.post('/api/code/execute', async (req, res) => {
+  try {
+    const { language, code, timeoutMs } = req.body || {};
+    if (!code || typeof code !== 'string') {
+      return res.status(400).json({ success: false, error: 'Parameter "code" is required.' });
+    }
+    if (!language || typeof language !== 'string') {
+      return res.status(400).json({ success: false, error: 'Parameter "language" (javascript or python) is required.' });
+    }
+
+    const executionResult = await executeCode({
+      language,
+      code,
+      timeoutMs: timeoutMs ? Number(timeoutMs) : undefined
+    });
+
+    return res.status(200).json(executionResult);
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
+});
+
+// --- AUTONOMOUS DEEP RESEARCH ROUTE ---
+app.post('/api/research', async (req, res) => {
+  try {
+    const { topic } = req.body || {};
+    if (!topic || typeof topic !== 'string' || !topic.trim()) {
+      return res.status(400).json({ success: false, error: 'Parameter "topic" is required.' });
+    }
+
+    const researchResult = await conductDeepResearch(topic.trim());
+    return res.status(200).json({
+      success: true,
+      ...researchResult
     });
   } catch (err) {
     return res.status(500).json({

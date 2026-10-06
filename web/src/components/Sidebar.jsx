@@ -16,7 +16,9 @@ import {
   Bot,
   Crown,
   LogIn,
-  User
+  User,
+  Compass,
+  Brain
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -31,7 +33,10 @@ export default function Sidebar() {
     clearAllChats,
     isSidebarOpen,
     setIsSidebarOpen,
-    setIsSettingsOpen
+    setIsSettingsOpen,
+    setIsDeepResearchOpen,
+    setIsPersonaOpen,
+    setIsMemoryOpen
   } = useChat();
 
   const {
@@ -313,6 +318,31 @@ export default function Sidebar() {
               <span>Clear all chats</span>
             </button>
           )}
+
+          {/* ChatGPT-style Platform Features */}
+          <div className="pt-2 border-t border-zinc-800/80 space-y-0.5">
+            <button
+              onClick={() => setIsDeepResearchOpen(true)}
+              className="w-full flex items-center space-x-2.5 px-3 py-1.5 text-xs text-indigo-300 hover:text-white hover:bg-indigo-500/10 rounded-lg transition-colors group"
+            >
+              <Compass className="w-3.5 h-3.5 text-indigo-400 group-hover:rotate-45 transition-transform" />
+              <span>Deep Research</span>
+            </button>
+            <button
+              onClick={() => setIsPersonaOpen(true)}
+              className="w-full flex items-center space-x-2.5 px-3 py-1.5 text-xs text-emerald-300 hover:text-white hover:bg-emerald-500/10 rounded-lg transition-colors"
+            >
+              <Bot className="w-3.5 h-3.5 text-emerald-400" />
+              <span>AI Personas & GPTs</span>
+            </button>
+            <button
+              onClick={() => setIsMemoryOpen(true)}
+              className="w-full flex items-center space-x-2.5 px-3 py-1.5 text-xs text-purple-300 hover:text-white hover:bg-purple-500/10 rounded-lg transition-colors"
+            >
+              <Brain className="w-3.5 h-3.5 text-purple-400" />
+              <span>Long-Term Memory</span>
+            </button>
+          </div>
 
           {/* Super Admin Quick Access */}
           {isSuperAdmin && (
