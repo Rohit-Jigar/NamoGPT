@@ -18,7 +18,8 @@ import {
   LogIn,
   User,
   Compass,
-  Brain
+  Brain,
+  Cpu
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -36,7 +37,8 @@ export default function Sidebar() {
     setIsSettingsOpen,
     setIsDeepResearchOpen,
     setIsPersonaOpen,
-    setIsMemoryOpen
+    setIsMemoryOpen,
+    setIsMcpOpen
   } = useChat();
 
   const {
@@ -341,6 +343,13 @@ export default function Sidebar() {
             >
               <Brain className="w-3.5 h-3.5 text-purple-400" />
               <span>Long-Term Memory</span>
+            </button>
+            <button
+              onClick={() => setIsMcpOpen(true)}
+              className="w-full flex items-center space-x-2.5 px-3 py-1.5 text-xs text-amber-300 hover:text-white hover:bg-amber-500/10 rounded-lg transition-colors"
+            >
+              <Cpu className="w-3.5 h-3.5 text-amber-400" />
+              <span>MCP Tools Protocol</span>
             </button>
           </div>
 

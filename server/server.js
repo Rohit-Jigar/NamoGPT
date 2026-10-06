@@ -16,7 +16,7 @@ import {
   seedSuperAdmin,
   SUPER_ADMIN_CREDENTIALS
 } from './auth.js';
-import { AVAILABLE_MODELS } from './models-metadata.js';
+import { AVAILABLE_MODELS, getProviderKeysStatus } from './models-metadata.js';
 import { getMetrics } from './metrics.js';
 import { searchWeb, formatSearchContext } from './search.js';
 import { queryRag, formatRagContext } from './rag.js';
@@ -313,6 +313,172 @@ app.post('/api/research', async (req, res) => {
     return res.status(200).json({
       success: true,
       ...researchResult
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
+});
+
+// Provider Keys Status Endpoint
+app.get('/api/keys/status', (_req, res) => {
+  try {
+    const status = getProviderKeysStatus();
+    return res.status(200).json(status);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// --- MCP (Model Context Protocol) TOOL EXECUTION ROUTE ---
+app.post('/api/mcp/execute', async (req, res) => {
+  try {
+    const { serverUrl, toolName, arguments: toolArgs = {} } = req.body || {};
+    if (!toolName || typeof toolName !== 'string') {
+      return res.status(400).json({ success: false, error: 'Parameter "toolName" is required.' });
+    }
+
+    const cleanTool = toolName.trim();
+
+    // 1. Built-in Tools: ai_math_interpreter
+    if (cleanTool === 'ai_math_interpreter') {
+      const expr = toolArgs.expression || toolArgs.expr || toolArgs.code || '0';
+      const jsResult = await executeCode({
+        language: 'javascript',
+        code: `(() => { return (${expr}); })()`
+      });
+      return res.status(200).json({
+        success: jsResult.success,
+        toolName: cleanTool,
+        result: {
+          expression: expr,
+          computed: jsResult.result,
+          stdout: jsResult.stdout,
+          error: jsResult.stderr || null
+        }
+      });
+    }
+
+    // 2. Built-in Tools: ai_web_extractor
+    if (cleanTool === 'ai_web_extractor') {
+      const targetUrl = toolArgs.url;
+      const query = toolArgs.query || toolArgs.q;
+      if (targetUrl) {
+        const axios = (await import('axios')).default;
+        const pageRes = await axios.get(targetUrl, {
+          timeout: 6000,
+          headers: { 'User-Agent': 'NamoGPT/1.0 WebExtractor' },
+          validateStatus: () => true
+        });
+        const html = typeof pageRes.data === 'string' ? pageRes.data : JSON.stringify(pageRes.data);
+        const textOnly = html
+          .replace(/<script[\s\S]*?<\/script>/gi, '')
+          .replace(/<style[\s\S]*?<\/style>/gi, '')
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .slice(0, 5000);
+        return res.status(200).json({
+          success: true,
+          toolName: cleanTool,
+          result: {
+            url: targetUrl,
+            status: pageRes.status,
+            extractedText: textOnly,
+            length: textOnly.length
+          }
+        });
+      } else if (query) {
+        const searchResults = await searchWeb(query, 3);
+        return res.status(200).json({
+          success: true,
+          toolName: cleanTool,
+          result: {
+            query,
+            searchResults
+          }
+        });
+      } else {
+        return res.status(400).json({ success: false, error: 'ai_web_extractor requires "url" or "query" in arguments.' });
+      }
+    }
+
+    // 3. Built-in Tools: ai_system_info
+    if (cleanTool === 'ai_system_info') {
+      const os = (await import('os')).default;
+      return res.status(200).json({
+        success: true,
+        toolName: cleanTool,
+        result: {
+          platform: process.platform,
+          arch: process.arch,
+          nodeVersion: process.version,
+          uptimeSeconds: Math.floor(process.uptime()),
+          totalMemoryMB: Math.round(os.totalmem() / (1024 * 1024)),
+          freeMemoryMB: Math.round(os.freemem() / (1024 * 1024)),
+          cpus: os.cpus().length,
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+
+    // 4. External Remote MCP Server execution (HTTP JSON-RPC or REST)
+    if (serverUrl) {
+      const axios = (await import('axios')).default;
+      const cleanUrl = serverUrl.trim();
+      const rpcPayload = {
+        jsonrpc: '2.0',
+        id: Date.now(),
+        method: 'tools/call',
+        params: {
+          name: cleanTool,
+          arguments: toolArgs
+        }
+      };
+
+      try {
+        const mcpRes = await axios.post(cleanUrl, rpcPayload, {
+          headers: { 'Content-Type': 'application/json' },
+          timeout: 10000
+        });
+
+        const rpcResult = mcpRes.data?.result !== undefined ? mcpRes.data.result : mcpRes.data;
+        return res.status(200).json({
+          success: true,
+          toolName: cleanTool,
+          serverUrl: cleanUrl,
+          result: rpcResult
+        });
+      } catch (externalErr) {
+        // Fallback: try REST endpoint format
+        try {
+          const restUrl = `${cleanUrl.replace(/\/$/, '')}/${cleanTool}`;
+          const restRes = await axios.post(restUrl, toolArgs, {
+            headers: { 'Content-Type': 'application/json' },
+            timeout: 5000
+          });
+          return res.status(200).json({
+            success: true,
+            toolName: cleanTool,
+            serverUrl: restUrl,
+            result: restRes.data
+          });
+        } catch {
+          return res.status(502).json({
+            success: false,
+            toolName: cleanTool,
+            serverUrl: cleanUrl,
+            error: `External MCP server error: ${externalErr.message}`
+          });
+        }
+      }
+    }
+
+    return res.status(404).json({
+      success: false,
+      error: `Unknown tool "${cleanTool}". Provide "serverUrl" for remote MCP servers or use built-in tools (ai_math_interpreter, ai_web_extractor, ai_system_info).`
     });
   } catch (err) {
     return res.status(500).json({

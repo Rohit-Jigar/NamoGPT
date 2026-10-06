@@ -22,82 +22,103 @@ export async function fetchAvailableModels(serverUrl = DEFAULT_SERVER_URL) {
     // Return standard fallback models if server is unreachable
     return [
       {
+        id: "auto",
+        name: "✨ Auto (Smart Router)",
+        provider: "NamoGPT Core",
+        category: "Intelligent Routing",
+        badge: "Recommended",
+        badgeColor: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+        description: "Intelligently picks the best working model, routes images to vision LPUs, and applies deep reasoning on complex prompts.",
+        supportsVision: true,
+        supportsReasoning: true,
+        speed: "⚡⚡⚡⚡ Dynamic",
+        cost: "100% Free",
+        isAuto: true,
+        isWorking: true
+      },
+      {
         id: "gemini",
         name: "Gemini 2.5 Flash (Vision & Reasoning)",
         provider: "Google AI",
         category: "Multimodal & Fast",
-        badge: "Recommended",
-        badgeColor: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-        description: "Ultra-fast multimodal reasoning, image vision, OCR, coding, and 1M token context window.",
+        badge: "Coming Soon",
+        badgeColor: "bg-zinc-800 text-zinc-400 border-zinc-700",
+        description: "Ultra-fast multimodal reasoning, image vision, OCR, coding, and 1M token context window. (Requires free key in Settings)",
         supportsVision: true,
         supportsReasoning: true,
         speed: "⚡⚡⚡ Fast",
-        cost: "Free Tier"
+        cost: "Free Tier",
+        isComingSoon: true
       },
       {
         id: "groq-vision",
         name: "Llama 3.2 90B Vision (Groq)",
         provider: "Groq Cloud",
         category: "Vision & Multimodal",
-        badge: "Free Vision",
-        badgeColor: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-        description: "Free multimodal image understanding, chart reading, and OCR accelerated on Groq LPUs.",
+        badge: "Coming Soon",
+        badgeColor: "bg-zinc-800 text-zinc-400 border-zinc-700",
+        description: "Free multimodal image understanding, chart reading, and OCR accelerated on Groq LPUs. (Requires free key in Settings)",
         supportsVision: true,
         supportsReasoning: false,
         speed: "⚡⚡⚡⚡ ~250 t/s",
-        cost: "Free Tier"
+        cost: "Free Tier",
+        isComingSoon: true
       },
       {
         id: "deepseek-r1",
         name: "DeepSeek R1 (Thinking Mode)",
         provider: "Groq Cloud / DeepSeek",
         category: "Thinking & Deep Reasoning",
-        badge: "Thinking Mode",
-        badgeColor: "bg-purple-500/10 text-purple-400 border-purple-500/20",
-        description: "Full chain-of-thought mathematical & logical reasoning with expandable thinking process.",
+        badge: "Coming Soon",
+        badgeColor: "bg-zinc-800 text-zinc-400 border-zinc-700",
+        description: "Full chain-of-thought mathematical & logical reasoning with expandable thinking process. (Requires free key in Settings)",
         supportsVision: false,
         supportsReasoning: true,
         speed: "⚡⚡⚡⚡ ~250 t/s",
-        cost: "Free Tier"
+        cost: "Free Tier",
+        isComingSoon: true
       },
       {
         id: "groq",
         name: "GPT-OSS 120B (Groq)",
         provider: "Groq Cloud",
         category: "General Intelligence",
-        badge: "Ultra Fast",
-        badgeColor: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-        description: "Massive 120B open intelligence running at blazing LPU speeds (~300 t/s).",
+        badge: "Coming Soon",
+        badgeColor: "bg-zinc-800 text-zinc-400 border-zinc-700",
+        description: "Massive 120B open intelligence running at blazing LPU speeds (~300 t/s). (Requires free key in Settings)",
         supportsVision: false,
         supportsReasoning: false,
         speed: "⚡⚡⚡⚡⚡ 300 t/s",
-        cost: "Free Tier"
+        cost: "Free Tier",
+        isComingSoon: true
       },
       {
         id: "openrouter",
         name: "Nemotron 3.5 Lightning (Free)",
         provider: "OpenRouter (Free)",
         category: "High Parameter Free",
-        badge: "Free 100%",
-        badgeColor: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
-        description: "Accelerated Nemotron intelligence available 100% free via OpenRouter public tier.",
+        badge: "Coming Soon",
+        badgeColor: "bg-zinc-800 text-zinc-400 border-zinc-700",
+        description: "Accelerated Nemotron intelligence available 100% free via OpenRouter public tier. (Requires free key in Settings)",
         supportsVision: false,
         supportsReasoning: true,
         speed: "⚡⚡ Fast",
-        cost: "100% Free"
+        cost: "100% Free",
+        isComingSoon: true
       },
       {
         id: "nvidia",
         name: "NVIDIA Nemotron 3 Super 120B",
         provider: "NVIDIA NIM",
         category: "Enterprise Reasoning",
-        badge: "NVIDIA NIM",
-        badgeColor: "bg-green-500/10 text-green-400 border-green-500/20",
-        description: "NVIDIA hosted accelerated Nemotron model with high precision and STEM proficiency.",
+        badge: "Coming Soon",
+        badgeColor: "bg-zinc-800 text-zinc-400 border-zinc-700",
+        description: "NVIDIA hosted accelerated Nemotron model with high precision and STEM proficiency. (Requires free key in Settings)",
         supportsVision: false,
         supportsReasoning: true,
         speed: "⚡⚡⚡ Fast",
-        cost: "Free Credits"
+        cost: "Free Credits",
+        isComingSoon: true
       },
       {
         id: "9router",
@@ -110,7 +131,8 @@ export async function fetchAvailableModels(serverUrl = DEFAULT_SERVER_URL) {
         supportsVision: true,
         supportsReasoning: true,
         speed: "⚡⚡⚡ Fast",
-        cost: "Local Bridge"
+        cost: "Local Bridge",
+        isWorking: true
       },
       {
         id: "omnirouter",
@@ -123,7 +145,8 @@ export async function fetchAvailableModels(serverUrl = DEFAULT_SERVER_URL) {
         supportsVision: true,
         supportsReasoning: true,
         speed: "⚡⚡⚡ Fast",
-        cost: "Local Bridge"
+        cost: "Local Bridge",
+        isWorking: true
       }
     ];
   }
@@ -465,6 +488,39 @@ export async function conductDeepResearchAPI(topic, serverUrl = DEFAULT_SERVER_U
     throw new Error(errData.error || `Research request failed with HTTP ${res.status}`);
   }
   return await res.json();
+}
+
+/**
+ * MCP Tool Execution API
+ */
+export async function executeMcpToolAPI({ serverUrl = DEFAULT_SERVER_URL, mcpServerUrl, toolName, arguments: toolArgs = {} }) {
+  const res = await fetch(`${serverUrl}/api/mcp/execute`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      serverUrl: mcpServerUrl,
+      toolName,
+      arguments: toolArgs
+    })
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || `MCP tool execution failed with HTTP ${res.status}`);
+  }
+  return await res.json();
+}
+
+/**
+ * Live Provider Keys Status API
+ */
+export async function fetchKeysStatusAPI(serverUrl = DEFAULT_SERVER_URL) {
+  try {
+    const res = await fetch(`${serverUrl}/api/keys/status`);
+    if (res.ok) return await res.json();
+  } catch (err) {
+    console.warn('Failed to fetch keys status:', err.message);
+  }
+  return null;
 }
 
 

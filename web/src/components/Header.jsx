@@ -18,7 +18,9 @@ import {
   Settings as SettingsIcon,
   ShieldCheck,
   Compass,
-  Bot
+  Bot,
+  Cpu,
+  Lock
 } from 'lucide-react';
 
 export default function Header() {
@@ -37,7 +39,9 @@ export default function Header() {
     currentPersona,
     setIsPersonaOpen,
     setIsDeepResearchOpen,
-    setIsMemoryOpen
+    setIsMemoryOpen,
+    isMcpOpen,
+    setIsMcpOpen
   } = useChat();
 
   const {
@@ -117,6 +121,9 @@ export default function Header() {
                   .filter((m) => m.id !== '9router' || settings?.nineRouter?.enabled !== false)
                   .map((m) => {
                   const isSelected = m.id === selectedModel;
+                  const isComingSoon = m.isComingSoon || m.badge === 'Coming Soon';
+                  const isAuto = m.id === 'auto';
+
                   return (
                     <div
                       key={m.id}
@@ -126,19 +133,28 @@ export default function Header() {
                       }}
                       className={`flex items-start justify-between p-2.5 rounded-xl cursor-pointer transition-colors ${
                         isSelected
-                          ? 'bg-[#212121] border border-emerald-500/30 text-white'
+                          ? 'bg-[#212121] border border-emerald-500/40 text-white shadow-sm'
+                          : isAuto
+                          ? 'hover:bg-[#212121]/90 bg-[#1c231f]/40 border border-emerald-500/20 text-zinc-200'
+                          : isComingSoon
+                          ? 'hover:bg-[#212121]/50 text-zinc-400 opacity-90'
                           : 'hover:bg-[#212121]/70 text-zinc-300 hover:text-white'
                       }`}
                     >
                       <div className="space-y-1 flex-1 pr-2">
                         <div className="flex items-center space-x-2">
-                          <span className="font-semibold text-sm">{m.name}</span>
+                          <span className={`font-semibold text-sm ${isAuto ? 'text-emerald-300' : ''}`}>
+                            {m.name}
+                          </span>
                           <span
-                            className={`text-[10px] font-medium px-1.5 py-0.2 rounded border ${
-                              m.badgeColor || 'bg-zinc-800 text-zinc-300 border-zinc-700'
+                            className={`text-[10px] font-medium px-1.5 py-0.2 rounded border flex items-center gap-0.5 ${
+                              isComingSoon
+                                ? 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                                : m.badgeColor || 'bg-zinc-800 text-zinc-300 border-zinc-700'
                             }`}
                           >
-                            {m.badge || 'Free'}
+                            {isComingSoon && <Lock className="w-2.5 h-2.5" />}
+                            {m.badge || (isComingSoon ? 'Coming Soon' : 'Free')}
                           </span>
                         </div>
                         <p className="text-xs text-zinc-400 line-clamp-1">{m.description}</p>
@@ -222,6 +238,16 @@ export default function Header() {
           title="New Chat"
         >
           <Plus className="w-5 h-5" />
+        </button>
+
+        {/* Model Context Protocol (MCP) Tools Button */}
+        <button
+          onClick={() => setIsMcpOpen(true)}
+          className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold shadow-sm transition-all hover:scale-105"
+          title="MCP (Model Context Protocol) Tools & Agent Extensions"
+        >
+          <Cpu className="w-3.5 h-3.5 text-amber-400" />
+          <span className="hidden sm:inline">MCP Tools</span>
         </button>
 
         {/* Autonomous Deep Research Button */}

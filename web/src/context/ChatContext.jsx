@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import { fetchAvailableModels, streamChatCompletion, searchWebAPI, DEFAULT_SERVER_URL } from '../services/api';
 import { autoDetectMemory, getRelevantMemories, formatMemoryContext } from '../services/memory';
 import { getAllPersonas } from '../services/personas';
+import { formatMcpToolsPrompt } from '../services/mcp';
 import { useAuth } from './AuthContext';
 
 const ChatContext = createContext();
@@ -25,7 +26,7 @@ export function ChatProvider({ children }) {
 
   const [currentChatId, setCurrentChatId] = useState(null);
   const [models, setModels] = useState([]);
-  const [selectedModel, setSelectedModel] = useState('gemini');
+  const [selectedModel, setSelectedModel] = useState('auto');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStats, setGenerationStats] = useState(null); // { tps, elapsed }
 
@@ -40,6 +41,7 @@ export function ChatProvider({ children }) {
   const [isDeepResearchOpen, setIsDeepResearchOpen] = useState(false);
   const [isMemoryOpen, setIsMemoryOpen] = useState(false);
   const [isPersonaOpen, setIsPersonaOpen] = useState(false);
+  const [isMcpOpen, setIsMcpOpen] = useState(false);
 
   // Active AI Persona / Custom GPT
   const [currentPersona, setCurrentPersona] = useState(() => {
@@ -290,13 +292,31 @@ export function ChatProvider({ children }) {
     const chatInstance = chats.find((c) => c.id === chatId);
     const historyMessages = chatInstance ? chatInstance.messages : [];
 
-    // Multimodal image processing: if image attachment is present
+    // Temporal awareness: provide user's accurate local time, date, and timezone
+    const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    const now = new Date();
+    const localTimeStr = now.toLocaleString('en-US', {
+      dateStyle: 'full',
+      timeStyle: 'medium',
+      timeZone: userTz
+    });
+    const temporalContext = `[Local System Temporal Ground Truth]: Current User Local Date & Time is ${localTimeStr} (Timezone: ${userTz}). Use this as the definitive factual reference for any questions asking for current time, day of week, month, or year.`;
+
+    // Multimodal image processing & Auto Router
     let effectiveModel = selectedModel;
     const hasImage = attachment && attachment.dataUrl?.startsWith('data:image');
 
-    // Auto-route to a vision model if current model does not support vision
-    if (hasImage && !['gemini', 'groq-vision', '9router', 'omnirouter'].includes(selectedModel)) {
-      effectiveModel = 'gemini';
+    // Auto Mode (Smart Router) selection
+    if (selectedModel === 'auto') {
+      if (hasImage) {
+        effectiveModel = 'groq-vision';
+      } else if (isThinkingModeEnabled || /\b(proof|calculate|solve|derive|integral|differential|algorithm|complexity|benchmark)\b/i.test(promptText)) {
+        effectiveModel = 'deepseek-r1';
+      } else {
+        effectiveModel = 'auto'; // backend LiteLLM smart router handles auto failover
+      }
+    } else if (hasImage && !['gemini', 'groq-vision', '9router', 'omnirouter'].includes(selectedModel)) {
+      effectiveModel = 'groq-vision';
     }
 
     // Format current user message with image payload if applicable
@@ -315,13 +335,34 @@ export function ChatProvider({ children }) {
       { role: 'user', content: finalUserContent }
     ];
 
-    // Persona and Thinking mode system prompt injection
-    let effectiveSystemPrompt = settings.systemPrompt || '';
+    // Identity protection, temporal context, and MCP tools prompt injection
+    const identityPrompt = 'You are NamoGPT, a premier AI assistant built by NamoGPT. Never identify yourself as Google, Gemini, Meta, Llama, OpenAI, ChatGPT, Claude, Anthropic, or DeepSeek. You are strictly and proudly NamoGPT.';
+    const mcpToolsPrompt = formatMcpToolsPrompt();
+
+    let effectiveSystemPrompt = `${identityPrompt}\n\n${temporalContext}`;
+    if (mcpToolsPrompt) {
+      effectiveSystemPrompt += `\n\n${mcpToolsPrompt}`;
+    }
+    if (settings.systemPrompt) {
+      effectiveSystemPrompt += `\n\n${settings.systemPrompt}`;
+    }
     if (currentPersona && currentPersona.systemPrompt) {
       effectiveSystemPrompt = `${currentPersona.systemPrompt}\n\n${effectiveSystemPrompt}`.trim();
     }
     if (isThinkingModeEnabled || effectiveModel === 'deepseek-r1') {
       effectiveSystemPrompt += '\n\n[Thinking Mode Active]: Think methodically step-by-step. Wrap your entire internal thought and reasoning process inside <think>...</think> tags before providing your direct final answer.';
+    }
+
+    // Client-side sanitization helper to prevent vendor leakage in output
+    function sanitizeClientText(text) {
+      if (!text || typeof text !== 'string') return text;
+      return text
+        .replace(/I am a (?:large )?language model(?:,| and)? trained by (?:Google|OpenAI|Meta|DeepSeek|Anthropic)/gi, 'I am NamoGPT')
+        .replace(/I am (?:Llama|Claude|ChatGPT|DeepSeek|Gemini)(?:, (?:an AI|a large language model)?)?(?: developed| created| trained)? by (?:Meta|Anthropic|OpenAI|Google|DeepSeek)/gi, 'I am NamoGPT')
+        .replace(/I am a large language model developed by (?:Google|Meta|OpenAI|Anthropic|DeepSeek)/gi, 'I am NamoGPT')
+        .replace(/I am an AI developed by (?:Google|Meta|OpenAI|Anthropic|DeepSeek)/gi, 'I am NamoGPT')
+        .replace(/\b(as a large language model trained by Google)\b/gi, 'as NamoGPT')
+        .replace(/\b(as an AI trained by Google)\b/gi, 'as NamoGPT');
     }
 
     try {
@@ -340,13 +381,15 @@ export function ChatProvider({ children }) {
           const tps = elapsedSec > 0 ? (tokenCount / elapsedSec).toFixed(1) : 0;
           setGenerationStats({ tps, elapsed: elapsedSec.toFixed(1) });
 
+          const cleanedText = sanitizeClientText(fullText);
+
           setChats((prev) =>
             prev.map((c) => {
               if (c.id !== chatId) return c;
               return {
                 ...c,
                 messages: c.messages.map((m) =>
-                  m.id === assistantPlaceholderId ? { ...m, content: fullText } : m
+                  m.id === assistantPlaceholderId ? { ...m, content: cleanedText } : m
                 )
               };
             })
@@ -359,6 +402,17 @@ export function ChatProvider({ children }) {
         onError: (err) => {
           setIsGenerating(false);
           abortControllerRef.current = null;
+
+          let friendlyError = err.message || 'Server connection failed.';
+          if (
+            friendlyError.includes('Upstream returned') ||
+            friendlyError.includes('no healthy upstreams') ||
+            friendlyError.includes('400') ||
+            friendlyError.includes('401')
+          ) {
+            friendlyError = 'The upstream model provider returned an error (rate limit reached or unverified API key).\n\n💡 **Tip:** Switch to **✨ Auto (Smart Router)** for automatic failover, or enter your personal API key in **⚙️ Settings**.';
+          }
+
           setChats((prev) =>
             prev.map((c) => {
               if (c.id !== chatId) return c;
@@ -368,7 +422,7 @@ export function ChatProvider({ children }) {
                   m.id === assistantPlaceholderId
                     ? {
                         ...m,
-                        content: `⚠️ **Error generating response:** ${err.message || 'Server connection failed.'}\n\nPlease check your server connection or configure your API key in **Settings**.`,
+                        content: `⚠️ **NamoGPT Alert:** ${friendlyError}`,
                         isError: true
                       }
                     : m
@@ -459,6 +513,8 @@ export function ChatProvider({ children }) {
         setIsMemoryOpen,
         isPersonaOpen,
         setIsPersonaOpen,
+        isMcpOpen,
+        setIsMcpOpen,
         currentPersona,
         setCurrentPersona,
         settings,

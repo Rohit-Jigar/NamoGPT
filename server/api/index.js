@@ -179,6 +179,19 @@ function modelForUpstream(model) {
   return model.replace(/^(gemini|groq|openrouter|openai|nvidia)\//, '');
 }
 
+export const NAMOGPT_IDENTITY_PROMPT = "You are NamoGPT, a premier AI assistant built by NamoGPT. Never claim to be Google, Meta, OpenAI, Claude, or DeepSeek. Always represent yourself exclusively as NamoGPT.";
+
+export function sanitizeCompletionText(text) {
+  if (!text || typeof text !== 'string') return text;
+  return text
+    .replace(/I am a (?:large )?language model(?:,| and)? trained by (?:Google|OpenAI|Meta|DeepSeek|Anthropic)/gi, 'I am NamoGPT')
+    .replace(/I am (?:Llama|Claude|ChatGPT|DeepSeek|Gemini)(?:, (?:an AI|a large language model)?)?(?: developed| created| trained)? by (?:Meta|Anthropic|OpenAI|Google|DeepSeek)/gi, 'I am NamoGPT')
+    .replace(/I am a large language model developed by (?:Google|Meta|OpenAI|Anthropic|DeepSeek)/gi, 'I am NamoGPT')
+    .replace(/I am an AI developed by (?:Google|Meta|OpenAI|Anthropic|DeepSeek)/gi, 'I am NamoGPT')
+    .replace(/\b(as a large language model trained by Google)\b/gi, 'as NamoGPT')
+    .replace(/\b(as an AI trained by Google)\b/gi, 'as NamoGPT');
+}
+
 function buildUpstreamBody(item, originalBody) {
   if (!originalBody || Array.isArray(originalBody) || typeof originalBody !== 'object') {
     return originalBody;
@@ -189,6 +202,28 @@ function buildUpstreamBody(item, originalBody) {
     body.model = modelForUpstream(item.params.model);
   }
   delete body.model_name;
+
+  // Enforce NamoGPT identity in system prompt
+  if (Array.isArray(body.messages)) {
+    const messages = [...body.messages];
+    const systemIdx = messages.findIndex(m => m.role === 'system');
+    if (systemIdx !== -1) {
+      const existing = messages[systemIdx].content || '';
+      if (!existing.includes('You are NamoGPT')) {
+        messages[systemIdx] = {
+          ...messages[systemIdx],
+          content: `${NAMOGPT_IDENTITY_PROMPT}\n\n${existing}`
+        };
+      }
+    } else {
+      messages.unshift({
+        role: 'system',
+        content: NAMOGPT_IDENTITY_PROMPT
+      });
+    }
+    body.messages = messages;
+  }
+
   return body;
 }
 
@@ -385,8 +420,22 @@ export default async function handler(req, res) {
       req.body?.model_name ||
       req.body?.model;
 
-    // Normalization of model aliases
-    if (!modelName) modelName = 'gemini';
+    // Normalization of model aliases & Auto Smart Router
+    if (!modelName || modelName === 'auto') {
+      const messagesStr = JSON.stringify(req.body?.messages || []);
+      const hasVision = messagesStr.includes('image_url') || req.body?.image;
+      const isComplexStem = /\b(proof|calculate|solve|derive|integral|differential|algorithm|theorem|complexity|benchmark)\b/i.test(messagesStr);
+
+      if (hasVision) {
+        modelName = pools['gemini']?.items.some(i => i.apiKey) ? 'gemini' : (pools['groq-vision']?.items.some(i => i.apiKey) ? 'groq-vision' : 'gemini');
+      } else if (isComplexStem) {
+        modelName = pools['deepseek-r1']?.items.some(i => i.apiKey) ? 'deepseek-r1' : (pools['groq-r1']?.items.some(i => i.apiKey) ? 'groq-r1' : 'gemini');
+      } else {
+        const fastCandidates = ['groq-instant', 'groq', 'gemini', 'openrouter', 'cloudflare', '9router', 'omnirouter'];
+        const activePool = fastCandidates.find(c => pools[c]?.items.some(i => i.apiKey));
+        modelName = activePool || 'gemini';
+      }
+    }
     if (modelName === 'cloudflare' || modelName.includes('cloudflare')) modelName = 'cloudflare';
     else if (modelName.startsWith('gemini')) modelName = 'gemini';
     else if (modelName === 'groq-r1' || (modelName.includes('qwen') && !modelName.includes('openrouter'))) modelName = 'groq-r1';
@@ -447,13 +496,44 @@ export default async function handler(req, res) {
           }
           if (typeof resp.data?.pipe === 'function') {
             res.status(resp.status);
+            const { Transform } = await import('stream');
+            const sanitizeStream = new Transform({
+              transform(chunk, encoding, callback) {
+                try {
+                  const chunkStr = chunk.toString();
+                  const sanitized = sanitizeCompletionText(chunkStr);
+                  callback(null, Buffer.from(sanitized));
+                } catch {
+                  callback(null, chunk);
+                }
+              }
+            });
             resp.data.on('error', (err) => {
               console.error('Upstream stream error:', err.message);
               res.destroy(err);
             });
-            return resp.data.pipe(res);
+            return resp.data.pipe(sanitizeStream).pipe(res);
           }
-          return res.status(resp.status).send(resp.data);
+          
+          let responseData = resp.data;
+          if (Buffer.isBuffer(responseData)) {
+            try {
+              const text = responseData.toString('utf8');
+              const json = JSON.parse(text);
+              if (json.choices && Array.isArray(json.choices)) {
+                json.choices.forEach(c => {
+                  if (c.message?.content) {
+                    c.message.content = sanitizeCompletionText(c.message.content);
+                  }
+                });
+                return res.status(resp.status).json(json);
+              }
+            } catch {
+              const text = responseData.toString('utf8');
+              return res.status(resp.status).send(Buffer.from(sanitizeCompletionText(text)));
+            }
+          }
+          return res.status(resp.status).send(responseData);
         }
         
         lastErr = new Error(`upstream status ${resp.status}`);
@@ -464,20 +544,24 @@ export default async function handler(req, res) {
       }
     }
 
-
     // If all configured keys failed (e.g. rate limit), return fallback or 502
     if (lastErr && tried.length === 0) {
       return handleDemoFallback(req, res, modelName);
     }
 
+    const politeGuidance = "Unable to reach the provider upstream. Please verify your API key in Settings or switch to Auto Mode.";
+
     res.status(502).json({
-      error: 'no healthy upstreams for pool',
-      model: modelName,
-      tried,
-      last: lastErr ? lastErr.message : null
+      error: politeGuidance,
+      message: politeGuidance,
+      model: modelName
     });
   } catch (err) {
     console.error('Handler error:', err);
-    res.status(500).json({ error: err.message });
+    const politeGuidance = "Unable to reach the provider upstream. Please verify your API key in Settings or switch to Auto Mode.";
+    res.status(500).json({
+      error: politeGuidance,
+      message: politeGuidance
+    });
   }
 }

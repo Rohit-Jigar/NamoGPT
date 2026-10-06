@@ -1,4 +1,88 @@
-export const AVAILABLE_MODELS = [
+/**
+ * NamoGPT Models Catalog & Metadata
+ * 
+ * Defines model definitions, capabilities, status, and environment key requirements.
+ * Auto (Smart Router) is mounted at index 0.
+ * Models dynamically reflect active/coming_soon status based on configured server keys.
+ */
+
+/**
+ * Checks whether an environment variable key is configured and non-empty in process.env.
+ * Supports variations and numbered keys (e.g. GEMINI_API_KEY_1).
+ * 
+ * @param {string} keyEnvVar 
+ * @returns {boolean}
+ */
+export function checkProviderKey(keyEnvVar) {
+  if (!keyEnvVar) return false;
+  if (process.env[keyEnvVar] && Boolean(process.env[keyEnvVar].trim())) {
+    return true;
+  }
+
+  // Check indexed keys (e.g., GEMINI_API_KEY_1, GROQ_API_KEY_2)
+  const matchingEnv = Object.keys(process.env).find(k =>
+    k.startsWith(keyEnvVar) && Boolean(process.env[k]?.trim())
+  );
+  if (matchingEnv) return true;
+
+  // OpenRouter aliases
+  if (keyEnvVar.includes('OPEN_ROUTER') || keyEnvVar.includes('OPENROUTER')) {
+    if (process.env.OPENROUTER_API_KEY?.trim() || process.env.OPEN_ROUTER_API_KEY?.trim()) return true;
+  }
+
+  // NVIDIA NIM aliases
+  if (keyEnvVar.includes('NVIDIA')) {
+    if (process.env.NVIDIA_NIM_API_KEY?.trim() || process.env.NVIDIA_API_KEY?.trim()) return true;
+  }
+
+  // Cloudflare aliases
+  if (keyEnvVar.includes('CF_API_TOKEN')) {
+    if (process.env.CF_API_TOKEN?.trim() || process.env.CLOUDFLARE_API_TOKEN?.trim() || process.env.CLOUDFLARE_API_KEY?.trim()) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Returns current status map of all supported provider keys.
+ * @returns {Record<string, 'active'|'coming_soon'>}
+ */
+export function getProviderKeysStatus() {
+  return {
+    gemini: checkProviderKey('GEMINI_API_KEY') ? 'active' : 'coming_soon',
+    groq: checkProviderKey('GROQ_API_KEY') ? 'active' : 'coming_soon',
+    openrouter: checkProviderKey('OPEN_ROUTER_API_KEY') ? 'active' : 'coming_soon',
+    nvidia: checkProviderKey('NVIDIA_NIM_API_KEY') ? 'active' : 'coming_soon',
+    aion: checkProviderKey('AION_API_KEY') ? 'active' : 'coming_soon',
+    cloudflare: checkProviderKey('CF_API_TOKEN') ? 'active' : 'coming_soon',
+    ninerouter: 'active',
+    omnirouter: 'active'
+  };
+}
+
+const RAW_MODELS_DEFINITIONS = [
+  // Index 0: Auto (Smart Router)
+  {
+    id: "auto",
+    name: "✨ Auto (Smart Router)",
+    provider: "NamoGPT Core",
+    category: "Intelligent Routing",
+    badge: "Recommended",
+    badgeColor: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+    description: "Automatically selects the fastest available model, routes images to vision LPUs, and applies deep reasoning on complex STEM problems.",
+    supportsVision: true,
+    supportsAudio: false,
+    supportsReasoning: true,
+    speed: "⚡⚡⚡⚡ Dynamic",
+    cost: "100% Free",
+    status: "active",
+    isWorking: true,
+    upstreamModel: "auto",
+    keyEnvVar: null,
+    icon: "sparkles"
+  },
   {
     id: "gemini",
     name: "Gemini 2.5 Flash (Vision & Reasoning)",
@@ -184,6 +268,8 @@ export const AVAILABLE_MODELS = [
     supportsReasoning: true,
     speed: "⚡⚡⚡ Fast",
     cost: "Local Bridge",
+    status: "active",
+    isWorking: true,
     upstreamModel: "openai/claude-3-5-sonnet",
     keyEnvVar: "NINEROUTER_API_KEY",
     icon: "router"
@@ -202,6 +288,8 @@ export const AVAILABLE_MODELS = [
     supportsReasoning: true,
     speed: "⚡⚡⚡ Fast",
     cost: "Local Bridge",
+    status: "active",
+    isWorking: true,
     upstreamModel: "openai/omni-auto",
     keyEnvVar: "OMNIROUTER_API_KEY",
     icon: "router"
@@ -243,3 +331,38 @@ export const AVAILABLE_MODELS = [
     icon: "deepseek"
   }
 ];
+
+/**
+ * Creates dynamic model descriptor with getters that dynamically reflect current environment keys.
+ */
+function createModelDescriptor(m) {
+  if (m.id === 'auto' || m.id === '9router' || m.id === 'omnirouter') {
+    return {
+      ...m,
+      status: 'active',
+      isWorking: true
+    };
+  }
+
+  const defaultBadge = m.badge;
+  const defaultBadgeColor = m.badgeColor;
+  const keyVar = m.keyEnvVar;
+
+  return {
+    ...m,
+    get status() {
+      return checkProviderKey(keyVar) ? 'active' : 'coming_soon';
+    },
+    get badge() {
+      return checkProviderKey(keyVar) ? defaultBadge : 'Coming Soon';
+    },
+    get badgeColor() {
+      return checkProviderKey(keyVar) ? defaultBadgeColor : 'bg-zinc-800 text-zinc-400 border-zinc-700';
+    },
+    get isWorking() {
+      return checkProviderKey(keyVar);
+    }
+  };
+}
+
+export const AVAILABLE_MODELS = RAW_MODELS_DEFINITIONS.map(createModelDescriptor);

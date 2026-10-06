@@ -12,6 +12,7 @@ import AdminModal from './components/AdminModal';
 import DeepResearchModal from './components/DeepResearchModal';
 import MemoryModal from './components/MemoryModal';
 import PersonaSelectorModal from './components/PersonaSelectorModal';
+import McpModal from './components/McpModal';
 
 function MainApp() {
   const {
@@ -22,7 +23,9 @@ function MainApp() {
     isMemoryOpen,
     setIsMemoryOpen,
     isPersonaOpen,
-    setIsPersonaOpen
+    setIsPersonaOpen,
+    isMcpOpen,
+    setIsMcpOpen
   } = useChat();
 
   // Global keyboard shortcuts
@@ -64,6 +67,10 @@ function MainApp() {
       <PersonaSelectorModal
         isOpen={isPersonaOpen}
         onClose={() => setIsPersonaOpen(false)}
+      />
+      <McpModal
+        isOpen={isMcpOpen}
+        onClose={() => setIsMcpOpen(false)}
       />
     </div>
   );

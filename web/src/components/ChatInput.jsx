@@ -195,9 +195,9 @@ export default function ChatInput() {
           />
 
           {/* Action Row */}
-          <div className="flex items-center justify-between px-3 pb-2.5 pt-1">
-            {/* Left Tools: Attachment & Voice */}
-            <div className="flex items-center space-x-1">
+          <div className="flex items-center justify-between px-3 pb-2.5 pt-1 gap-2">
+            {/* Left Tools: Attachment, Voice, Search, Think, etc. */}
+            <div className="flex items-center space-x-1 overflow-x-auto no-scrollbar flex-1 min-w-0 py-0.5">
               <input
                 ref={fileInputRef}
                 type="file"

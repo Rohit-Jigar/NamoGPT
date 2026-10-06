@@ -151,6 +151,52 @@ print("Finished successfully")
     }
     console.log('  ✅ POST /api/research passed.');
 
+    // ----------------------------------------------------
+    // TEST 5: GET /api/keys/status
+    // ----------------------------------------------------
+    console.log('\n[TEST 5] Testing GET /api/keys/status...');
+    const keysRes = await fetch(`http://localhost:${TEST_PORT}/api/keys/status`);
+    if (!keysRes.ok) throw new Error(`Keys status failed with ${keysRes.status}`);
+    const keysData = await keysRes.json();
+    console.log('  Keys status:', JSON.stringify(keysData));
+    if (keysData.ninerouter !== 'active' || keysData.omnirouter !== 'active') {
+      throw new Error('Local bridge keys status mismatch');
+    }
+    console.log('  ✅ GET /api/keys/status passed.');
+
+    // ----------------------------------------------------
+    // TEST 6: POST /api/mcp/execute
+    // ----------------------------------------------------
+    console.log('\n[TEST 6] Testing POST /api/mcp/execute (ai_math_interpreter)...');
+    const mcpMathRes = await fetch(`http://localhost:${TEST_PORT}/api/mcp/execute`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        toolName: 'ai_math_interpreter',
+        arguments: { expression: 'Math.sqrt(144) + 10' }
+      })
+    });
+    if (!mcpMathRes.ok) throw new Error(`MCP execute math failed with ${mcpMathRes.status}`);
+    const mcpMathData = await mcpMathRes.json();
+    console.log('  MCP Math computed:', mcpMathData.result?.computed);
+    if (!mcpMathData.success || mcpMathData.result?.computed !== 22) {
+      throw new Error(`Unexpected MCP math result: ${JSON.stringify(mcpMathData)}`);
+    }
+
+    console.log('  Testing POST /api/mcp/execute (ai_system_info)...');
+    const mcpSysRes = await fetch(`http://localhost:${TEST_PORT}/api/mcp/execute`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ toolName: 'ai_system_info' })
+    });
+    if (!mcpSysRes.ok) throw new Error(`MCP sys info failed with ${mcpSysRes.status}`);
+    const mcpSysData = await mcpSysRes.json();
+    console.log('  MCP System platform:', mcpSysData.result?.platform);
+    if (!mcpSysData.success || !mcpSysData.result?.platform) {
+      throw new Error(`Unexpected MCP sys result: ${JSON.stringify(mcpSysData)}`);
+    }
+    console.log('  ✅ POST /api/mcp/execute passed.');
+
     console.log('\n========================================');
     console.log('🎉 ALL BACKEND ENGINE ENDPOINTS VERIFIED & PASSING!');
     console.log('========================================\n');
