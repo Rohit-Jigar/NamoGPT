@@ -330,8 +330,19 @@ export function ChatProvider({ children }) {
       finalUserContent = augmentedPrompt;
     }
 
+    const cleanHistory = historyMessages
+      .filter((m) => !m.isError && m.content && (typeof m.content === 'string' ? m.content.trim() : true))
+      .slice(-12)
+      .map((m) => {
+        // Strip <think> tags from previous assistant turns for compact clean context
+        const cleanContent = m.role === 'assistant' && typeof m.content === 'string'
+          ? m.content.replace(/<think>[\s\S]*?<\/think>/g, '').trim()
+          : m.content;
+        return { role: m.role, content: cleanContent || m.content };
+      });
+
     const outgoingMessages = [
-      ...historyMessages.map((m) => ({ role: m.role, content: m.content })),
+      ...cleanHistory,
       { role: 'user', content: finalUserContent }
     ];
 

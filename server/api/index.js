@@ -137,17 +137,20 @@ function refillTokens(item) {
 function pickProvider(pool, overrideApiKey = null) {
   if (!pool || pool.items.length === 0) return null;
   
-  const n = pool.items.length;
+  // Only rotate across items that actually have an API key or when client override is present
+  const validItems = pool.items.filter(it => Boolean(overrideApiKey || it.apiKey));
+  if (validItems.length === 0) return null;
+  
+  const n = validItems.length;
   for (let i = 0; i < n; i++) {
     const idx = (pool.rr + i) % n;
-    const item = pool.items[idx];
+    const item = validItems[idx];
     
     refillTokens(item);
     if (item.tokens === null || item.tokens > 0) {
       pool.rr = (idx + 1) % n;
       if (item.tokens !== null) item.tokens -= 1;
       
-      // If client supplied an explicit override key, clone item and attach it
       if (overrideApiKey) {
         return {
           item: { ...item, apiKey: overrideApiKey },
@@ -158,7 +161,12 @@ function pickProvider(pool, overrideApiKey = null) {
     }
   }
   
-  return null;
+  // Fallback to first valid item rather than dropping user
+  const fallbackItem = validItems[0];
+  return {
+    item: overrideApiKey ? { ...fallbackItem, apiKey: overrideApiKey } : fallbackItem,
+    idx: 0
+  };
 }
 
 function inferApiBaseFromModel(model) {
@@ -422,18 +430,23 @@ export default async function handler(req, res) {
 
     // Normalization of model aliases & Auto Smart Router
     if (!modelName || modelName === 'auto') {
-      const messagesStr = JSON.stringify(req.body?.messages || []);
-      const hasVision = messagesStr.includes('image_url') || req.body?.image;
-      const isComplexStem = /\b(proof|calculate|solve|derive|integral|differential|algorithm|theorem|complexity|benchmark)\b/i.test(messagesStr);
+      const messages = Array.isArray(req.body?.messages) ? req.body.messages : [];
+      const lastUserMsgObj = messages.filter(m => m.role === 'user').pop();
+      const lastUserMsgContent = typeof lastUserMsgObj?.content === 'string'
+        ? lastUserMsgObj.content
+        : JSON.stringify(lastUserMsgObj?.content || '');
+
+      const hasVision = lastUserMsgContent.includes('image_url') || req.body?.image;
+      const isComplexStem = /\b(proof|calculate|solve|derive|integral|differential|algorithm|theorem|complexity|benchmark)\b/i.test(lastUserMsgContent);
 
       if (hasVision) {
-        modelName = pools['gemini']?.items.some(i => i.apiKey) ? 'gemini' : (pools['groq-vision']?.items.some(i => i.apiKey) ? 'groq-vision' : 'gemini');
+        modelName = pools['groq-vision']?.items.some(i => i.apiKey) ? 'groq-vision' : (pools['gemini']?.items.some(i => i.apiKey) ? 'gemini' : 'gemini');
       } else if (isComplexStem) {
-        modelName = pools['deepseek-r1']?.items.some(i => i.apiKey) ? 'deepseek-r1' : (pools['groq-r1']?.items.some(i => i.apiKey) ? 'groq-r1' : 'gemini');
+        modelName = pools['deepseek-r1']?.items.some(i => i.apiKey) ? 'deepseek-r1' : (pools['groq-r1']?.items.some(i => i.apiKey) ? 'groq-r1' : 'groq');
       } else {
-        const fastCandidates = ['groq-instant', 'groq', 'gemini', 'openrouter', 'cloudflare', '9router', 'omnirouter'];
+        const fastCandidates = ['groq', 'groq-instant', 'gemini', 'openrouter', 'cloudflare', '9router', 'omnirouter'];
         const activePool = fastCandidates.find(c => pools[c]?.items.some(i => i.apiKey));
-        modelName = activePool || 'gemini';
+        modelName = activePool || 'groq';
       }
     }
     if (modelName === 'cloudflare' || modelName.includes('cloudflare')) modelName = 'cloudflare';
@@ -448,7 +461,7 @@ export default async function handler(req, res) {
     else if (modelName.includes('aion') && pools['aion-2.0']) modelName = 'aion-2.0';
     else if (modelName === '9router' || modelName.includes('9router')) modelName = '9router';
 
-    const pool = pools[modelName] || pools['gemini'] || pools['groq'] || Object.values(pools)[0];
+    let pool = pools[modelName] || pools['groq'] || pools['gemini'] || Object.values(pools)[0];
     if (!pool) {
       return res.status(404).json({ error: `no pool found for model_name=${modelName}` });
     }
@@ -476,7 +489,10 @@ export default async function handler(req, res) {
       return handleDemoFallback(req, res, modelName);
     }
 
-    for (let attempt = 0; attempt < pool.items.length; attempt++) {
+    const validItemsCount = pool.items.filter(it => Boolean(clientKey || it.apiKey)).length;
+    const maxAttempts = Math.max(validItemsCount, 1);
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const pick = pickProvider(pool, clientKey);
       if (!pick) break;
 

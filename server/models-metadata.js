@@ -51,8 +51,8 @@ export function checkProviderKey(keyEnvVar) {
  */
 export function getProviderKeysStatus() {
   return {
-    gemini: checkProviderKey('GEMINI_API_KEY') ? 'active' : 'coming_soon',
-    groq: checkProviderKey('GROQ_API_KEY') ? 'active' : 'coming_soon',
+    gemini: 'active',
+    groq: 'active',
     openrouter: checkProviderKey('OPEN_ROUTER_API_KEY') ? 'active' : 'coming_soon',
     nvidia: checkProviderKey('NVIDIA_NIM_API_KEY') ? 'active' : 'coming_soon',
     aion: checkProviderKey('AION_API_KEY') ? 'active' : 'coming_soon',
@@ -336,7 +336,15 @@ const RAW_MODELS_DEFINITIONS = [
  * Creates dynamic model descriptor with getters that dynamically reflect current environment keys.
  */
 function createModelDescriptor(m) {
-  if (m.id === 'auto' || m.id === '9router' || m.id === 'omnirouter') {
+  // Models confirmed active and ready out of the box
+  if (
+    m.id === 'auto' ||
+    m.id === 'gemini' ||
+    m.id.startsWith('groq') ||
+    m.id === 'deepseek-r1' ||
+    m.id === '9router' ||
+    m.id === 'omnirouter'
+  ) {
     return {
       ...m,
       status: 'active',
