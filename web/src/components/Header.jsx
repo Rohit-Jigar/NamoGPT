@@ -151,7 +151,7 @@ export default function Header() {
                               {m.name}
                             </span>
                             <span
-                              className={`text-[9px] font-medium px-1.5 py-0.2 rounded border flex items-center gap-0.5 ${
+                              className={`text-[9px] font-medium px-1.5 py-0.5 rounded border flex items-center gap-0.5 ${
                                 isComingSoon
                                   ? 'bg-zinc-800 text-zinc-400 border-zinc-700'
                                   : m.badgeColor || 'bg-zinc-800 text-zinc-300 border-zinc-700'

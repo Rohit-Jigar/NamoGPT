@@ -286,7 +286,7 @@ export default function Sidebar() {
               placeholder="Search chats..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-zinc-900/80 text-xs text-white placeholder-zinc-500 pl-8.5 pr-7 py-1.5 rounded-lg border border-zinc-800/80 focus:border-zinc-600 outline-none transition-colors"
+              className="w-full bg-zinc-900/80 text-xs text-white placeholder-zinc-500 pl-8 pr-7 py-1.5 rounded-lg border border-zinc-800/80 focus:border-zinc-600 outline-none transition-colors"
             />
             {searchQuery && (
               <button

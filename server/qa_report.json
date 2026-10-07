@@ -1,0 +1,312 @@
+{
+  "timestamp": "2026-10-07T17:34:34.464Z",
+  "tests": [
+    {
+      "name": "GET /api/models - Gemini 2.5 Flash active & working",
+      "passed": true,
+      "details": {
+        "id": "gemini",
+        "name": "Gemini 2.5 Flash (Vision & Reasoning)",
+        "status": "active",
+        "badge": "Recommended",
+        "isWorking": true,
+        "isConfigured": true,
+        "activeKeys": 7
+      },
+      "latencyMs": 81
+    },
+    {
+      "name": "GET /api/models - GPT-OSS 120B (Groq) active & working",
+      "passed": true,
+      "details": {
+        "id": "groq",
+        "name": "GPT-OSS 120B (Groq)",
+        "status": "active",
+        "badge": "Ultra Fast",
+        "isWorking": true,
+        "isConfigured": true,
+        "activeKeys": 6
+      },
+      "latencyMs": 81
+    },
+    {
+      "name": "GET /api/models - Auto (Smart Router) active & working",
+      "passed": true,
+      "details": {
+        "id": "auto",
+        "name": "✨ Auto (Smart Router)",
+        "status": "active",
+        "isWorking": true
+      },
+      "latencyMs": 81
+    },
+    {
+      "name": "GET /api/keys/status - Provider keys verified",
+      "passed": true,
+      "details": {
+        "gemini": "active",
+        "groq": "active",
+        "openrouter": "active",
+        "nvidia": "active",
+        "aion": "coming_soon",
+        "cloudflare": "coming_soon",
+        "ninerouter": "active",
+        "omnirouter": "active"
+      },
+      "latencyMs": 9
+    },
+    {
+      "name": "Multi-turn Conversation - Turn 1 Completed",
+      "passed": true,
+      "details": {
+        "turn": 1,
+        "prompt": "Hello! My name is Dr. Aris Thorne. I am an astrophysicist studying gravitational lensing in the Coma Cluster. Keep your answer brief.",
+        "responseExcerpt": "Hello, Dr. Thorne. It is a pleasure to meet you. How can I assist with your research on gravitational lensing in the Coma Cluster today?...",
+        "fullLength": 136,
+        "modelUsed": "qwen/qwen3.8-27b",
+        "finishReason": "stop",
+        "latencyMs": 444,
+        "historyLength": 2
+      },
+      "latencyMs": 444
+    },
+    {
+      "name": "Multi-turn Conversation - Turn 2 Completed",
+      "passed": true,
+      "details": {
+        "turn": 2,
+        "prompt": "Can you recall my name and my field of research?",
+        "responseExcerpt": "Yes—your name is Dr. Aris Thorne, and you’re an astrophysicist researching gravitational lensing in the Coma Cluster....",
+        "fullLength": 117,
+        "modelUsed": "openai/gpt-oss-120b",
+        "finishReason": "stop",
+        "latencyMs": 717,
+        "historyLength": 4
+      },
+      "latencyMs": 717
+    },
+    {
+      "name": "Multi-turn Conversation - Turn 3 Completed",
+      "passed": true,
+      "details": {
+        "turn": 3,
+        "prompt": "Which galaxy cluster did I specify I am studying?",
+        "responseExcerpt": "The Coma Cluster....",
+        "fullLength": 17,
+        "modelUsed": "qwen/qwen3.8-27b",
+        "finishReason": "stop",
+        "latencyMs": 151,
+        "historyLength": 6
+      },
+      "latencyMs": 151
+    },
+    {
+      "name": "Multi-turn Conversation - Turn 4 Completed",
+      "passed": true,
+      "details": {
+        "turn": 4,
+        "prompt": "Calculate the Schwarzchild radius in kilometers for a black hole of 10 solar masses. Keep it concise.",
+        "responseExcerpt": "Approximately 30 km....",
+        "fullLength": 20,
+        "modelUsed": "qwen/qwen3.8-27b",
+        "finishReason": "stop",
+        "latencyMs": 155,
+        "historyLength": 8
+      },
+      "latencyMs": 155
+    },
+    {
+      "name": "Multi-turn Conversation - Turn 5 Completed",
+      "passed": true,
+      "details": {
+        "turn": 5,
+        "prompt": "Summarize our conversation so far in exactly two bullet points.",
+        "responseExcerpt": "- Dr. Aris Thorne introduced himself as an astrophysicist studying gravitational lensing in the Coma Cluster.   - He asked me to recall his name and f...",
+        "fullLength": 261,
+        "modelUsed": "openai/gpt-oss-120b",
+        "finishReason": "stop",
+        "latencyMs": 780,
+        "historyLength": 10
+      },
+      "latencyMs": 780
+    },
+    {
+      "name": "Streaming SSE Chat Completion (Auto Mode)",
+      "passed": true,
+      "details": {
+        "streamedText": "1-2-3-4-5",
+        "length": 9
+      },
+      "latencyMs": 714
+    },
+    {
+      "name": "POST /api/code/execute (JavaScript VM)",
+      "passed": true,
+      "details": {
+        "success": true,
+        "stdout": "Determinant: -2",
+        "stderr": "",
+        "result": -2,
+        "executionTimeMs": 3.66
+      },
+      "latencyMs": 10
+    },
+    {
+      "name": "POST /api/code/execute (Python Subprocess)",
+      "passed": true,
+      "details": {
+        "success": true,
+        "stdout": "Square roots: [4, 5, 6, 7]\r\n",
+        "stderr": "",
+        "result": "Square roots: [4, 5, 6, 7]",
+        "executionTimeMs": 79.02
+      },
+      "latencyMs": 84
+    },
+    {
+      "name": "POST /api/mcp/execute (ai_math_interpreter)",
+      "passed": true,
+      "details": {
+        "success": true,
+        "toolName": "ai_math_interpreter",
+        "result": {
+          "expression": "Math.pow(2, 10) + Math.round(15.7)",
+          "computed": 1040,
+          "stdout": "",
+          "error": null
+        }
+      },
+      "latencyMs": 5
+    },
+    {
+      "name": "POST /api/mcp/execute (ai_system_info)",
+      "passed": true,
+      "details": {
+        "success": true,
+        "toolName": "ai_system_info",
+        "result": {
+          "platform": "win32",
+          "arch": "x64",
+          "nodeVersion": "v24.12.0",
+          "uptimeSeconds": 425,
+          "totalMemoryMB": 16167,
+          "freeMemoryMB": 4729,
+          "cpus": 8,
+          "timestamp": "2026-10-07T17:34:37.628Z"
+        }
+      },
+      "latencyMs": 3
+    },
+    {
+      "name": "POST /api/rag/query (Document Retrieval & Ranking)",
+      "passed": true,
+      "details": {
+        "count": 1,
+        "topDoc": "quantum_gate.txt",
+        "score": 4.049
+      },
+      "latencyMs": 4
+    },
+    {
+      "name": "POST /api/research (Autonomous Multi-Step Deep Research)",
+      "passed": true,
+      "details": {
+        "topic": "Emerging Quantum Computing Frameworks in 2026",
+        "planQueries": 4,
+        "sourcesCount": 15,
+        "reportLength": 20769
+      },
+      "latencyMs": 1347
+    }
+  ],
+  "multiTurnDetails": [
+    {
+      "turn": 1,
+      "prompt": "Hello! My name is Dr. Aris Thorne. I am an astrophysicist studying gravitational lensing in the Coma Cluster. Keep your answer brief.",
+      "responseExcerpt": "Hello, Dr. Thorne. It is a pleasure to meet you. How can I assist with your research on gravitational lensing in the Coma Cluster today?...",
+      "fullLength": 136,
+      "modelUsed": "qwen/qwen3.8-27b",
+      "finishReason": "stop",
+      "latencyMs": 444,
+      "historyLength": 2
+    },
+    {
+      "turn": 2,
+      "prompt": "Can you recall my name and my field of research?",
+      "responseExcerpt": "Yes—your name is Dr. Aris Thorne, and you’re an astrophysicist researching gravitational lensing in the Coma Cluster....",
+      "fullLength": 117,
+      "modelUsed": "openai/gpt-oss-120b",
+      "finishReason": "stop",
+      "latencyMs": 717,
+      "historyLength": 4
+    },
+    {
+      "turn": 3,
+      "prompt": "Which galaxy cluster did I specify I am studying?",
+      "responseExcerpt": "The Coma Cluster....",
+      "fullLength": 17,
+      "modelUsed": "qwen/qwen3.8-27b",
+      "finishReason": "stop",
+      "latencyMs": 151,
+      "historyLength": 6
+    },
+    {
+      "turn": 4,
+      "prompt": "Calculate the Schwarzchild radius in kilometers for a black hole of 10 solar masses. Keep it concise.",
+      "responseExcerpt": "Approximately 30 km....",
+      "fullLength": 20,
+      "modelUsed": "qwen/qwen3.8-27b",
+      "finishReason": "stop",
+      "latencyMs": 155,
+      "historyLength": 8
+    },
+    {
+      "turn": 5,
+      "prompt": "Summarize our conversation so far in exactly two bullet points.",
+      "responseExcerpt": "- Dr. Aris Thorne introduced himself as an astrophysicist studying gravitational lensing in the Coma Cluster.   - He asked me to recall his name and f...",
+      "fullLength": 261,
+      "modelUsed": "openai/gpt-oss-120b",
+      "finishReason": "stop",
+      "latencyMs": 780,
+      "historyLength": 10
+    }
+  ],
+  "modelVerification": {
+    "gemini": {
+      "id": "gemini",
+      "name": "Gemini 2.5 Flash (Vision & Reasoning)",
+      "status": "active",
+      "badge": "Recommended",
+      "isWorking": true,
+      "isConfigured": true,
+      "activeKeys": 7
+    },
+    "groq": {
+      "id": "groq",
+      "name": "GPT-OSS 120B (Groq)",
+      "status": "active",
+      "badge": "Ultra Fast",
+      "isWorking": true,
+      "isConfigured": true,
+      "activeKeys": 6
+    },
+    "auto": {
+      "id": "auto",
+      "name": "✨ Auto (Smart Router)",
+      "status": "active",
+      "isWorking": true
+    }
+  },
+  "keysStatus": {
+    "gemini": "active",
+    "groq": "active",
+    "openrouter": "active",
+    "nvidia": "active",
+    "aion": "coming_soon",
+    "cloudflare": "coming_soon",
+    "ninerouter": "active",
+    "omnirouter": "active"
+  },
+  "performanceMetrics": {},
+  "allPassed": true
+}
