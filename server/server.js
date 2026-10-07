@@ -18,10 +18,11 @@ import {
 } from './auth.js';
 import { AVAILABLE_MODELS, getProviderKeysStatus } from './models-metadata.js';
 import { getMetrics } from './metrics.js';
-import { searchWeb, formatSearchContext } from './search.js';
+import { searchWeb, formatSearchContext, fetchUrlContent } from './search.js';
 import { queryRag, formatRagContext } from './rag.js';
 import { executeCode } from './sandbox.js';
 import { conductDeepResearch } from './research.js';
+import { listPlugins, invokePlugin, registerPlugin, getPlugin } from './plugins/index.js';
 
 // Load .env from server dir or root
 if (fs.existsSync(path.resolve(process.cwd(), '.env'))) {
@@ -242,6 +243,52 @@ app.get('/api/search', async (req, res) => {
   }
 });
 
+// --- PLUGIN ARCHITECTURE ROUTES ---
+
+// List all registered plugins and their parameter schemas
+app.get('/api/plugins/list', (_req, res) => {
+  try {
+    const plugins = listPlugins();
+    return res.status(200).json({
+      success: true,
+      count: plugins.length,
+      plugins
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Invoke a plugin by name
+app.post('/api/plugins/invoke', async (req, res) => {
+  try {
+    const { name, plugin, payload, args, arguments: argObj, ...rest } = req.body || {};
+    const pluginName = (name || plugin || '').trim();
+    if (!pluginName) {
+      return res.status(400).json({
+        success: false,
+        error: 'Plugin name is required ("name" or "plugin" field).'
+      });
+    }
+
+    const params = payload || args || argObj || (Object.keys(rest).length > 0 ? rest : {});
+    const result = await invokePlugin(pluginName, params);
+
+    return res.status(200).json({
+      success: true,
+      plugin: pluginName,
+      result
+    });
+  } catch (err) {
+    const isNotFound = err.message && err.message.includes('not found');
+    return res.status(isNotFound ? 404 : 400).json({
+      success: false,
+      plugin: req.body?.name || req.body?.plugin,
+      error: err.message
+    });
+  }
+});
+
 // --- RAG (Retrieval-Augmented Generation) ROUTE ---
 app.post('/api/rag/query', (req, res) => {
   try {
@@ -366,28 +413,16 @@ app.post('/api/mcp/execute', async (req, res) => {
       const targetUrl = toolArgs.url;
       const query = toolArgs.query || toolArgs.q;
       if (targetUrl) {
-        const axios = (await import('axios')).default;
-        const pageRes = await axios.get(targetUrl, {
-          timeout: 6000,
-          headers: { 'User-Agent': 'NamoGPT/1.0 WebExtractor' },
-          validateStatus: () => true
-        });
-        const html = typeof pageRes.data === 'string' ? pageRes.data : JSON.stringify(pageRes.data);
-        const textOnly = html
-          .replace(/<script[\s\S]*?<\/script>/gi, '')
-          .replace(/<style[\s\S]*?<\/style>/gi, '')
-          .replace(/<[^>]+>/g, ' ')
-          .replace(/\s+/g, ' ')
-          .trim()
-          .slice(0, 5000);
+        const fetchRes = await fetchUrlContent(targetUrl);
         return res.status(200).json({
-          success: true,
+          success: fetchRes.status < 400,
           toolName: cleanTool,
           result: {
             url: targetUrl,
-            status: pageRes.status,
-            extractedText: textOnly,
-            length: textOnly.length
+            status: fetchRes.status,
+            title: fetchRes.title,
+            extractedText: fetchRes.content || fetchRes.snippet,
+            length: fetchRes.length
           }
         });
       } else if (query) {
@@ -590,3 +625,6 @@ app.listen(port, () => {
   ╚═══════════════════════════════════════════════════════════════╝
   `);
 });
+
+export { app };
+export default app;
