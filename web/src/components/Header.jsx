@@ -43,7 +43,9 @@ export default function Header() {
     setIsDeepResearchOpen,
     setIsMemoryOpen,
     isMcpOpen,
-    setIsMcpOpen
+    setIsMcpOpen,
+    activeAppMode,
+    setActiveAppMode
   } = useChat();
 
   const {
@@ -211,6 +213,34 @@ export default function Header() {
           <Bot className="w-3.5 h-3.5 text-emerald-400" />
           <span className="truncate max-w-[110px]">{currentPersona?.name || 'Persona'}</span>
         </button>
+
+        {/* Studio / Chat Mode Switcher */}
+        <div className="flex items-center p-0.5 rounded-xl bg-zinc-900/90 border border-zinc-800 shadow-sm ml-1 sm:ml-2">
+          <button
+            onClick={() => setActiveAppMode('chat')}
+            className={`flex items-center space-x-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+              activeAppMode === 'chat'
+                ? 'bg-zinc-800 text-white shadow-sm'
+                : 'text-zinc-400 hover:text-zinc-200'
+            }`}
+            title="Switch to 💬 AI Chat"
+          >
+            <span>💬</span>
+            <span className="hidden xs:inline">AI Chat</span>
+          </button>
+          <button
+            onClick={() => setActiveAppMode('coder')}
+            className={`flex items-center space-x-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+              activeAppMode === 'coder'
+                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shadow-sm'
+                : 'text-zinc-400 hover:text-zinc-200'
+            }`}
+            title="Switch to ⚡ Namo Coder Studio"
+          >
+            <span>⚡</span>
+            <span className="hidden xs:inline">Namo Coder</span>
+          </button>
+        </div>
       </div>
 
       {/* Right Action Bar */}
