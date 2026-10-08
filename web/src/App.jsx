@@ -13,7 +13,6 @@ import DeepResearchModal from './components/DeepResearchModal';
 import MemoryModal from './components/MemoryModal';
 import PersonaSelectorModal from './components/PersonaSelectorModal';
 import McpModal from './components/McpModal';
-import NamoCoderView from './components/coder/NamoCoderView';
 
 function MainApp() {
   const {
@@ -26,8 +25,7 @@ function MainApp() {
     isPersonaOpen,
     setIsPersonaOpen,
     isMcpOpen,
-    setIsMcpOpen,
-    activeAppMode
+    setIsMcpOpen
   } = useChat();
 
   // Global keyboard shortcuts
@@ -48,17 +46,11 @@ function MainApp() {
 
   return (
     <div className="flex h-[100dvh] min-h-[100dvh] w-screen overflow-hidden bg-[#09090b]">
-      {activeAppMode === 'chat' && <Sidebar />}
+      <Sidebar />
       <main className="flex-1 flex flex-col min-w-0 h-full relative">
         <Header />
-        {activeAppMode === 'coder' ? (
-          <NamoCoderView />
-        ) : (
-          <>
-            <ChatArea />
-            <ChatInput />
-          </>
-        )}
+        <ChatArea />
+        <ChatInput />
       </main>
       <SettingsModal />
       <ExportModal />

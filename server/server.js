@@ -23,7 +23,6 @@ import { queryRag, formatRagContext } from './rag.js';
 import { executeCode } from './sandbox.js';
 import { conductDeepResearch } from './research.js';
 import { listPlugins, invokePlugin, registerPlugin, getPlugin } from './plugins/index.js';
-import coderRouter from './coder/router.js';
 
 // Load .env from server dir or root
 if (fs.existsSync(path.resolve(process.cwd(), '.env'))) {
@@ -552,9 +551,6 @@ app.get('/api/omnirouter/ping', async (req, res) => {
     });
   }
 });
-
-// Namo Coder Engine API
-app.use('/api/coder', coderRouter);
 
 // Swagger & OpenAPI
 app.get('/openapi.json', (_req, res) => res.json(openapi));

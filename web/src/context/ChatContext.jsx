@@ -43,21 +43,6 @@ export function ChatProvider({ children }) {
   const [isPersonaOpen, setIsPersonaOpen] = useState(false);
   const [isMcpOpen, setIsMcpOpen] = useState(false);
 
-  // Active App Mode: 'chat' vs 'coder'
-  const [activeAppMode, setActiveAppMode] = useState(() => {
-    try {
-      return localStorage.getItem('namo_app_mode') || 'chat';
-    } catch {
-      return 'chat';
-    }
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('namo_app_mode', activeAppMode);
-    } catch {}
-  }, [activeAppMode]);
-
   // Active AI Persona / Custom GPT
   const [currentPersona, setCurrentPersona] = useState(() => {
     try {
@@ -543,8 +528,6 @@ export function ChatProvider({ children }) {
         setIsMcpOpen,
         currentPersona,
         setCurrentPersona,
-        activeAppMode,
-        setActiveAppMode,
         settings,
         updateSettings,
         createNewChat,
