@@ -216,11 +216,14 @@ export function ChatProvider({ children }) {
       documentContext = `\n\n=== ATTACHED DOCUMENT: ${attachment.name} ===\n${attachment.textContent.slice(0, 16000)}\n=========================================\nInstructions: Base your response on the attached document content. Extract relevant data, analyze patterns, or answer questions with clear citations.\n\n`;
     }
 
-    // 3. Real-time web search
+    // 3. Real-time web search (Explicit toggle OR Auto-detected real-time query intent)
     let searchResults = [];
     let searchContext = '';
 
-    if (isWebSearchEnabled && promptText.trim()) {
+    const hasRealTimeSearchIntent = /\b(today('?s)?|tonight|right now|current|latest|breaking|news|headline|headlines|weather|stock|crypto|price|score|game|who won|election)\b/i.test(promptText.trim());
+    const shouldSearch = isWebSearchEnabled || hasRealTimeSearchIntent;
+
+    if (shouldSearch && promptText.trim()) {
       try {
         searchResults = await searchWebAPI(promptText.trim(), settings.serverUrl);
         if (searchResults.length > 0) {
@@ -228,7 +231,7 @@ export function ChatProvider({ children }) {
           searchResults.forEach((r, idx) => {
             searchContext += `[${idx + 1}] ${r.title}\nURL: ${r.url}\nSummary: ${r.snippet}\n\n`;
           });
-          searchContext += 'Instructions: Synthesize the above web search results to answer the query accurately. Cite your references using Markdown links [Title](URL).\n=========================================\n\n';
+          searchContext += 'Instructions: You are equipped with the live real-time web search results above. Synthesize these findings to directly answer the user\'s real-time query. List headlines with brief descriptions and cite sources using Markdown links [Title](URL). DO NOT state that you do not have real-time information or that your cutoff is limited, because verified live search findings are explicitly provided above.\n=========================================\n\n';
         }
       } catch (err) {
         console.warn('Live web search error:', err);

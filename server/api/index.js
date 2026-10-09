@@ -466,6 +466,43 @@ export default async function handler(req, res) {
       return res.status(404).json({ error: `no pool found for model_name=${modelName}` });
     }
 
+    // Auto Real-Time Web Search Augmentation for queries seeking current events / news / weather
+    if (Array.isArray(req.body?.messages)) {
+      const messagesList = req.body.messages;
+      const lastUserObj = messagesList.filter(m => m.role === 'user').pop();
+      const userText = typeof lastUserObj?.content === 'string'
+        ? lastUserObj.content
+        : (Array.isArray(lastUserObj?.content) ? lastUserObj.content.map(c => c.text || '').join(' ') : '');
+
+      const hasRealTimeSearchIntent = /\b(today('?s)?|tonight|right now|current|latest|breaking|news|headline|headlines|weather in|stock price|crypto price|live score|who won|election)\b/i.test(userText);
+      const hasExistingSearchContext = userText.includes('REAL-TIME WEB SEARCH') || messagesList.some(m => typeof m.content === 'string' && m.content.includes('REAL-TIME WEB SEARCH'));
+
+      if (hasRealTimeSearchIntent && !hasExistingSearchContext && userText.trim()) {
+        try {
+          const { searchWeb, formatSearchContext } = await import('../search.js');
+          const searchResults = await searchWeb(userText.trim(), 5);
+          if (searchResults && searchResults.length > 0) {
+            const searchContext = formatSearchContext(searchResults);
+            for (let i = req.body.messages.length - 1; i >= 0; i--) {
+              if (req.body.messages[i].role === 'user') {
+                if (typeof req.body.messages[i].content === 'string') {
+                  req.body.messages[i].content = `${searchContext}\n\nUser Question: ${req.body.messages[i].content.trim()}`;
+                } else if (Array.isArray(req.body.messages[i].content)) {
+                  const textPart = req.body.messages[i].content.find(p => p.type === 'text');
+                  if (textPart) {
+                    textPart.text = `${searchContext}\n\nUser Question: ${textPart.text.trim()}`;
+                  }
+                }
+                break;
+              }
+            }
+          }
+        } catch (searchErr) {
+          console.warn('[AutoWebSearch] Background search augmentation notice:', searchErr.message);
+        }
+      }
+    }
+
     // Check for client-provided API key overrides from headers
     const clientKey = 
       req.headers['x-gemini-key'] ||

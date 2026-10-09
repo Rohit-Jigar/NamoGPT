@@ -43,6 +43,19 @@ export async function searchWeb(query, maxResults = 5) {
   const cleanQuery = query.trim();
   const limit = Math.max(1, Math.min(Number(maxResults) || 5, 20));
 
+  // Check if query is seeking breaking or top news headlines
+  const isNewsQuery = /\b(news|headline|headlines|breaking|todays news|today's news|top 5 news|top 10 news|top news|daily news|current events)\b/i.test(cleanQuery);
+  if (isNewsQuery) {
+    try {
+      const newsResults = await fetchGoogleNewsRss(cleanQuery, limit);
+      if (newsResults && newsResults.length > 0) {
+        return newsResults;
+      }
+    } catch (err) {
+      console.warn('[WebSearch] Google News RSS fetch failed, falling back:', err.message);
+    }
+  }
+
   // 1. Tavily API (if key available)
   if (process.env.TAVILY_API_KEY && process.env.TAVILY_API_KEY.trim()) {
     try {
@@ -88,6 +101,78 @@ export async function searchWeb(query, maxResults = 5) {
   }
 
   return [];
+}
+
+/**
+ * Real-Time Google News RSS Provider (100% Free, Zero-Key Required)
+ * Captures live breaking news headlines, publishers, and publication timestamps.
+ */
+async function fetchGoogleNewsRss(query, maxResults = 5) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+  try {
+    const isGeneralTopNews = /^(give me )?(today('?s)? )?(top|latest|breaking|daily)? ?(\d+)? ?news( headlines?)?$/i.test(query.trim());
+    let rssUrl;
+    if (isGeneralTopNews) {
+      rssUrl = 'https://news.google.com/rss?hl=en-US&gl=US&ceid=US:en';
+    } else {
+      const cleanTopic = query
+        .replace(/^(give me |what is |what are |tell me |show me )/i, '')
+        .replace(/\b(todays|today's|today|top 5|top 10|top|news headlines|news)\b/gi, '')
+        .trim();
+      const searchTerm = cleanTopic || query;
+      rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(searchTerm)}&hl=en-US&gl=US&ceid=US:en`;
+    }
+
+    const res = await fetch(rssUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 NamoGPT/1.0',
+        'Accept': 'application/rss+xml,application/xml,text/xml;q=0.9,*/*;q=0.8'
+      },
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+
+    const xml = await res.text();
+    const itemRegex = /<item>[\s\S]*?<title>(.*?)<\/title>[\s\S]*?<link>(.*?)<\/link>[\s\S]*?<pubDate>(.*?)<\/pubDate>(?:[\s\S]*?<source[^>]*url="([^"]*)"[^>]*>(.*?)<\/source>)?/g;
+    const matches = [...xml.matchAll(itemRegex)];
+
+    const results = [];
+    for (let i = 0; i < matches.length && results.length < maxResults; i++) {
+      const match = matches[i];
+      let rawTitle = decodeHtmlEntities(match[1].replace(/<!\[CDATA\[(.*?)\]\]>/g, '$1').trim());
+      const rawLink = match[2].trim();
+      const pubDate = match[3] ? match[3].trim() : '';
+      const sourceName = match[5] ? decodeHtmlEntities(match[5].trim()) : '';
+
+      let outlet = sourceName;
+      if (!outlet && rawTitle.includes(' - ')) {
+        const parts = rawTitle.split(' - ');
+        outlet = parts.pop().trim();
+        rawTitle = parts.join(' - ').trim();
+      }
+
+      if (rawTitle && rawLink) {
+        results.push({
+          title: rawTitle,
+          url: rawLink,
+          snippet: `Published: ${pubDate}${outlet ? ` • Source: ${outlet}` : ''}`,
+          source: 'google-news'
+        });
+      }
+    }
+
+    return results;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    console.warn('[WebSearch] Google News RSS fetch failed:', err.message);
+    return [];
+  }
 }
 
 /**
@@ -286,11 +371,11 @@ export function formatSearchContext(results) {
   results.forEach((item, index) => {
     context += `[${index + 1}] ${item.title}\n`;
     context += `URL: ${item.url}\n`;
-    if (item.snippet) context += `Snippet: ${item.snippet}\n`;
+    if (item.snippet) context += `Summary: ${item.snippet}\n`;
     context += '\n';
   });
 
-  context += 'Instructions: Synthesize the web search findings into a clear, cohesive answer. Cite relevant statements using Markdown links [Title](URL). Do not fabricate information.\n====================================';
+  context += 'Instructions: You are equipped with the live verified real-time web search results above. Synthesize these current findings into a clear, direct, comprehensive answer. Present the requested top news stories with clear headlines, brief summaries, and Markdown citation links [Source Name](URL). DO NOT state that you do not have real-time information or that your cutoff is limited, because verified live search findings are explicitly provided above.\n====================================';
   return context;
 }
 
