@@ -428,193 +428,288 @@ export default async function handler(req, res) {
       ? requestUrl.pathname
       : '/v1' + requestUrl.pathname) + requestUrl.search;
     
-    let modelName = 
+    const rawModel = (
       req.query?.model_name || 
       req.headers['x-model-name'] || 
       req.body?.model_name ||
-      req.body?.model;
+      req.body?.model ||
+      ''
+    ).toString().trim().toLowerCase();
 
-    // Normalization of model aliases & Auto Smart Router
-    if (!modelName || modelName === 'auto') {
-      const messages = Array.isArray(req.body?.messages) ? req.body.messages : [];
-      const lastUserMsgObj = messages.filter(m => m.role === 'user').pop();
-      const lastUserMsgContent = typeof lastUserMsgObj?.content === 'string'
-        ? lastUserMsgObj.content
-        : JSON.stringify(lastUserMsgObj?.content || '');
+    const isAuto = !rawModel || rawModel === 'auto' || rawModel.includes('auto');
 
-      const hasVision = lastUserMsgContent.includes('image_url') || req.body?.image;
-      const isComplexStem = /\b(proof|calculate|solve|derive|integral|differential|algorithm|theorem|complexity|benchmark)\b/i.test(lastUserMsgContent);
+    // Extract user text and inspect for multimodal imagery
+    const messages = Array.isArray(req.body?.messages) ? req.body.messages : [];
+    const lastUserMsgObj = messages.filter(m => m.role === 'user').pop();
+    let userText = '';
+    let hasVision = Boolean(req.body?.image || req.body?.images);
 
-      if (hasVision) {
-        modelName = pools['groq-vision']?.items.some(i => i.apiKey) ? 'groq-vision' : (pools['gemini']?.items.some(i => i.apiKey) ? 'gemini' : 'gemini');
-      } else if (isComplexStem) {
-        modelName = pools['deepseek-r1']?.items.some(i => i.apiKey) ? 'deepseek-r1' : (pools['groq-r1']?.items.some(i => i.apiKey) ? 'groq-r1' : 'groq');
-      } else {
-        const fastCandidates = ['groq', 'groq-instant', 'gemini', 'openrouter', 'cloudflare', '9router', 'omnirouter'];
-        const activePool = fastCandidates.find(c => pools[c]?.items.some(i => i.apiKey));
-        modelName = activePool || 'groq';
-      }
-    }
-    if (modelName === 'cloudflare' || modelName.includes('cloudflare')) modelName = 'cloudflare';
-    else if (modelName.startsWith('gemini')) modelName = 'gemini';
-    else if (modelName === 'groq-r1' || (modelName.includes('qwen') && !modelName.includes('openrouter'))) modelName = 'groq-r1';
-    else if (modelName === 'openrouter-r1' || (modelName.includes('qwen') && modelName.includes('openrouter')) || modelName.includes('deepseek-r1')) modelName = 'openrouter-r1';
-    else if (modelName.includes('instant') || modelName === 'groq-instant' || modelName.includes('gpt-oss-20b')) modelName = 'groq-instant';
-    else if (modelName.includes('gpt-oss') || modelName.includes('groq') || modelName.includes('llama')) modelName = 'groq';
-    else if (modelName.includes('nemotron') && modelName.includes('super')) modelName = 'nvidia';
-    else if (modelName.includes('nemotron') || modelName.includes('openrouter')) modelName = 'openrouter';
-    else if (modelName.includes('nvidia') && pools['nvidia']) modelName = 'nvidia';
-    else if (modelName.includes('aion') && pools['aion-2.0']) modelName = 'aion-2.0';
-    else if (modelName === '9router' || modelName.includes('9router')) modelName = '9router';
-
-    let pool = pools[modelName] || pools['groq'] || pools['gemini'] || Object.values(pools)[0];
-    if (!pool) {
-      return res.status(404).json({ error: `no pool found for model_name=${modelName}` });
-    }
-
-    // Auto Real-Time Web Search Augmentation for queries seeking current events / news / weather
-    if (Array.isArray(req.body?.messages)) {
-      const messagesList = req.body.messages;
-      const lastUserObj = messagesList.filter(m => m.role === 'user').pop();
-      const userText = typeof lastUserObj?.content === 'string'
-        ? lastUserObj.content
-        : (Array.isArray(lastUserObj?.content) ? lastUserObj.content.map(c => c.text || '').join(' ') : '');
-
-      const hasRealTimeSearchIntent = /\b(today('?s)?|tonight|right now|current|latest|breaking|news|headline|headlines|weather in|stock price|crypto price|live score|who won|election)\b/i.test(userText);
-      const hasExistingSearchContext = userText.includes('REAL-TIME WEB SEARCH') || messagesList.some(m => typeof m.content === 'string' && m.content.includes('REAL-TIME WEB SEARCH'));
-
-      if (hasRealTimeSearchIntent && !hasExistingSearchContext && userText.trim()) {
-        try {
-          const { searchWeb, formatSearchContext } = await import('../search.js');
-          const searchResults = await searchWeb(userText.trim(), 5);
-          if (searchResults && searchResults.length > 0) {
-            const searchContext = formatSearchContext(searchResults);
-            for (let i = req.body.messages.length - 1; i >= 0; i--) {
-              if (req.body.messages[i].role === 'user') {
-                if (typeof req.body.messages[i].content === 'string') {
-                  req.body.messages[i].content = `${searchContext}\n\nUser Question: ${req.body.messages[i].content.trim()}`;
-                } else if (Array.isArray(req.body.messages[i].content)) {
-                  const textPart = req.body.messages[i].content.find(p => p.type === 'text');
-                  if (textPart) {
-                    textPart.text = `${searchContext}\n\nUser Question: ${textPart.text.trim()}`;
-                  }
-                }
-                break;
-              }
-            }
+    if (lastUserMsgObj) {
+      if (typeof lastUserMsgObj.content === 'string') {
+        userText = lastUserMsgObj.content;
+        if (userText.includes('image_url') || userText.includes('data:image/')) {
+          hasVision = true;
+        }
+      } else if (Array.isArray(lastUserMsgObj.content)) {
+        for (const part of lastUserMsgObj.content) {
+          if (part.type === 'text') {
+            userText += (part.text || '') + ' ';
+          } else if (part.type === 'image_url' || part.image_url || part.type === 'image') {
+            hasVision = true;
           }
-        } catch (searchErr) {
-          console.warn('[AutoWebSearch] Background search augmentation notice:', searchErr.message);
         }
       }
     }
+    userText = userText.trim();
 
-    // Check for client-provided API key overrides from headers
-    const clientKey = 
-      req.headers['x-gemini-key'] ||
-      req.headers['x-groq-key'] ||
-      req.headers['x-openrouter-key'] ||
-      req.headers['x-nvidia-key'] ||
-      req.headers['x-aion-key'] ||
-      req.headers['x-cf-key'] ||
-      req.headers['x-cloudflare-key'] ||
-      req.headers['x-9router-key'] ||
-      req.headers['x-ninerouter-key'] ||
-      null;
+    // Intent detection flags
+    const isVisionIntent = hasVision || /\b(describe this image|what is in this picture|look at this image|look at this photo|read this screenshot|image ocr|inspect this image)\b/i.test(userText);
+    const isRealTimeNewsWeather = /\b(today('?s)?|tonight|yesterday|tomorrow|this week|this month|this year|right now|current|currently|latest|recent|recently|breaking|news|headline|headlines|weather|temperature|forecast|stock|crypto|price|prices|market|live score|who won|election)\b/i.test(userText);
+    const isComplexStem = /\b(proof|prove|calculate|solve|derive|integral|differential|equation|calculus|algebra|physics|chemistry|algorithm|theorem|complexity|benchmark|step[- ]by[- ]step reasoning|logic puzzle|math problem)\b/i.test(userText);
 
-    const tried = [];
-    let lastErr = null;
-    let anyKeyAvailable = Boolean(clientKey) || pool.items.some(it => Boolean(it.apiKey));
+    // Auto Real-Time Web Search Augmentation: auto-augment with searchWeb if query has time-sensitive intent
+    const hasExistingSearchContext = userText.includes('REAL-TIME WEB SEARCH') || messages.some(m => typeof m.content === 'string' && m.content.includes('REAL-TIME WEB SEARCH'));
 
-    // If no keys configured anywhere, provide demo fallback guidance
-    if (!anyKeyAvailable) {
-      console.log(`[NamoGPT] Notice: No API key found for ${modelName}. Serving smart guidance response.`);
-      return handleDemoFallback(req, res, modelName);
-    }
-
-    const validItemsCount = pool.items.filter(it => Boolean(clientKey || it.apiKey)).length;
-    const maxAttempts = Math.max(validItemsCount, 1);
-
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const pick = pickProvider(pool, clientKey);
-      if (!pick) break;
-
-      const { item, idx } = pick;
-      if (!item.apiKey) continue; // skip unconfigured keys
-
-      tried.push({ idx, apiBase: item.apiBase || null });
-
+    if (isRealTimeNewsWeather && !hasExistingSearchContext && userText) {
       try {
-        const resp = await forwardRequest(item, forwardPath, req);
-        
-        // Only 2xx responses are treated as success; 4xx/5xx failover to next key in pool
-        if (resp.status >= 200 && resp.status < 300) {
-          for (const h of Object.keys(resp.headers || {})) {
-            if (['transfer-encoding', 'connection', 'content-encoding'].includes(h)) continue;
-            res.setHeader(h, resp.headers[h]);
-          }
-          if (typeof resp.data?.pipe === 'function') {
-            res.status(resp.status);
-            const { Transform } = await import('stream');
-            const sanitizeStream = new Transform({
-              transform(chunk, encoding, callback) {
-                try {
-                  const chunkStr = chunk.toString();
-                  const sanitized = sanitizeCompletionText(chunkStr);
-                  callback(null, Buffer.from(sanitized));
-                } catch {
-                  callback(null, chunk);
+        const { searchWeb, formatSearchContext } = await import('../search.js');
+        const searchResults = await searchWeb(userText, 5);
+        if (searchResults && searchResults.length > 0) {
+          const searchContext = formatSearchContext(searchResults);
+          for (let i = req.body.messages.length - 1; i >= 0; i--) {
+            if (req.body.messages[i].role === 'user') {
+              if (typeof req.body.messages[i].content === 'string') {
+                req.body.messages[i].content = `${searchContext}\n\nUser Question: ${req.body.messages[i].content.trim()}`;
+              } else if (Array.isArray(req.body.messages[i].content)) {
+                const textPart = req.body.messages[i].content.find(p => p.type === 'text');
+                if (textPart) {
+                  textPart.text = `${searchContext}\n\nUser Question: ${textPart.text.trim()}`;
                 }
               }
-            });
-            resp.data.on('error', (err) => {
-              console.error('Upstream stream error:', err.message);
-              res.destroy(err);
-            });
-            return resp.data.pipe(sanitizeStream).pipe(res);
-          }
-          
-          let responseData = resp.data;
-          if (Buffer.isBuffer(responseData)) {
-            try {
-              const text = responseData.toString('utf8');
-              const json = JSON.parse(text);
-              if (json.choices && Array.isArray(json.choices)) {
-                json.choices.forEach(c => {
-                  if (c.message?.content) {
-                    c.message.content = sanitizeCompletionText(c.message.content);
-                  }
-                });
-                return res.status(resp.status).json(json);
-              }
-            } catch {
-              const text = responseData.toString('utf8');
-              return res.status(resp.status).send(Buffer.from(sanitizeCompletionText(text)));
+              break;
             }
           }
-          return res.status(resp.status).send(responseData);
         }
-        
-        lastErr = new Error(`upstream status ${resp.status}`);
-        console.warn(`[NamoGPT] Upstream returned ${resp.status} for ${modelName} (key index ${idx}), attempting failover...`);
-      } catch (err) {
-        lastErr = err;
-        console.error(`Attempt ${attempt} for ${modelName} failed:`, err.message);
+      } catch (searchErr) {
+        console.warn('[AutoWebSearch] Background search augmentation notice:', searchErr.message);
       }
     }
 
-    // If all configured keys failed (e.g. rate limit), return fallback or 502
-    if (lastErr && tried.length === 0) {
-      return handleDemoFallback(req, res, modelName);
+    // Provider client key resolver
+    const getClientKeyForPool = (pName) => {
+      if (pName.startsWith('gemini')) return req.headers['x-gemini-key'] || null;
+      if (pName.startsWith('groq')) return req.headers['x-groq-key'] || null;
+      if (pName.includes('openrouter')) return req.headers['x-openrouter-key'] || null;
+      if (pName.includes('nvidia')) return req.headers['x-nvidia-key'] || null;
+      if (pName.includes('aion')) return req.headers['x-aion-key'] || null;
+      if (pName.includes('cf') || pName.includes('cloudflare')) return req.headers['x-cf-key'] || req.headers['x-cloudflare-key'] || null;
+      if (pName.includes('9router')) return req.headers['x-9router-key'] || req.headers['x-ninerouter-key'] || null;
+      return null;
+    };
+
+    const isPoolActive = (pName) => {
+      const p = pools[pName];
+      if (!p || !p.items) return false;
+      return p.items.some(item => Boolean(getClientKeyForPool(pName) || item.apiKey));
+    };
+
+    let selectedPrimaryPool = 'groq';
+    let fallbackCandidates = [];
+
+    if (isAuto) {
+      if (isVisionIntent) {
+        // Vision/images: route to groq-vision or gemini
+        if (isPoolActive('groq-vision')) {
+          selectedPrimaryPool = 'groq-vision';
+          fallbackCandidates = ['groq-vision', 'gemini', '9router', 'omnirouter', 'groq'];
+        } else {
+          selectedPrimaryPool = 'gemini';
+          fallbackCandidates = ['gemini', 'groq-vision', '9router', 'omnirouter', 'groq'];
+        }
+      } else if (isRealTimeNewsWeather) {
+        // Real-time/news/weather: auto-augment with searchWeb and route to active fast model (groq or gemini)
+        if (isPoolActive('groq')) {
+          selectedPrimaryPool = 'groq';
+          fallbackCandidates = ['groq', 'gemini', 'groq-instant', 'openrouter', 'nvidia', 'cloudflare', '9router'];
+        } else {
+          selectedPrimaryPool = 'gemini';
+          fallbackCandidates = ['gemini', 'groq', 'groq-instant', 'openrouter', 'nvidia', 'cloudflare', '9router'];
+        }
+      } else if (isComplexStem) {
+        // Complex STEM/reasoning: route to deepseek-r1 or gemini
+        if (isPoolActive('deepseek-r1')) {
+          selectedPrimaryPool = 'deepseek-r1';
+          fallbackCandidates = ['deepseek-r1', 'groq-r1', 'gemini', 'openrouter-r1', 'nvidia', 'groq'];
+        } else if (isPoolActive('groq-r1')) {
+          selectedPrimaryPool = 'groq-r1';
+          fallbackCandidates = ['groq-r1', 'deepseek-r1', 'gemini', 'openrouter-r1', 'nvidia', 'groq'];
+        } else if (isPoolActive('gemini')) {
+          selectedPrimaryPool = 'gemini';
+          fallbackCandidates = ['gemini', 'deepseek-r1', 'groq-r1', 'openrouter-r1', 'nvidia', 'groq'];
+        } else {
+          selectedPrimaryPool = 'groq-r1';
+          fallbackCandidates = ['groq-r1', 'gemini', 'deepseek-r1', 'groq'];
+        }
+      } else {
+        // General conversation: route to groq (300 t/s) or gemini (1M context)
+        if (isPoolActive('groq')) {
+          selectedPrimaryPool = 'groq';
+          fallbackCandidates = ['groq', 'gemini', 'groq-instant', 'openrouter', 'nvidia', 'cloudflare', '9router'];
+        } else {
+          selectedPrimaryPool = 'gemini';
+          fallbackCandidates = ['gemini', 'groq', 'groq-instant', 'openrouter', 'nvidia', 'cloudflare', '9router'];
+        }
+      }
+    } else {
+      // Explicit model requested
+      let explicitModel = rawModel;
+      if (explicitModel === 'cloudflare' || explicitModel.includes('cloudflare')) explicitModel = 'cloudflare';
+      else if (explicitModel.startsWith('gemini')) explicitModel = 'gemini';
+      else if (explicitModel === 'deepseek-r1' || explicitModel.includes('deepseek-r1')) explicitModel = 'deepseek-r1';
+      else if (explicitModel === 'groq-vision' || explicitModel.includes('vision')) explicitModel = 'groq-vision';
+      else if (explicitModel === 'groq-r1' || (explicitModel.includes('qwen') && !explicitModel.includes('openrouter'))) explicitModel = 'groq-r1';
+      else if (explicitModel === 'openrouter-r1' || (explicitModel.includes('qwen') && explicitModel.includes('openrouter'))) explicitModel = 'openrouter-r1';
+      else if (explicitModel.includes('instant') || explicitModel === 'groq-instant' || explicitModel.includes('gpt-oss-20b')) explicitModel = 'groq-instant';
+      else if (explicitModel.includes('gpt-oss') || explicitModel.includes('groq') || explicitModel.includes('llama')) explicitModel = 'groq';
+      else if (explicitModel.includes('nemotron') && explicitModel.includes('super')) explicitModel = 'nvidia';
+      else if (explicitModel.includes('nemotron') || explicitModel.includes('openrouter')) explicitModel = 'openrouter';
+      else if (explicitModel.includes('nvidia') && pools['nvidia']) explicitModel = 'nvidia';
+      else if (explicitModel.includes('aion') && pools['aion-2.0']) explicitModel = 'aion-2.0';
+      else if (explicitModel === '9router' || explicitModel.includes('9router')) explicitModel = '9router';
+      else if (explicitModel === 'omnirouter' || explicitModel.includes('omnirouter')) explicitModel = 'omnirouter';
+
+      selectedPrimaryPool = explicitModel;
+      fallbackCandidates = [explicitModel, 'groq', 'gemini', 'openrouter', 'nvidia', 'cloudflare'];
     }
 
-    const politeGuidance = "Unable to reach the provider upstream. Please verify your API key in Settings or switch to Auto Mode.";
+    // Build ordered list of candidate pools to try
+    const candidatePoolsList = [];
+    const seenPools = new Set();
+    for (const p of [selectedPrimaryPool, ...fallbackCandidates]) {
+      if (p && pools[p] && !seenPools.has(p)) {
+        seenPools.add(p);
+        candidatePoolsList.push(p);
+      }
+    }
+    // Also include any other pool that is active as emergency cascade
+    for (const p of Object.keys(pools)) {
+      if (!seenPools.has(p) && isPoolActive(p)) {
+        seenPools.add(p);
+        candidatePoolsList.push(p);
+      }
+    }
 
-    res.status(502).json({
-      error: politeGuidance,
-      message: politeGuidance,
-      model: modelName
-    });
+    // Verify if ANY key is available across any candidate pool
+    const hasAnyActiveKey = candidatePoolsList.some(p => isPoolActive(p));
+    if (!hasAnyActiveKey) {
+      console.log(`[NamoGPT] Notice: No API key found for ${selectedPrimaryPool}. Serving smart guidance response.`);
+      return handleDemoFallback(req, res, selectedPrimaryPool);
+    }
+
+    // Robust LiteLLM key & pool cascade failover:
+    // If primary key in pool returns 400/404/429/500, cascade to next key and next active pool without dropping the user
+    let requestSucceeded = false;
+    let lastErr = null;
+    const attemptedCascades = [];
+
+    for (const currentPoolName of candidatePoolsList) {
+      const pool = pools[currentPoolName];
+      if (!pool || !pool.items || pool.items.length === 0) continue;
+
+      const poolClientKey = getClientKeyForPool(currentPoolName);
+      const validItems = pool.items.filter(it => Boolean(poolClientKey || it.apiKey));
+      if (validItems.length === 0) continue;
+
+      const n = validItems.length;
+      const startIdx = pool.rr || 0;
+
+      for (let k = 0; k < n; k++) {
+        const itemIdx = (startIdx + k) % n;
+        const baseItem = validItems[itemIdx];
+        refillTokens(baseItem);
+
+        const effectiveKey = poolClientKey || baseItem.apiKey;
+        if (!effectiveKey) continue;
+
+        const item = { ...baseItem, apiKey: effectiveKey };
+        attemptedCascades.push({ pool: currentPoolName, idx: itemIdx, apiBase: item.apiBase || null });
+
+        try {
+          const resp = await forwardRequest(item, forwardPath, req);
+
+          // Success: only 2xx is considered successful
+          if (resp.status >= 200 && resp.status < 300) {
+            requestSucceeded = true;
+            pool.rr = (itemIdx + 1) % n;
+            if (baseItem.tokens !== null) baseItem.tokens -= 1;
+
+            for (const h of Object.keys(resp.headers || {})) {
+              if (['transfer-encoding', 'connection', 'content-encoding'].includes(h)) continue;
+              res.setHeader(h, resp.headers[h]);
+            }
+            res.status(resp.status);
+
+            if (typeof resp.data?.pipe === 'function') {
+              const { Transform } = await import('stream');
+              const sanitizeStream = new Transform({
+                transform(chunk, encoding, callback) {
+                  try {
+                    const chunkStr = chunk.toString();
+                    const sanitized = sanitizeCompletionText(chunkStr);
+                    callback(null, Buffer.from(sanitized));
+                  } catch {
+                    callback(null, chunk);
+                  }
+                }
+              });
+              resp.data.on('error', (streamErr) => {
+                console.error('[NamoGPT Stream] Upstream stream error:', streamErr.message);
+                res.destroy(streamErr);
+              });
+              return resp.data.pipe(sanitizeStream).pipe(res);
+            }
+
+            let responseData = resp.data;
+            if (Buffer.isBuffer(responseData)) {
+              try {
+                const text = responseData.toString('utf8');
+                const json = JSON.parse(text);
+                if (json.choices && Array.isArray(json.choices)) {
+                  json.choices.forEach(c => {
+                    if (c.message?.content) {
+                      c.message.content = sanitizeCompletionText(c.message.content);
+                    }
+                  });
+                  return res.json(json);
+                }
+              } catch {
+                const text = responseData.toString('utf8');
+                return res.send(Buffer.from(sanitizeCompletionText(text)));
+              }
+            }
+            return res.send(responseData);
+          }
+
+          // Clean up stream if non-2xx
+          if (resp.data && typeof resp.data.destroy === 'function') {
+            resp.data.destroy();
+          }
+
+          console.warn(`[NamoGPT Failover] Upstream status ${resp.status} for pool '${currentPoolName}' (key idx ${itemIdx}). Cascading to next available key/pool...`);
+          lastErr = new Error(`upstream status ${resp.status}`);
+        } catch (err) {
+          console.warn(`[NamoGPT Failover] Upstream request exception for pool '${currentPoolName}' (key idx ${itemIdx}): ${err.message}. Cascading...`);
+          lastErr = err;
+        }
+      }
+
+      if (requestSucceeded) break;
+    }
+
+    if (!requestSucceeded) {
+      console.log(`[NamoGPT] Notice: All upstream keys & pools failed. Serving smart demo fallback without dropping user.`);
+      return handleDemoFallback(req, res, selectedPrimaryPool || 'auto');
+    }
   } catch (err) {
     console.error('Handler error:', err);
     const politeGuidance = "Unable to reach the provider upstream. Please verify your API key in Settings or switch to Auto Mode.";

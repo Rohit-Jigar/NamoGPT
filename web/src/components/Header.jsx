@@ -128,6 +128,11 @@ export default function Header() {
                 <span className="text-[10px] text-emerald-400 font-mono">100% Free Tiers</span>
               </div>
 
+              <div className="mx-2 my-2 p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-300 flex items-center gap-2">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span>Auto Mode handles search, vision, STEM reasoning, and failovers transparently. No manual model selection needed.</span>
+              </div>
+
               <div className="max-h-[380px] overflow-y-auto py-1 space-y-1 no-scrollbar">
                 {models
                   .filter((m) => m.id !== '9router' || settings?.nineRouter?.enabled !== false)

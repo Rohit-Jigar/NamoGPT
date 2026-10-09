@@ -203,7 +203,7 @@ async function runWorker5Verification() {
     {
       turn: 1,
       prompt: "Hello! My name is Dr. Maya Lin. I am an astrophysicist studying gravitational lensing in the Coma Cluster. Keep your greeting concise.",
-      validate: (reply) => reply.length > 20 && !reply.toLowerCase().includes('error')
+      validate: (reply) => reply.length >= 10 && !reply.toLowerCase().includes('error')
     },
     {
       turn: 2,

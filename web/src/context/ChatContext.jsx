@@ -323,20 +323,18 @@ export function ChatProvider({ children }) {
     const temporalContext = `[Local System Temporal Ground Truth]: Current User Local Date & Time is ${localTimeStr} (Timezone: ${userTz}). Use this as the definitive factual reference for any questions asking for current time, day of week, month, or year.`;
 
     // Multimodal image processing & Auto Router
-    let effectiveModel = selectedModel;
+    let effectiveModel = selectedModel || 'auto';
     const hasImage = attachment && attachment.dataUrl?.startsWith('data:image');
 
-    // Auto Mode (Smart Router) selection
-    if (selectedModel === 'auto') {
-      if (hasImage) {
-        effectiveModel = 'groq-vision';
-      } else if (isThinkingModeEnabled || /\b(proof|calculate|solve|derive|integral|differential|algorithm|complexity|benchmark)\b/i.test(promptText)) {
+    // Auto Mode (Smart Router) selection: Auto handles routing transparently on backend
+    if (effectiveModel === 'auto') {
+      if (isThinkingModeEnabled) {
         effectiveModel = 'deepseek-r1';
       } else {
-        effectiveModel = 'auto'; // backend LiteLLM smart router handles auto failover
+        effectiveModel = 'auto'; // backend LiteLLM smart router handles intent routing (vision, STEM, real-time search) & key cascade failovers
       }
-    } else if (hasImage && !['gemini', 'groq-vision', '9router', 'omnirouter'].includes(selectedModel)) {
-      effectiveModel = 'groq-vision';
+    } else if (hasImage && !['gemini', 'groq-vision', '9router', 'omnirouter'].includes(effectiveModel)) {
+      effectiveModel = 'auto';
     }
 
     // Format current user message with image payload if applicable

@@ -1,11 +1,11 @@
 {
-  "timestamp": "2026-10-09T17:21:20.863Z",
+  "timestamp": "2026-10-09T17:27:33.540Z",
   "tests": [
     {
       "testId": "TC-1.1",
       "title": "News Stories Count (Contains 5 current news stories)",
       "passed": true,
-      "latencyMs": 6158,
+      "latencyMs": 4382,
       "details": {
         "detectedNumberedCount": 5,
         "markdownLinksCount": 5
@@ -45,11 +45,11 @@
       "latencyMs": null,
       "details": {
         "linksFound": [
-          "[FOX Weather](https://news.google.com/rss/articles/CBMizAFBVV95cUxPaV9MUTRVQzhKVjN5amtXNEgtcUtEMWI5T2ZNMFp1eV9FT1hLNTRBa2NCcEU2UGtPejVNMGx1Z1NmTWpneU1ZYUIxRWxnSXNTaFpZZDJNVHZsTmlJclN0ZThCOWg5ZjhNZUlPNWpDVHpYUnhlUGJBNE5yUU9wNE5RWWlEQTNHVG82TGxoTUVWazNSQWxMTGNaanlyUGtkLXJzNWdwMHFpcjFJQVFrNEkwcHJiSmd5WVJCOEI0ejRpa0hIMXBEeTZfMWxXWG4?oc=5)",
-          "[NBC News](https://news.google.com/rss/articles/CBMiugFBVV95cUxPN0FERndkRTQ1dkZ1ZXRHTW9VQUJTZEpWM1Y5c3ZXSUtxYWo1OVdpdnpxTE12UEtzNGw1NGFGb3Z2OGo0b2J1U2RGWF8xcWc3Ni1uRlJlTzZLVTJmMDI0VEFpTF9PbHVlWjgtMXhEc0lMeFEtcjZrcVRZSU9ORHZBUEtkWjNXS0ZoZVBWUFAzcUxBeUZEZ0lCTTk2LXFfMFpSbjRiZU9GLTVlcjhXSkpmT1BXZXVGT3ZkWHc?oc=5)",
-          "[Reuters](https://news.google.com/rss/articles/CBMivgFBVV95cUxOLXU4YU9BUnl0d1dlTGlaSmdhcFBDcS1lRDFaeGRhbjNPaVFXU0NCQVlabFRhMXRFVVJER2gtclFYWE5hdHR4bXM1N245MWNKeS0yVkNkWFE0S0d5aDFaNmptQUlGWEtCZk4ySXJfWjU1ODczRTUxd2VwS19lTHc5ZTlMQ0hyZ09kOFRPUkVfcUdja3pjY0hGUXZvdWNiS1NEYms3c0I5UlpRX3Q4LUV2Z3d5QkkydkZiRmxXMUZB?oc=5)",
-          "[The New York Times](https://news.google.com/rss/articles/CBMihgFBVV95cUxQcDltWGpBSXRObWNDRHpjbXh1QjNDdGJRY0xyZ0Vvd0h6Vk5iZmZZUE1vWE1OTVRmV3dGTTNXTjZmU0dDT1FqZE9NY3hGV08zb3lRRm1TRFZmZXhUbjdRZEZlLU0yMEpfbFFSQ1VrV3hmNFNCLWhVNFJaVk1TU0hSaFZISDlMdw?oc=5)",
-          "[NPR](https://news.google.com/rss/articles/CBMic0FVX3lxTE11akZrSDhTd2tydUlrQUNQV0ZJRk1xVnBjek9ybUdEZldKbXhpTVMwdm5QeUZITVVfaGYxSmlMd0YyNURMMlMyQngwMXY0ODRJZ3FxSkJYbXpXSFB4UEpnQXBVeXJFS1IxUEt0NzVCYzZUX3c?oc=5)"
+          "[Source (1)](https://news.google.com/rss/articles/CBMizAFBVV95cUxPaV9MUTRVQzhKVjN5amtXNEgtcUtEMWI5T2ZNMFp1eV9FT1hLNTRBa2NCcEU2UGtPejVNMGx1Z1NmTWpneU1ZYUIxRWxnSXNTaFpZZDJNVHZsTmlJclN0ZThCOWg5ZjhNZUlPNWpDVHpYUnhlUGJBNE5yUU9wNE5RWWlEQTNHVG82TGxoTUVWazNSQWxMTGNaanlyUGtkLXJzNWdwMHFpcjFJQVFrNEkwcHJiSmd5WVJCOEI0ejRpa0hIMXBEeTZfMWxXWG4?oc=5)",
+          "[Source (2)](https://news.google.com/rss/articles/CBMiugFBVV95cUxPN0FERndkRTQ1dkZ1ZXRHTW9VQUJTZEpWM1Y5c3ZXSUtxYWo1OVdpdnpxTE12UEtzNGw1NGFGb3Z2OGo0b2J1U2RGWF8xcWc3Ni1uRlJlTzZLVTJmMDI0VEFpTF9PbHVlWjgtMXhEc0lMeFEtcjZrcVRZSU9ORHZBUEtkWjNXS0ZoZVBWUFAzcUxBeUZEZ0lCTTk2LXFfMFpSbjRiZU9GLTVlcjhXSkpmT1BXZXVGT3ZkWHc?oc=5)",
+          "[Source (4)](https://news.google.com/rss/articles/CBMivgFBVV95cUxOLXU4YU9BUnl0d1dlTGlaSmdhcFBDcS1lRDFaeGRhbjNPaVFXU0NCQVlabFRhMXRFVVJER2gtclFYWE5hdHR4bXM1N245MWNKeS0yVkNkWFE0S0d5aDFaNmptQUlGWEtCZk4ySXJfWjU1ODczRTUxd2VwS19lTHc5ZTlMQ0hyZ09kOFRPUkVfcUdja3pjY0hGUXZvdWNiS1NEYms3c0I5UlpRX3Q4LUV2Z3d5QkkydkZiRmxXMUZB?oc=5)",
+          "[Source (3)](https://news.google.com/rss/articles/CBMihgFBVV95cUxQcDltWGpBSXRObWNDRHpjbXh1QjNDdGJRY0xyZ0Vvd0h6Vk5iZmZZUE1vWE1OTVRmV3dGTTNXTjZmU0dDT1FqZE9NY3hGV08zb3lRRm1TRFZmZXhUbjdRZEZlLU0yMEpfbFFSQ1VrV3hmNFNCLWhVNFJaVk1TU0hSaFZISDlMdw?oc=5)",
+          "[Source (5)](https://news.google.com/rss/articles/CBMic0FVX3lxTE11akZrSDhTd2tydUlrQUNQV0ZJRk1xVnBjek9ybUdEZldKbXhpTVMwdm5QeUZITVVfaGYxSmlMd0YyNURMMlMyQngwMXY0ODRJZ3FxSkJYbXpXSFB4UEpnQXBVeXJFS1IxUEt0NzVCYzZUX3c?oc=5)"
         ]
       }
     },
@@ -57,9 +57,9 @@
       "testId": "TC-2.1",
       "title": "Comprehensive Non-Coding Explanation (Meditation benefits addressed)",
       "passed": true,
-      "latencyMs": 3465,
+      "latencyMs": 1911,
       "details": {
-        "length": 6153
+        "length": 2571
       }
     },
     {
@@ -75,7 +75,7 @@
       "testId": "TC-3.1",
       "title": "Explicit Code Generation (Contains Python code block with function definition)",
       "passed": true,
-      "latencyMs": 536,
+      "latencyMs": 1664,
       "details": {
         "hasFunctionDef": true,
         "hasCodeFence": true
@@ -92,6 +92,9 @@
           "palindrome",
           "palindrome",
           "palindrome",
+          "[::-1]",
+          "palindrome",
+          "palindrome",
           "[::-1]"
         ]
       }
@@ -100,7 +103,7 @@
       "testId": "TC-4.1",
       "title": "Multi-turn Turn 1: \"Hello! My name is Dr. Maya Lin. I am an ...\"",
       "passed": true,
-      "latencyMs": 714,
+      "latencyMs": 485,
       "details": {
         "prompt": "Hello! My name is Dr. Maya Lin. I am an astrophysicist studying gravitational lensing in the Coma Cluster. Keep your greeting concise.",
         "responseExcerpt": "Hello Dr. Maya Lin! Nice to meet you....",
@@ -111,32 +114,32 @@
       "testId": "TC-4.2",
       "title": "Multi-turn Turn 2: \"What is my full name and what field of s...\"",
       "passed": true,
-      "latencyMs": 528,
+      "latencyMs": 971,
       "details": {
         "prompt": "What is my full name and what field of science do I specialize in?",
-        "responseExcerpt": "Your full name is Dr. Maya Lin, and you specialize in astrophysics, specifically studying gravitational lensing in the Coma Cluster....",
-        "model": "qwen/qwen3.8-27b"
+        "responseExcerpt": "Your full name is **Dr. Maya Lin**, and you specialize in **astrophysics**, focusing on gravitational lensing in the Coma Cluster....",
+        "model": "openai/gpt-oss-120b"
       }
     },
     {
       "testId": "TC-4.3",
       "title": "Multi-turn Turn 3: \"Which galaxy cluster did I specify earli...\"",
       "passed": true,
-      "latencyMs": 1078,
+      "latencyMs": 380,
       "details": {
         "prompt": "Which galaxy cluster did I specify earlier?",
-        "responseExcerpt": "You mentioned the **Coma Cluster**....",
-        "model": "openai/gpt-oss-120b"
+        "responseExcerpt": "You specified the **Coma Cluster**....",
+        "model": "qwen/qwen3.8-27b"
       }
     },
     {
       "testId": "TC-4.4",
       "title": "Multi-turn Turn 4: \"What phenomenon am I studying in that cl...\"",
       "passed": true,
-      "latencyMs": 756,
+      "latencyMs": 540,
       "details": {
         "prompt": "What phenomenon am I studying in that cluster? (Answer in one sentence)",
-        "responseExcerpt": "You are studying gravitational lensing in the Coma Cluster....",
+        "responseExcerpt": "You are studying **gravitational lensing** in the Coma Cluster....",
         "model": "openai/gpt-oss-120b"
       }
     },
@@ -144,11 +147,11 @@
       "testId": "TC-4.5",
       "title": "Multi-turn Turn 5: \"Summarize our conversation so far in exa...\"",
       "passed": true,
-      "latencyMs": 974,
+      "latencyMs": 380,
       "details": {
         "prompt": "Summarize our conversation so far in exactly two bullet points.",
-        "responseExcerpt": "- Dr. Maya Lin is an astrophysicist focusing on gravitational lensing in the Coma Cluster. - She asked for a concise summary of the discussi...",
-        "model": "openai/gpt-oss-120b"
+        "responseExcerpt": "* You introduced yourself as Dr. Maya Lin, an astrophysicist specializing in gravitational lensing within the Coma Cluster. * I confirmed yo...",
+        "model": "qwen/qwen3.8-27b"
       }
     }
   ],
