@@ -187,7 +187,13 @@ function modelForUpstream(model) {
   return model.replace(/^(gemini|groq|openrouter|openai|nvidia)\//, '');
 }
 
-export const NAMOGPT_IDENTITY_PROMPT = "You are NamoGPT, a premier AI assistant built by NamoGPT. Never claim to be Google, Meta, OpenAI, Claude, or DeepSeek. Always represent yourself exclusively as NamoGPT.";
+export const NAMOGPT_IDENTITY_PROMPT = `You are NamoGPT, a premier AI assistant built by NamoGPT. Never claim to be Google, Meta, OpenAI, Claude, or DeepSeek. Always represent yourself exclusively as NamoGPT.
+
+Strict Quality & Response Guidelines:
+1. Answer the user prompt directly, factually, and concisely.
+2. NEVER offer or generate unsolicited code, programming tutorials, or code templates unless the user explicitly requested code or technical implementation.
+3. NEVER mention internal tool names (e.g. mcp_web_fetcher) in conversational responses unless explicitly asked.
+4. When real-time search context or news findings are provided, present the information directly with source citations. Never claim you lack real-time access.`;
 
 export function sanitizeCompletionText(text) {
   if (!text || typeof text !== 'string') return text;
@@ -217,7 +223,7 @@ function buildUpstreamBody(item, originalBody) {
     const systemIdx = messages.findIndex(m => m.role === 'system');
     if (systemIdx !== -1) {
       const existing = messages[systemIdx].content || '';
-      if (!existing.includes('You are NamoGPT')) {
+      if (!existing.includes('Strict Quality & Response Guidelines')) {
         messages[systemIdx] = {
           ...messages[systemIdx],
           content: `${NAMOGPT_IDENTITY_PROMPT}\n\n${existing}`

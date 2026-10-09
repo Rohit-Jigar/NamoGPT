@@ -75,11 +75,19 @@ export default function Header() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const currentModelObj = models.find((m) => m.id === selectedModel) || {
-    name: 'Auto (Smart Router)',
-    badge: 'Recommended',
-    badgeColor: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-  };
+  const foundModel = models.find((m) => m.id === selectedModel);
+  const currentModelObj = selectedModel === 'auto'
+    ? {
+        ...(foundModel || {}),
+        name: '✨ Auto (Smart Router)',
+        badge: 'LiteLLM Dynamic',
+        badgeColor: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+      }
+    : (foundModel || {
+        name: '✨ Auto (Smart Router)',
+        badge: 'LiteLLM Dynamic',
+        badgeColor: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+      });
 
   return (
     <header className="h-14 glass-nav px-3 sm:px-4 flex items-center justify-between shrink-0 select-none z-30">
@@ -127,6 +135,11 @@ export default function Header() {
                     const isSelected = m.id === selectedModel;
                     const isComingSoon = m.isComingSoon || m.badge === 'Coming Soon';
                     const isAuto = m.id === 'auto';
+                    const modelName = isAuto ? '✨ Auto (Smart Router)' : m.name;
+                    const modelBadge = isAuto ? 'LiteLLM Dynamic' : (m.badge || (isComingSoon ? 'Coming Soon' : 'Ready'));
+                    const modelBadgeColor = isAuto
+                      ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                      : (m.badgeColor || 'bg-zinc-800 text-zinc-300 border-zinc-700');
 
                     return (
                       <div
@@ -148,17 +161,17 @@ export default function Header() {
                         <div className="space-y-1 flex-1 pr-2">
                           <div className="flex items-center space-x-2">
                             <span className={`font-semibold text-xs sm:text-sm ${isAuto ? 'text-emerald-400' : ''}`}>
-                              {m.name}
+                              {modelName}
                             </span>
                             <span
                               className={`text-[9px] font-medium px-1.5 py-0.5 rounded border flex items-center gap-0.5 ${
                                 isComingSoon
                                   ? 'bg-zinc-800 text-zinc-400 border-zinc-700'
-                                  : m.badgeColor || 'bg-zinc-800 text-zinc-300 border-zinc-700'
+                                  : modelBadgeColor
                               }`}
                             >
                               {isComingSoon && <Lock className="w-2.5 h-2.5" />}
-                              {m.badge || (isComingSoon ? 'Coming Soon' : 'Ready')}
+                              {modelBadge}
                             </span>
                           </div>
                           <p className="text-[11px] text-zinc-400 line-clamp-1 leading-relaxed">{m.description}</p>

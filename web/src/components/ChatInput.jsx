@@ -189,7 +189,7 @@ export default function ChatInput() {
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={isListening ? 'Listening... Speak into your microphone' : 'Ask NamoGPT anything or type your prompt...'}
+            placeholder={isListening ? 'Listening... Speak into your microphone' : 'Ask NamoGPT anything... (Smart model router & real-time search active)'}
             className="w-full bg-transparent text-sm text-zinc-100 placeholder-zinc-500 px-4 pt-3.5 pb-2 outline-none resize-none max-h-52 leading-relaxed font-sans"
           />
 
@@ -208,7 +208,7 @@ export default function ChatInput() {
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 className="p-2 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/80 transition-colors"
-                title="Attach image, document, or code"
+                title="Attach image (auto vision LPU), document, or code"
               >
                 <Paperclip className="w-4 h-4" />
               </button>
@@ -221,7 +221,7 @@ export default function ChatInput() {
                     ? 'text-rose-400 bg-rose-500/20 animate-pulse'
                     : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/80'
                 }`}
-                title={isListening ? 'Stop recording' : 'Voice input'}
+                title={isListening ? 'Stop recording' : 'Voice input (Speech recognition)'}
               >
                 {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
               </button>
@@ -235,7 +235,11 @@ export default function ChatInput() {
                     ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30 shadow-sm shadow-blue-500/10'
                     : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/70 border border-transparent'
                 }`}
-                title={isWebSearchEnabled ? 'Live internet web search enabled' : 'Enable live internet search'}
+                title={
+                  isWebSearchEnabled
+                    ? 'Live web search active (auto-activates on real-time news & queries)'
+                    : 'Enable live web search (auto-activates on real-time queries)'
+                }
               >
                 <Globe className={`w-3.5 h-3.5 ${isWebSearchEnabled ? 'text-blue-400' : ''}`} />
                 <span className="text-[11px]">Search</span>
@@ -250,7 +254,11 @@ export default function ChatInput() {
                     ? 'bg-purple-500/15 text-purple-400 border border-purple-500/30 shadow-sm shadow-purple-500/10'
                     : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/70 border border-transparent'
                 }`}
-                title={isThinkingModeEnabled ? 'Step-by-step thinking & chain of thought active' : 'Enable thinking mode'}
+                title={
+                  isThinkingModeEnabled
+                    ? 'Step-by-step thinking & chain of thought active (DeepSeek R1)'
+                    : 'Enable thinking mode (auto-selected for complex math & reasoning)'
+                }
               >
                 <Brain className={`w-3.5 h-3.5 ${isThinkingModeEnabled ? 'text-purple-400' : ''}`} />
                 <span className="text-[11px]">Think</span>
@@ -261,7 +269,7 @@ export default function ChatInput() {
                 type="button"
                 onClick={() => setIsDeepResearchOpen(true)}
                 className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-medium text-zinc-400 hover:text-indigo-300 hover:bg-indigo-500/10 transition-all border border-transparent hover:border-indigo-500/30"
-                title="Open Deep Research Mode"
+                title="Autonomous Deep Research Mode (Multi-source query synthesis)"
               >
                 <Compass className="w-3.5 h-3.5 text-indigo-400" />
                 <span className="text-[11px]">Research</span>
@@ -272,7 +280,7 @@ export default function ChatInput() {
                 type="button"
                 onClick={() => setIsPersonaOpen(true)}
                 className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-medium text-zinc-400 hover:text-emerald-300 hover:bg-emerald-500/10 transition-all border border-transparent hover:border-emerald-500/30"
-                title={`Active Persona: ${currentPersona?.name || 'Standard'}`}
+                title={`AI Persona: ${currentPersona?.name || 'Standard'} (Specialized prompt intelligence)`}
               >
                 <Bot className="w-3.5 h-3.5 text-emerald-400" />
                 <span className="text-[11px] truncate max-w-[85px]">{currentPersona?.name || 'Persona'}</span>
@@ -290,7 +298,7 @@ export default function ChatInput() {
                   ? 'bg-zinc-100 text-zinc-950 hover:bg-white shadow-md hover:scale-105 active:scale-95'
                   : 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
               }`}
-              title={isGenerating ? 'Stop generating' : 'Send message (Enter)'}
+              title={isGenerating ? 'Stop generating' : 'Send message (Enter) • Auto-routed with smart failover'}
             >
               {isGenerating ? (
                 <Square className="w-3.5 h-3.5 fill-current" />
@@ -303,7 +311,7 @@ export default function ChatInput() {
 
         {/* Clean Footer Disclaimer */}
         <p className="text-center text-[10px] text-zinc-500 select-none tracking-tight">
-          NamoGPT AI Assistant • Powered by LiteLLM Multi-Model Orchestration & MCP Extensions
+          NamoGPT AI Assistant • Powered by LiteLLM Smart Router & Automatic Real-Time Intelligence
         </p>
       </div>
     </div>

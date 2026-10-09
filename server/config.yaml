@@ -385,18 +385,42 @@ model_list:
       api_key: os.environ/OMNIROUTER_API_KEY
       rpm: 120
 
-  # Groq Llama 3.2 90B Vision Multimodal Pool
+  # Groq Vision Multimodal Pool (Gemini 2.5 Flash / Groq Vision)
   - model_name: groq-vision
     litellm_params:
-      model: groq/llama-3.2-90b-vision-preview
+      model: gemini/gemini-2.5-flash
+      api_key: os.environ/GEMINI_API_KEY_1
+      rpm: 30
+
+  - model_name: groq-vision
+    litellm_params:
+      model: gemini/gemini-2.5-flash
+      api_key: os.environ/GEMINI_API_KEY_2
+      rpm: 30
+
+  - model_name: groq-vision
+    litellm_params:
+      model: gemini/gemini-2.5-flash
+      api_key: os.environ/GEMINI_API_KEY_3
+      rpm: 30
+
+  # DeepSeek R1 Thinking & Deep Reasoning Pool (Groq Qwen 3.8 27B & Gemini Reasoning)
+  - model_name: deepseek-r1
+    litellm_params:
+      model: groq/qwen/qwen3.8-27b
       api_key: os.environ/GROQ_API_KEY_1
       rpm: 30
 
-  # DeepSeek R1 Thinking & Deep Reasoning Pool (via Groq LPUs)
   - model_name: deepseek-r1
     litellm_params:
-      model: groq/deepseek-r1-distill-llama-70b
-      api_key: os.environ/GROQ_API_KEY_1
+      model: groq/qwen/qwen3.8-27b
+      api_key: os.environ/GROQ_API_KEY_2
+      rpm: 30
+
+  - model_name: deepseek-r1
+    litellm_params:
+      model: gemini/gemini-2.5-flash
+      api_key: os.environ/GEMINI_API_KEY_1
       rpm: 30
 
 litellm_settings:
@@ -404,4 +428,5 @@ litellm_settings:
   
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY
+
 

@@ -233,21 +233,34 @@ export async function executeMcpTool(toolId, args = {}) {
 }
 
 /**
- * Formats active MCP tools for inclusion in model context instructions
+ * Formats active MCP tools for inclusion in model context instructions.
+ * ONLY provides structured machine definitions if tools are actively requested.
+ * Does NOT inject conversational suggestions or tool chatter.
  */
-export function formatMcpToolsPrompt() {
+export function formatMcpToolsPrompt(requested = false) {
+  // Only inject if tools are explicitly requested
+  const isActivelyRequested = typeof requested === 'boolean'
+    ? requested
+    : typeof requested === 'string'
+      ? /\b(mcp|call tool|use tool|run tool|invoke tool|list tools)\b/i.test(requested)
+      : Boolean(requested?.requested);
+
+  if (!isActivelyRequested) {
+    return '';
+  }
+
   const activeTools = getAllMcpTools().filter(t => t.enabled !== false);
   if (activeTools.length === 0) return '';
 
-  let prompt = '=== MODEL CONTEXT PROTOCOL (MCP) ACTIVE TOOLS ===\n';
-  prompt += 'You have access to the following registered Model Context Protocol tools:\n\n';
+  let prompt = '=== MODEL CONTEXT PROTOCOL (MCP) TOOL SPECIFICATIONS ===\n';
+  prompt += 'CRITICAL: The following are strictly internal machine-executable tool specifications. Do NOT mention these tools, tool names (e.g. mcp_web_fetcher), or internal capabilities to the user in conversational responses unless explicitly asked about tools. Do NOT offer unsolicited code, tutorials, or scripts to the user.\n\n';
 
   activeTools.forEach(t => {
-    prompt += `Tool Name: ${t.name}\n`;
+    prompt += `Tool: ${t.name}\n`;
     prompt += `Description: ${t.description}\n`;
-    prompt += `Input Parameters Schema: ${JSON.stringify(t.inputSchema)}\n\n`;
+    prompt += `Schema: ${JSON.stringify(t.inputSchema)}\n\n`;
   });
 
-  prompt += 'When relevant to fulfill user queries, you may specify tool invocations in your response.\n================================================';
+  prompt += '================================================';
   return prompt;
 }

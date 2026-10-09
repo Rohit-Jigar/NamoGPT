@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-10-08T06:38:05.293Z",
+  "timestamp": "2026-10-09T17:21:56.578Z",
   "tests": [
     {
       "name": "GET /api/models - Gemini 2.5 Flash active & working",
@@ -53,7 +53,7 @@
         "ninerouter": "active",
         "omnirouter": "active"
       },
-      "latencyMs": 10
+      "latencyMs": 6
     },
     {
       "name": "Multi-turn Conversation - Turn 1 Completed",
@@ -61,14 +61,14 @@
       "details": {
         "turn": 1,
         "prompt": "Hello! My name is Dr. Aris Thorne. I am an astrophysicist studying gravitational lensing in the Coma Cluster. Keep your answer brief.",
-        "responseExcerpt": "Hello Dr. Thorne! I’m NamoGPT—happy to help with any questions you have about gravitational lensing in the Coma Cluster....",
-        "fullLength": 120,
-        "modelUsed": "openai/gpt-oss-120b",
+        "responseExcerpt": "Hello, Dr. Thorne. It is a pleasure to meet you. How can I assist with your research on gravitational lensing in the Coma Cluster?...",
+        "fullLength": 130,
+        "modelUsed": "qwen/qwen3.8-27b",
         "finishReason": "stop",
-        "latencyMs": 921,
+        "latencyMs": 562,
         "historyLength": 2
       },
-      "latencyMs": 921
+      "latencyMs": 562
     },
     {
       "name": "Multi-turn Conversation - Turn 2 Completed",
@@ -76,14 +76,14 @@
       "details": {
         "turn": 2,
         "prompt": "Can you recall my name and my field of research?",
-        "responseExcerpt": "Yes, you are Dr. Aris Thorne, an astrophysicist studying gravitational lensing in the Coma Cluster....",
-        "fullLength": 99,
-        "modelUsed": "qwen/qwen3.8-27b",
+        "responseExcerpt": "Yes—your name is Dr. Aris Thorne, and you study gravitational lensing in the Coma Cluster....",
+        "fullLength": 90,
+        "modelUsed": "openai/gpt-oss-120b",
         "finishReason": "stop",
-        "latencyMs": 232,
+        "latencyMs": 530,
         "historyLength": 4
       },
-      "latencyMs": 232
+      "latencyMs": 530
     },
     {
       "name": "Multi-turn Conversation - Turn 3 Completed",
@@ -91,14 +91,14 @@
       "details": {
         "turn": 3,
         "prompt": "Which galaxy cluster did I specify I am studying?",
-        "responseExcerpt": "You’re focusing on the **Coma Cluster**....",
-        "fullLength": 40,
-        "modelUsed": "openai/gpt-oss-120b",
+        "responseExcerpt": "The Coma Cluster....",
+        "fullLength": 17,
+        "modelUsed": "qwen/qwen3.8-27b",
         "finishReason": "stop",
-        "latencyMs": 607,
+        "latencyMs": 210,
         "historyLength": 6
       },
-      "latencyMs": 607
+      "latencyMs": 210
     },
     {
       "name": "Multi-turn Conversation - Turn 4 Completed",
@@ -106,14 +106,14 @@
       "details": {
         "turn": 4,
         "prompt": "Calculate the Schwarzchild radius in kilometers for a black hole of 10 solar masses. Keep it concise.",
-        "responseExcerpt": "The Schwarzschild radius is approximately 30 km....",
-        "fullLength": 48,
+        "responseExcerpt": "Approximately 30 km....",
+        "fullLength": 20,
         "modelUsed": "qwen/qwen3.8-27b",
         "finishReason": "stop",
-        "latencyMs": 219,
+        "latencyMs": 217,
         "historyLength": 8
       },
-      "latencyMs": 219
+      "latencyMs": 217
     },
     {
       "name": "Multi-turn Conversation - Turn 5 Completed",
@@ -121,14 +121,14 @@
       "details": {
         "turn": 5,
         "prompt": "Summarize our conversation so far in exactly two bullet points.",
-        "responseExcerpt": "*   You introduced yourself as Dr. Aris Thorne, an astrophysicist studying gravitational lensing in the Coma Cluster, and I confirmed these details. *...",
-        "fullLength": 269,
-        "modelUsed": "qwen/qwen3.8-27b",
+        "responseExcerpt": "- You introduced yourself as Dr. Aris Thorne, an astrophysicist researching gravitational lensing in the Coma Cluster.   - You asked for the Schwarzsc...",
+        "fullLength": 214,
+        "modelUsed": "openai/gpt-oss-120b",
         "finishReason": "stop",
-        "latencyMs": 326,
+        "latencyMs": 766,
         "historyLength": 10
       },
-      "latencyMs": 326
+      "latencyMs": 766
     },
     {
       "name": "Streaming SSE Chat Completion (Auto Mode)",
@@ -137,7 +137,7 @@
         "streamedText": "1-2-3-4-5",
         "length": 9
       },
-      "latencyMs": 985
+      "latencyMs": 781
     },
     {
       "name": "POST /api/code/execute (JavaScript VM)",
@@ -147,9 +147,9 @@
         "stdout": "Determinant: -2",
         "stderr": "",
         "result": -2,
-        "executionTimeMs": 2.74
+        "executionTimeMs": 4.31
       },
-      "latencyMs": 9
+      "latencyMs": 12
     },
     {
       "name": "POST /api/code/execute (Python Subprocess)",
@@ -159,9 +159,9 @@
         "stdout": "Square roots: [4, 5, 6, 7]\r\n",
         "stderr": "",
         "result": "Square roots: [4, 5, 6, 7]",
-        "executionTimeMs": 145.91
+        "executionTimeMs": 155.9
       },
-      "latencyMs": 150
+      "latencyMs": 162
     },
     {
       "name": "POST /api/mcp/execute (ai_math_interpreter)",
@@ -176,7 +176,7 @@
           "error": null
         }
       },
-      "latencyMs": 6
+      "latencyMs": 7
     },
     {
       "name": "POST /api/mcp/execute (ai_system_info)",
@@ -188,14 +188,14 @@
           "platform": "win32",
           "arch": "x64",
           "nodeVersion": "v24.12.0",
-          "uptimeSeconds": 226,
+          "uptimeSeconds": 1144,
           "totalMemoryMB": 16167,
-          "freeMemoryMB": 3822,
+          "freeMemoryMB": 2202,
           "cpus": 8,
-          "timestamp": "2026-10-08T06:38:08.885Z"
+          "timestamp": "2026-10-09T17:21:59.959Z"
         }
       },
-      "latencyMs": 3
+      "latencyMs": 5
     },
     {
       "name": "POST /api/rag/query (Document Retrieval & Ranking)",
@@ -205,7 +205,7 @@
         "topDoc": "quantum_gate.txt",
         "score": 4.049
       },
-      "latencyMs": 5
+      "latencyMs": 6
     },
     {
       "name": "POST /api/research (Autonomous Multi-Step Deep Research)",
@@ -213,61 +213,61 @@
       "details": {
         "topic": "Emerging Quantum Computing Frameworks in 2026",
         "planQueries": 4,
-        "sourcesCount": 14,
-        "reportLength": 20292
+        "sourcesCount": 13,
+        "reportLength": 20301
       },
-      "latencyMs": 1352
+      "latencyMs": 1233
     }
   ],
   "multiTurnDetails": [
     {
       "turn": 1,
       "prompt": "Hello! My name is Dr. Aris Thorne. I am an astrophysicist studying gravitational lensing in the Coma Cluster. Keep your answer brief.",
-      "responseExcerpt": "Hello Dr. Thorne! I’m NamoGPT—happy to help with any questions you have about gravitational lensing in the Coma Cluster....",
-      "fullLength": 120,
-      "modelUsed": "openai/gpt-oss-120b",
+      "responseExcerpt": "Hello, Dr. Thorne. It is a pleasure to meet you. How can I assist with your research on gravitational lensing in the Coma Cluster?...",
+      "fullLength": 130,
+      "modelUsed": "qwen/qwen3.8-27b",
       "finishReason": "stop",
-      "latencyMs": 921,
+      "latencyMs": 562,
       "historyLength": 2
     },
     {
       "turn": 2,
       "prompt": "Can you recall my name and my field of research?",
-      "responseExcerpt": "Yes, you are Dr. Aris Thorne, an astrophysicist studying gravitational lensing in the Coma Cluster....",
-      "fullLength": 99,
-      "modelUsed": "qwen/qwen3.8-27b",
+      "responseExcerpt": "Yes—your name is Dr. Aris Thorne, and you study gravitational lensing in the Coma Cluster....",
+      "fullLength": 90,
+      "modelUsed": "openai/gpt-oss-120b",
       "finishReason": "stop",
-      "latencyMs": 232,
+      "latencyMs": 530,
       "historyLength": 4
     },
     {
       "turn": 3,
       "prompt": "Which galaxy cluster did I specify I am studying?",
-      "responseExcerpt": "You’re focusing on the **Coma Cluster**....",
-      "fullLength": 40,
-      "modelUsed": "openai/gpt-oss-120b",
+      "responseExcerpt": "The Coma Cluster....",
+      "fullLength": 17,
+      "modelUsed": "qwen/qwen3.8-27b",
       "finishReason": "stop",
-      "latencyMs": 607,
+      "latencyMs": 210,
       "historyLength": 6
     },
     {
       "turn": 4,
       "prompt": "Calculate the Schwarzchild radius in kilometers for a black hole of 10 solar masses. Keep it concise.",
-      "responseExcerpt": "The Schwarzschild radius is approximately 30 km....",
-      "fullLength": 48,
+      "responseExcerpt": "Approximately 30 km....",
+      "fullLength": 20,
       "modelUsed": "qwen/qwen3.8-27b",
       "finishReason": "stop",
-      "latencyMs": 219,
+      "latencyMs": 217,
       "historyLength": 8
     },
     {
       "turn": 5,
       "prompt": "Summarize our conversation so far in exactly two bullet points.",
-      "responseExcerpt": "*   You introduced yourself as Dr. Aris Thorne, an astrophysicist studying gravitational lensing in the Coma Cluster, and I confirmed these details. *...",
-      "fullLength": 269,
-      "modelUsed": "qwen/qwen3.8-27b",
+      "responseExcerpt": "- You introduced yourself as Dr. Aris Thorne, an astrophysicist researching gravitational lensing in the Coma Cluster.   - You asked for the Schwarzsc...",
+      "fullLength": 214,
+      "modelUsed": "openai/gpt-oss-120b",
       "finishReason": "stop",
-      "latencyMs": 326,
+      "latencyMs": 766,
       "historyLength": 10
     }
   ],

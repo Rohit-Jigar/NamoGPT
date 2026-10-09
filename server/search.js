@@ -30,10 +30,11 @@ export function decodeHtmlEntities(str) {
 
 /**
  * Real-time multi-provider search waterfall:
- * 1. Tavily API (if TAVILY_API_KEY is configured)
- * 2. Serper Google Search (if SERPER_API_KEY is configured)
- * 3. Free DuckDuckGo HTML search
- * 4. Free Wikipedia OpenSearch API
+ * 1. Live RSS News (Google News RSS + BBC World News RSS fallback)
+ * 2. Tavily API (if TAVILY_API_KEY is configured)
+ * 3. Serper Google Search (if SERPER_API_KEY is configured)
+ * 4. Free DuckDuckGo HTML search
+ * 5. Free Wikipedia OpenSearch API
  */
 export async function searchWeb(query, maxResults = 5) {
   if (!query || typeof query !== 'string' || !query.trim()) {
@@ -41,10 +42,19 @@ export async function searchWeb(query, maxResults = 5) {
   }
 
   const cleanQuery = query.trim();
-  const limit = Math.max(1, Math.min(Number(maxResults) || 5, 20));
+  let limit = Math.max(1, Math.min(Number(maxResults) || 5, 20));
+
+  // Extract explicit count if mentioned in query (e.g. "top 5 news", "top 10 news")
+  const requestedCountMatch = cleanQuery.match(/\b(?:top|latest)?\s*(\d+)\s*(?:top|latest)?\s*news\b/i) || cleanQuery.match(/\btop\s*(\d+)\b/i);
+  if (requestedCountMatch && requestedCountMatch[1]) {
+    const parsedCount = parseInt(requestedCountMatch[1], 10);
+    if (parsedCount >= 1 && parsedCount <= 20) {
+      limit = Math.max(limit, parsedCount);
+    }
+  }
 
   // Check if query is seeking breaking or top news headlines
-  const isNewsQuery = /\b(news|headline|headlines|breaking|todays news|today's news|top 5 news|top 10 news|top news|daily news|current events)\b/i.test(cleanQuery);
+  const isNewsQuery = /(\b(top|latest|breaking|daily|current|world|national|local)? ?\d* ?news\b|\bheadlines?\b|\bwhat happened today\b|\btodays news\b|\btoday's news\b)/i.test(cleanQuery);
   if (isNewsQuery) {
     try {
       const newsResults = await fetchGoogleNewsRss(cleanQuery, limit);
@@ -104,22 +114,189 @@ export async function searchWeb(query, maxResults = 5) {
 }
 
 /**
- * Real-Time Google News RSS Provider (100% Free, Zero-Key Required)
- * Captures live breaking news headlines, publishers, and publication timestamps.
+ * Strip CDATA markers and decode HTML entities safely
  */
-async function fetchGoogleNewsRss(query, maxResults = 5) {
+export function stripCdataAndDecode(str) {
+  if (!str || typeof str !== 'string') return '';
+  const withoutCdata = str.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/gi, '$1').trim();
+  return decodeHtmlEntities(withoutCdata);
+}
+
+/**
+ * Robust RSS XML parser for Google News and BBC feeds
+ * Extracts headlines (without trailing outlet suffix), direct URLs, pubDates, and clean snippets.
+ */
+export function parseRssXml(xml, defaultSource = 'google-news', defaultOutlet = '') {
+  if (!xml || typeof xml !== 'string') return [];
+
+  const itemBlocks = xml.match(/<item[\s\S]*?<\/item>/gi) || [];
+  const results = [];
+
+  for (const block of itemBlocks) {
+    const rawTitleMatch = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(block);
+    const rawLinkMatch = /<link[^>]*>([\s\S]*?)<\/link>/i.exec(block);
+    const rawPubDateMatch = /<pubDate[^>]*>([\s\S]*?)<\/pubDate>/i.exec(block);
+    const rawSourceMatch = /<source[^>]*>([\s\S]*?)<\/source>/i.exec(block);
+    const rawDescMatch = /<description[^>]*>([\s\S]*?)<\/description>/i.exec(block);
+
+    let title = rawTitleMatch ? stripCdataAndDecode(rawTitleMatch[1]) : '';
+    let url = rawLinkMatch ? stripCdataAndDecode(rawLinkMatch[1]) : '';
+    const pubDate = rawPubDateMatch ? stripCdataAndDecode(rawPubDateMatch[1]) : '';
+    let outlet = rawSourceMatch ? stripCdataAndDecode(rawSourceMatch[1]) : defaultOutlet;
+    const rawDesc = rawDescMatch ? rawDescMatch[1] : '';
+
+    if (!title || !url) continue;
+
+    // Clean trailing outlet from headline if present (e.g. "Headline - Source Name")
+    if (title.includes(' - ')) {
+      const parts = title.split(' - ');
+      const trailingOutlet = parts[parts.length - 1].trim();
+      if (!outlet) {
+        outlet = trailingOutlet;
+        parts.pop();
+        title = parts.join(' - ').trim();
+      } else if (
+        outlet.toLowerCase() === trailingOutlet.toLowerCase() ||
+        outlet.toLowerCase().includes(trailingOutlet.toLowerCase()) ||
+        trailingOutlet.toLowerCase().includes(outlet.toLowerCase())
+      ) {
+        parts.pop();
+        title = parts.join(' - ').trim();
+      }
+    }
+
+    const isHtmlList = /&lt;ol|&lt;li|<ol|<li|target="_blank"/i.test(rawDesc);
+    let cleanDesc = '';
+    if (!isHtmlList) {
+      cleanDesc = stripCdataAndDecode(rawDesc).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+
+    let snippet = '';
+    if (cleanDesc && cleanDesc.length > 15) {
+      snippet = `${cleanDesc} (Published: ${pubDate || 'Recently'}${outlet ? ` • Source: ${outlet}` : ''})`;
+    } else {
+      snippet = `Published: ${pubDate || 'Recently'}${outlet ? ` • Source: ${outlet}` : ''}`;
+    }
+
+    results.push({
+      title,
+      url,
+      snippet,
+      source: defaultSource
+    });
+  }
+
+  return results;
+}
+
+/**
+ * Deduplicate news items by normalized URL and title token overlap
+ */
+function isDuplicateNews(item, existingItems) {
+  const normUrl = item.url.toLowerCase().split('?')[0];
+  const cleanTitleWords = item.title.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 3);
+
+  for (const existing of existingItems) {
+    const existingNormUrl = existing.url.toLowerCase().split('?')[0];
+    if (normUrl && existingNormUrl && normUrl === existingNormUrl) return true;
+
+    const existingWords = existing.title.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 3);
+    if (cleanTitleWords.length > 0 && existingWords.length > 0) {
+      const matchCount = cleanTitleWords.filter(w => existingWords.includes(w)).length;
+      const minLen = Math.min(cleanTitleWords.length, existingWords.length);
+      if (minLen >= 3 && matchCount / minLen >= 0.7) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * BBC World News RSS Provider (High-Reliability Fallback)
+ * https://feeds.bbci.co.uk/news/world/rss.xml
+ */
+export async function fetchBbcNewsRss(query = '', maxResults = 5) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 6000);
 
   try {
-    const isGeneralTopNews = /^(give me )?(today('?s)? )?(top|latest|breaking|daily)? ?(\d+)? ?news( headlines?)?$/i.test(query.trim());
+    const res = await fetch('https://feeds.bbci.co.uk/news/world/rss.xml', {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 NamoGPT/1.0',
+        'Accept': 'application/rss+xml,application/xml,text/xml;q=0.9,*/*;q=0.8'
+      },
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      throw new Error(`BBC RSS HTTP ${res.status}`);
+    }
+
+    const xml = await res.text();
+    const items = parseRssXml(xml, 'bbc-news', 'BBC News');
+
+    if (!query || !query.trim()) {
+      return items.slice(0, maxResults);
+    }
+
+    const cleanTopic = query
+      .replace(/^(give me |what is |what are |tell me |show me )/i, '')
+      .replace(/\b(todays|today's|today|top \d+|top|news headlines|news)\b/gi, '')
+      .trim()
+      .toLowerCase();
+
+    if (cleanTopic && cleanTopic.length > 2) {
+      const topicWords = cleanTopic.split(/\s+/).filter(w => w.length > 2);
+      const matched = items.filter(it => {
+        const fullText = `${it.title} ${it.snippet}`.toLowerCase();
+        return topicWords.some(w => fullText.includes(w));
+      });
+      if (matched.length > 0) {
+        const combined = [...matched];
+        for (const it of items) {
+          if (combined.length >= maxResults) break;
+          if (!combined.some(c => c.url === it.url)) {
+            combined.push(it);
+          }
+        }
+        return combined.slice(0, maxResults);
+      }
+    }
+
+    return items.slice(0, maxResults);
+  } catch (err) {
+    clearTimeout(timeoutId);
+    console.warn('[WebSearch] BBC News RSS fetch failed:', err.message);
+    return [];
+  }
+}
+
+/**
+ * Real-Time Google News RSS Provider with Multi-Feed Redundancy (100% Free, Zero-Key Required)
+ * Captures live breaking news headlines, publishers, and publication timestamps.
+ * Redundantly falls back to BBC World News RSS to ensure a minimum of 5 verified stories.
+ */
+export async function fetchGoogleNewsRss(query, maxResults = 5) {
+  const limit = Math.max(1, Math.min(Number(maxResults) || 5, 20));
+  let results = [];
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+  try {
+    const isGeneralTopNews = /^(give me )?(today('?s)? )?(top|latest|breaking|daily|current|world|national|local)? ?(\d+)? ?(news|headlines)( today)?$/i.test(query.trim())
+      || /\bwhat happened today\b/i.test(query)
+      || /^(headlines|news|top news|latest news|world news|breaking news)$/i.test(query.trim());
+
     let rssUrl;
     if (isGeneralTopNews) {
       rssUrl = 'https://news.google.com/rss?hl=en-US&gl=US&ceid=US:en';
     } else {
       const cleanTopic = query
         .replace(/^(give me |what is |what are |tell me |show me )/i, '')
-        .replace(/\b(todays|today's|today|top 5|top 10|top|news headlines|news)\b/gi, '')
+        .replace(/\b(todays|today's|today|top \d+|top|news headlines|news)\b/gi, '')
         .trim();
       const searchTerm = cleanTopic || query;
       rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(searchTerm)}&hl=en-US&gl=US&ceid=US:en`;
@@ -134,45 +311,33 @@ async function fetchGoogleNewsRss(query, maxResults = 5) {
     });
     clearTimeout(timeoutId);
 
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`);
+    if (res.ok) {
+      const xml = await res.text();
+      results = parseRssXml(xml, 'google-news');
+    } else {
+      console.warn(`[WebSearch] Google News RSS HTTP ${res.status}, activating BBC World News fallback`);
     }
-
-    const xml = await res.text();
-    const itemRegex = /<item>[\s\S]*?<title>(.*?)<\/title>[\s\S]*?<link>(.*?)<\/link>[\s\S]*?<pubDate>(.*?)<\/pubDate>(?:[\s\S]*?<source[^>]*url="([^"]*)"[^>]*>(.*?)<\/source>)?/g;
-    const matches = [...xml.matchAll(itemRegex)];
-
-    const results = [];
-    for (let i = 0; i < matches.length && results.length < maxResults; i++) {
-      const match = matches[i];
-      let rawTitle = decodeHtmlEntities(match[1].replace(/<!\[CDATA\[(.*?)\]\]>/g, '$1').trim());
-      const rawLink = match[2].trim();
-      const pubDate = match[3] ? match[3].trim() : '';
-      const sourceName = match[5] ? decodeHtmlEntities(match[5].trim()) : '';
-
-      let outlet = sourceName;
-      if (!outlet && rawTitle.includes(' - ')) {
-        const parts = rawTitle.split(' - ');
-        outlet = parts.pop().trim();
-        rawTitle = parts.join(' - ').trim();
-      }
-
-      if (rawTitle && rawLink) {
-        results.push({
-          title: rawTitle,
-          url: rawLink,
-          snippet: `Published: ${pubDate}${outlet ? ` • Source: ${outlet}` : ''}`,
-          source: 'google-news'
-        });
-      }
-    }
-
-    return results;
   } catch (err) {
     clearTimeout(timeoutId);
-    console.warn('[WebSearch] Google News RSS fetch failed:', err.message);
-    return [];
+    console.warn('[WebSearch] Google News RSS fetch failed, activating BBC World News fallback:', err.message);
   }
+
+  // Multi-feed redundancy: if Google News returned fewer than desired results or failed, supplement from BBC World News RSS fallback
+  if (results.length < limit) {
+    try {
+      const bbcResults = await fetchBbcNewsRss(query, limit);
+      for (const bbcItem of bbcResults) {
+        if (results.length >= limit) break;
+        if (!isDuplicateNews(bbcItem, results)) {
+          results.push(bbcItem);
+        }
+      }
+    } catch (bbcErr) {
+      console.warn('[WebSearch] BBC World News fallback notice:', bbcErr.message);
+    }
+  }
+
+  return results.slice(0, limit);
 }
 
 /**
@@ -375,7 +540,7 @@ export function formatSearchContext(results) {
     context += '\n';
   });
 
-  context += 'Instructions: You are equipped with the live verified real-time web search results above. Synthesize these current findings into a clear, direct, comprehensive answer. Present the requested top news stories with clear headlines, brief summaries, and Markdown citation links [Source Name](URL). DO NOT state that you do not have real-time information or that your cutoff is limited, because verified live search findings are explicitly provided above.\n====================================';
+  context += 'Instructions: You are equipped with the live verified real-time web search results above. Synthesize these current findings into a clear, direct, comprehensive answer. Present the requested news stories directly with headlines, summaries, and Markdown citation links. DO NOT include disclaimers about cutoffs.\n====================================';
   return context;
 }
 

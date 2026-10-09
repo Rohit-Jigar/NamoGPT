@@ -7,6 +7,14 @@ import { useAuth } from './AuthContext';
 
 const ChatContext = createContext();
 
+export const NAMOGPT_IDENTITY_PROMPT = `You are NamoGPT, a premier AI assistant built by NamoGPT. Never claim to be Google, Meta, OpenAI, Claude, or DeepSeek. Always represent yourself exclusively as NamoGPT.
+
+Strict Quality & Response Guidelines:
+1. Answer the user prompt directly, factually, and concisely.
+2. NEVER offer or generate unsolicited code, programming tutorials, or code templates unless the user explicitly requested code or technical implementation.
+3. NEVER mention internal tool names (e.g. mcp_web_fetcher) in conversational responses unless explicitly asked.
+4. When real-time search context or news findings are provided, present the information directly with source citations. Never claim you lack real-time access.`;
+
 const STORAGE_KEY_CHATS = 'namogpt_chats_v1';
 const STORAGE_KEY_SETTINGS = 'namogpt_settings_v1';
 const STORAGE_KEY_PERSONA = 'namogpt_active_persona_v1';
@@ -97,7 +105,7 @@ export function ChatProvider({ children }) {
       },
       serverUrl: DEFAULT_SERVER_URL,
       temperature: 0.7,
-      systemPrompt: 'You are NamoGPT, a versatile, articulate, and deeply intelligent AI assistant powered by multiple state-of-the-art models. Provide clean, well-structured, and insightful answers.',
+      systemPrompt: 'Answer the user prompt directly, factually, and concisely. Never offer unsolicited code, tutorials, or internal tool chatter unless explicitly requested.',
       theme: 'dark'
     };
   });
@@ -127,7 +135,9 @@ export function ChatProvider({ children }) {
     fetchAvailableModels(settings.serverUrl).then((fetched) => {
       if (fetched && fetched.length > 0) {
         setModels(fetched);
-        if (!selectedModel) setSelectedModel(fetched[0].id);
+        if (!selectedModel || selectedModel === '') {
+          setSelectedModel('auto');
+        }
       }
     });
   }, [settings.serverUrl]);
@@ -135,12 +145,13 @@ export function ChatProvider({ children }) {
   // Select or create chat
   const currentChat = chats.find((c) => c.id === currentChatId) || null;
 
-  function createNewChat(modelId = selectedModel) {
+  function createNewChat(modelId = selectedModel || 'auto') {
     const newId = `chat-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+    const effectiveModel = modelId || 'auto';
     const newChat = {
       id: newId,
       title: 'New Chat',
-      model: modelId,
+      model: effectiveModel,
       messages: [],
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -149,7 +160,7 @@ export function ChatProvider({ children }) {
 
     setChats((prev) => [newChat, ...prev]);
     setCurrentChatId(newId);
-    setSelectedModel(modelId);
+    setSelectedModel(effectiveModel);
     return newId;
   }
 
@@ -158,6 +169,8 @@ export function ChatProvider({ children }) {
     const chat = chats.find((c) => c.id === id);
     if (chat && chat.model) {
       setSelectedModel(chat.model);
+    } else {
+      setSelectedModel('auto');
     }
   }
 
@@ -220,10 +233,13 @@ export function ChatProvider({ children }) {
     let searchResults = [];
     let searchContext = '';
 
-    const hasRealTimeSearchIntent = /\b(today('?s)?|tonight|right now|current|latest|breaking|news|headline|headlines|weather|stock|crypto|price|score|game|who won|election)\b/i.test(promptText.trim());
+    const hasRealTimeSearchIntent = /\b(today('?s)?|tonight|yesterday|tomorrow|right now|current|currently|latest|breaking|news|headline|headlines|weather|stock|crypto|price|prices|score|scores|game|who won|election|elections|update|updates|live|recent|recently|what happened)\b/i.test(promptText.trim()) || /\b(202[4-9]|203[0-9])\b/.test(promptText.trim());
     const shouldSearch = isWebSearchEnabled || hasRealTimeSearchIntent;
 
     if (shouldSearch && promptText.trim()) {
+      if (hasRealTimeSearchIntent && !isWebSearchEnabled) {
+        setIsWebSearchEnabled(true);
+      }
       try {
         searchResults = await searchWebAPI(promptText.trim(), settings.serverUrl);
         if (searchResults.length > 0) {
@@ -231,7 +247,7 @@ export function ChatProvider({ children }) {
           searchResults.forEach((r, idx) => {
             searchContext += `[${idx + 1}] ${r.title}\nURL: ${r.url}\nSummary: ${r.snippet}\n\n`;
           });
-          searchContext += 'Instructions: You are equipped with the live real-time web search results above. Synthesize these findings to directly answer the user\'s real-time query. List headlines with brief descriptions and cite sources using Markdown links [Title](URL). DO NOT state that you do not have real-time information or that your cutoff is limited, because verified live search findings are explicitly provided above.\n=========================================\n\n';
+          searchContext += 'Instructions: You are equipped with the live real-time web search results above. Synthesize these findings to directly answer the user\'s real-time query. List headlines with brief descriptions and cite sources using Markdown links [Title](URL). DO NOT state that you do not have real-time information or that your cutoff is limited, because verified live search findings are explicitly provided above. DO NOT offer unsolicited code, tutorials, or mention internal tool names.\n=========================================\n\n';
         }
       } catch (err) {
         console.warn('Live web search error:', err);
@@ -263,6 +279,7 @@ export function ChatProvider({ children }) {
       role: 'assistant',
       content: '',
       modelUsed: selectedModel,
+      sources: searchResults.length > 0 ? searchResults : null,
       createdAt: Date.now()
     };
 
@@ -350,17 +367,18 @@ export function ChatProvider({ children }) {
     ];
 
     // Identity protection, temporal context, and MCP tools prompt injection
-    const identityPrompt = 'You are NamoGPT, a premier AI assistant built by NamoGPT. Never identify yourself as Google, Gemini, Meta, Llama, OpenAI, ChatGPT, Claude, Anthropic, or DeepSeek. You are strictly and proudly NamoGPT.';
-    const mcpToolsPrompt = formatMcpToolsPrompt();
+    const hasToolIntent = /\b(mcp|call tool|use tool|run tool|invoke tool|list tools)\b/i.test(promptText);
+    const mcpToolsPrompt = formatMcpToolsPrompt(hasToolIntent);
 
-    let effectiveSystemPrompt = `${identityPrompt}\n\n${temporalContext}`;
+    let effectiveSystemPrompt = `${NAMOGPT_IDENTITY_PROMPT}\n\n${temporalContext}`;
     if (mcpToolsPrompt) {
       effectiveSystemPrompt += `\n\n${mcpToolsPrompt}`;
     }
-    if (settings.systemPrompt) {
+    const isOldDefaultPrompt = !settings.systemPrompt || settings.systemPrompt.includes('Provide clean, well-structured, and insightful answers');
+    if (settings.systemPrompt && !isOldDefaultPrompt && settings.systemPrompt !== NAMOGPT_IDENTITY_PROMPT) {
       effectiveSystemPrompt += `\n\n${settings.systemPrompt}`;
     }
-    if (currentPersona && currentPersona.systemPrompt) {
+    if (currentPersona && currentPersona.systemPrompt && currentPersona.id !== 'default') {
       effectiveSystemPrompt = `${currentPersona.systemPrompt}\n\n${effectiveSystemPrompt}`.trim();
     }
     if (isThinkingModeEnabled || effectiveModel === 'deepseek-r1') {

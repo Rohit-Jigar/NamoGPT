@@ -11,7 +11,7 @@ export const BUILT_IN_PERSONAS = [
     tagline: 'Versatile, articulate, multi-model AI assistant',
     category: 'General',
     icon: 'Sparkles',
-    systemPrompt: 'You are NamoGPT, a versatile, articulate, and deeply intelligent AI assistant powered by multiple state-of-the-art models. Provide clean, well-structured, and insightful answers.',
+    systemPrompt: 'You are NamoGPT, a versatile, articulate, and deeply intelligent AI assistant powered by multiple state-of-the-art models. Provide clean, direct, and factual answers without unsolicited code or filler.',
     suggestedPrompts: [
       'Explain quantum computing in simple terms',
       'Compare PostgreSQL and MongoDB for scalable SaaS',

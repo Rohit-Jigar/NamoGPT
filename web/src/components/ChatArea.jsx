@@ -285,56 +285,59 @@ export default function ChatArea() {
                         </div>
                       </div>
                     ) : (
-                      <div
-                        className={`text-sm leading-relaxed ${
-                          isUser
-                            ? 'bg-zinc-800/90 text-zinc-100 rounded-2xl rounded-tr-sm px-4 py-3 border border-zinc-700/60 shadow-sm'
-                            : 'bg-transparent text-zinc-200 px-0'
-                        }`}
-                      >
-                        {/* Attachment Preview (if any) */}
-                        {msg.attachment && (
-                          <div className="mb-2 p-2 rounded-xl bg-zinc-900/90 border border-zinc-700/60 flex items-center gap-2 max-w-xs shadow-sm">
-                            {msg.attachment.dataUrl?.startsWith('data:image') ? (
-                              <img
-                                src={msg.attachment.dataUrl}
-                                alt="attachment"
-                                className="w-12 h-12 rounded-lg object-cover"
-                              />
-                            ) : (
-                              <FileText className="w-6 h-6 text-emerald-400" />
-                            )}
-                            <div className="text-xs truncate">
-                              <div className="font-medium text-white truncate">{msg.attachment.name}</div>
-                              <div className="text-[10px] text-zinc-400">Attached file</div>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Real-Time Web Search Sources */}
-                        {msg.sources && msg.sources.length > 0 && (
-                          <div className="mb-3 space-y-1.5 p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs">
-                            <div className="flex items-center gap-1.5 font-semibold text-blue-300 text-[11px]">
-                              <Globe className="w-3.5 h-3.5 text-blue-400" />
+                      <>
+                        {/* Real-Time Web Search Sources Chips (displayed above user/assistant message) */}
+                        {msg.sources && msg.sources.length > 0 && (!isUser || !messages[index + 1]?.sources) && (
+                          <div className={`mb-3 space-y-1.5 p-2.5 rounded-2xl bg-blue-950/30 border border-blue-500/30 text-xs shadow-sm backdrop-blur-sm ${isUser ? 'ml-auto max-w-fit' : ''}`}>
+                            <div className="flex items-center gap-1.5 font-semibold text-blue-400 text-[11px]">
+                              <Globe className="w-3.5 h-3.5 text-blue-400 shrink-0" />
                               <span>Live Search Sources ({msg.sources.length})</span>
+                              <span className="text-[10px] text-zinc-500 font-mono ml-auto">Verified Real-Time Grounding</span>
                             </div>
-                            <div className="flex items-center gap-2 overflow-x-auto py-1 scrollbar-none">
+                            <div className="flex items-center gap-2 overflow-x-auto py-1 no-scrollbar flex-wrap">
                               {msg.sources.map((src, idx) => (
                                 <a
                                   key={idx}
                                   href={src.url}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white transition-all shrink-0 max-w-[210px] group/src"
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800 hover:border-blue-500/40 text-zinc-300 hover:text-white transition-all text-[11px] max-w-[240px] group/src shadow-sm"
+                                  title={src.title}
                                 >
                                   <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />
-                                  <span className="truncate text-[11px]">{src.title}</span>
-                                  <ExternalLink className="w-2.5 h-2.5 text-zinc-500 group-hover/src:text-blue-300 shrink-0 ml-auto" />
+                                  <span className="truncate">{src.title}</span>
+                                  <ExternalLink className="w-2.5 h-2.5 text-zinc-500 group-hover/src:text-blue-300 shrink-0 ml-0.5" />
                                 </a>
                               ))}
                             </div>
                           </div>
                         )}
+
+                        <div
+                          className={`text-sm leading-relaxed ${
+                            isUser
+                              ? 'bg-zinc-800/90 text-zinc-100 rounded-2xl rounded-tr-sm px-4 py-3 border border-zinc-700/60 shadow-sm'
+                              : 'bg-transparent text-zinc-200 px-0'
+                          }`}
+                        >
+                          {/* Attachment Preview (if any) */}
+                          {msg.attachment && (
+                            <div className="mb-2 p-2 rounded-xl bg-zinc-900/90 border border-zinc-700/60 flex items-center gap-2 max-w-xs shadow-sm">
+                              {msg.attachment.dataUrl?.startsWith('data:image') ? (
+                                <img
+                                  src={msg.attachment.dataUrl}
+                                  alt="attachment"
+                                  className="w-12 h-12 rounded-lg object-cover"
+                                />
+                              ) : (
+                                <FileText className="w-6 h-6 text-emerald-400" />
+                              )}
+                              <div className="text-xs truncate">
+                                <div className="font-medium text-white truncate">{msg.attachment.name}</div>
+                                <div className="text-[10px] text-zinc-400">Attached file</div>
+                              </div>
+                            </div>
+                          )}
 
                         {/* Collapsible Reasoning Block (DeepSeek R1 / Thinking Mode) */}
                         {reasoningContent && (
@@ -486,6 +489,7 @@ export default function ChatArea() {
                           </ReactMarkdown>
                         </div>
                       </div>
+                      </>
                     )}
 
                     {/* Action Toolbar on Hover */}
