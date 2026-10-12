@@ -32,10 +32,21 @@ import {
 } from 'lucide-react';
 import { executeCodeAPI } from '../services/api';
 
+function extractDomain(url) {
+  try {
+    if (!url) return '';
+    const parsed = new URL(url);
+    return parsed.hostname.replace(/^www\./, '');
+  } catch {
+    return '';
+  }
+}
+
 export default function ChatArea() {
   const {
     currentChat,
     isGenerating,
+    isSearchingWeb,
     sendMessage,
     regenerateMessage,
     editAndResend,
@@ -220,6 +231,8 @@ export default function ChatArea() {
             messages.map((msg, index) => {
               const isUser = msg.role === 'user';
               const isEditing = editingIndex === index;
+              const isLastAssistantMessage = !isUser && index === messages.length - 1;
+              const showSearchingBanner = !isUser && isLastAssistantMessage && isGenerating && (isSearchingWeb || (!msg.content && msg.sources && msg.sources.length > 0));
 
               // Check for <think> reasoning tags
               let reasoningContent = '';
@@ -286,29 +299,52 @@ export default function ChatArea() {
                       </div>
                     ) : (
                       <>
-                        {/* Real-Time Web Search Sources Chips (displayed above user/assistant message) */}
+                        {/* Elegant animated live web search banner */}
+                        {showSearchingBanner && (
+                          <div className="mb-3 flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl bg-blue-950/40 border border-blue-500/40 text-blue-300 text-xs shadow-md shadow-blue-950/30 backdrop-blur-md animate-pulse">
+                            <div className="relative flex h-3 w-3 shrink-0">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
+                            </div>
+                            <span className="font-medium tracking-wide">
+                              🔍 Searching the live web and synthesizing sources...
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Real-Time Web Search Sources Chips (Live Search Sources (N)) */}
                         {msg.sources && msg.sources.length > 0 && (!isUser || !messages[index + 1]?.sources) && (
-                          <div className={`mb-3 space-y-1.5 p-2.5 rounded-2xl bg-blue-950/30 border border-blue-500/30 text-xs shadow-sm backdrop-blur-sm ${isUser ? 'ml-auto max-w-fit' : ''}`}>
-                            <div className="flex items-center gap-1.5 font-semibold text-blue-400 text-[11px]">
-                              <Globe className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                          <div className={`mb-3 space-y-2 p-3 rounded-2xl bg-gradient-to-r from-blue-950/40 via-zinc-900/60 to-blue-950/30 border border-blue-500/30 text-xs shadow-sm backdrop-blur-sm ${isUser ? 'ml-auto max-w-fit' : ''}`}>
+                            <div className="flex items-center gap-2 font-semibold text-blue-400 text-[11px]">
+                              <div className="p-1 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                                <Globe className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                              </div>
                               <span>Live Search Sources ({msg.sources.length})</span>
                               <span className="text-[10px] text-zinc-500 font-mono ml-auto">Verified Real-Time Grounding</span>
                             </div>
                             <div className="flex items-center gap-2 overflow-x-auto py-1 no-scrollbar flex-wrap">
-                              {msg.sources.map((src, idx) => (
-                                <a
-                                  key={idx}
-                                  href={src.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800 hover:border-blue-500/40 text-zinc-300 hover:text-white transition-all text-[11px] max-w-[240px] group/src shadow-sm"
-                                  title={src.title}
-                                >
-                                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />
-                                  <span className="truncate">{src.title}</span>
-                                  <ExternalLink className="w-2.5 h-2.5 text-zinc-500 group-hover/src:text-blue-300 shrink-0 ml-0.5" />
-                                </a>
-                              ))}
+                              {msg.sources.map((src, idx) => {
+                                const domain = extractDomain(src.url);
+                                return (
+                                  <a
+                                    key={idx}
+                                    href={src.url || '#'}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800/90 hover:border-blue-500/50 text-zinc-300 hover:text-white transition-all text-[11px] max-w-[280px] group/src shadow-sm"
+                                    title={`${src.title}\n${src.url || ''}`}
+                                  >
+                                    <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />
+                                    {domain && (
+                                      <span className="px-1.5 py-0.5 rounded-md bg-blue-500/15 border border-blue-500/30 text-[10px] text-blue-300 font-mono shrink-0">
+                                        {domain}
+                                      </span>
+                                    )}
+                                    <span className="truncate font-medium">{src.title}</span>
+                                    <ExternalLink className="w-3 h-3 text-zinc-500 group-hover/src:text-blue-300 shrink-0 ml-0.5" />
+                                  </a>
+                                );
+                              })}
                             </div>
                           </div>
                         )}
@@ -576,10 +612,12 @@ export default function ChatArea() {
           {isGenerating && (
             <div className="flex items-center gap-2.5 text-zinc-400 text-xs py-2 animate-in fade-in">
               <span className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isSearchingWeb ? 'bg-blue-400' : 'bg-emerald-400'}`}></span>
+                <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${isSearchingWeb ? 'bg-blue-500' : 'bg-emerald-500'}`}></span>
               </span>
-              <span className="font-medium text-zinc-300">NamoGPT is thinking & streaming response...</span>
+              <span className={`font-medium ${isSearchingWeb ? 'text-blue-300' : 'text-zinc-300'}`}>
+                {isSearchingWeb ? '🔍 Searching the live web and synthesizing sources...' : 'NamoGPT is thinking & streaming response...'}
+              </span>
             </div>
           )}
 

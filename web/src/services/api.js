@@ -162,37 +162,54 @@ export async function fetchAvailableModels(serverUrl = DEFAULT_SERVER_URL) {
  */
 export async function searchWebAPI(query, serverUrl = DEFAULT_SERVER_URL) {
   if (!query || !query.trim()) return [];
+  const cleanQuery = query.trim();
 
-  // 1. Try NamoGPT Backend Search
+  // 1. Try NamoGPT Backend Search (6-second timeout)
   try {
-    const res = await fetch(`${serverUrl}/api/search?q=${encodeURIComponent(query)}&limit=5`);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(`${serverUrl}/api/search?q=${encodeURIComponent(cleanQuery)}&limit=5`, {
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
     if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data.results) && data.results.length > 0) {
+      const data = await res.json().catch(() => null);
+      if (data && Array.isArray(data.results) && data.results.length > 0) {
         return data.results;
       }
     }
   } catch (err) {
-    console.warn('[WebSearch] Backend search endpoint unreachable:', err.message);
+    console.warn('[WebSearch] Backend search endpoint unreachable or timed out:', err.message);
   }
 
-  // 2. Direct Browser Fallback: Wikipedia OpenSearch (native browser CORS)
+  // 2. Direct Browser Fallback: Wikipedia OpenSearch (native browser CORS with 6-second timeout)
   try {
-    const wikiUrl = `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(query)}&limit=4&namespace=0&format=json&origin=*`;
-    const wikiRes = await fetch(wikiUrl);
+    const wikiController = new AbortController();
+    const wikiTimeoutId = setTimeout(() => wikiController.abort(), 6000);
+    const wikiUrl = `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(cleanQuery)}&limit=5&namespace=0&format=json&origin=*`;
+    const wikiRes = await fetch(wikiUrl, { signal: wikiController.signal });
+    clearTimeout(wikiTimeoutId);
+
     if (wikiRes.ok) {
-      const data = await wikiRes.json();
-      const titles = data[1] || [];
-      const snippets = data[2] || [];
-      const urls = data[3] || [];
-      return titles.map((title, i) => ({
-        title,
-        snippet: snippets[i] || '',
-        url: urls[i]
-      }));
+      const data = await wikiRes.json().catch(() => null);
+      if (data && Array.isArray(data)) {
+        const titles = data[1] || [];
+        const snippets = data[2] || [];
+        const urls = data[3] || [];
+        const results = titles.map((title, i) => ({
+          title,
+          snippet: snippets[i] || '',
+          url: urls[i] || `https://en.wikipedia.org/wiki/${encodeURIComponent(title)}`
+        })).filter(r => r.title && (r.snippet || r.url));
+
+        if (results.length > 0) {
+          return results;
+        }
+      }
     }
   } catch (err) {
-    console.warn('[WebSearch] Browser fallback search failed:', err.message);
+    console.warn('[WebSearch] Browser fallback search failed or timed out:', err.message);
   }
 
   return [];

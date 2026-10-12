@@ -1,6 +1,7 @@
 /**
  * NamoGPT Free & Multi-Provider Web Search & Fetcher Service
- * Real-time web retrieval via Tavily, Serper, DuckDuckGo, and Wikipedia.
+ * Real-time web retrieval via Live Crypto (Binance), Live Weather (Open-Meteo),
+ * Live Google News Topic RSS, Live Bing News RSS, Tavily, Serper, DuckDuckGo, and Wikipedia.
  * Includes URL content scraper (mcp_web_fetcher) with robust HTML sanitization.
  */
 
@@ -29,91 +30,6 @@ export function decodeHtmlEntities(str) {
 }
 
 /**
- * Real-time multi-provider search waterfall:
- * 1. Live RSS News (Google News RSS + BBC World News RSS fallback)
- * 2. Tavily API (if TAVILY_API_KEY is configured)
- * 3. Serper Google Search (if SERPER_API_KEY is configured)
- * 4. Free DuckDuckGo HTML search
- * 5. Free Wikipedia OpenSearch API
- */
-export async function searchWeb(query, maxResults = 5) {
-  if (!query || typeof query !== 'string' || !query.trim()) {
-    return [];
-  }
-
-  const cleanQuery = query.trim();
-  let limit = Math.max(1, Math.min(Number(maxResults) || 5, 20));
-
-  // Extract explicit count if mentioned in query (e.g. "top 5 news", "top 10 news")
-  const requestedCountMatch = cleanQuery.match(/\b(?:top|latest)?\s*(\d+)\s*(?:top|latest)?\s*news\b/i) || cleanQuery.match(/\btop\s*(\d+)\b/i);
-  if (requestedCountMatch && requestedCountMatch[1]) {
-    const parsedCount = parseInt(requestedCountMatch[1], 10);
-    if (parsedCount >= 1 && parsedCount <= 20) {
-      limit = Math.max(limit, parsedCount);
-    }
-  }
-
-  // Check if query is seeking breaking or top news headlines
-  const isNewsQuery = /(\b(top|latest|breaking|daily|current|world|national|local)? ?\d* ?news\b|\bheadlines?\b|\bwhat happened today\b|\btodays news\b|\btoday's news\b)/i.test(cleanQuery);
-  if (isNewsQuery) {
-    try {
-      const newsResults = await fetchGoogleNewsRss(cleanQuery, limit);
-      if (newsResults && newsResults.length > 0) {
-        return newsResults;
-      }
-    } catch (err) {
-      console.warn('[WebSearch] Google News RSS fetch failed, falling back:', err.message);
-    }
-  }
-
-  // 1. Tavily API (if key available)
-  if (process.env.TAVILY_API_KEY && process.env.TAVILY_API_KEY.trim()) {
-    try {
-      const tavilyResults = await fetchTavily(cleanQuery, limit);
-      if (tavilyResults && tavilyResults.length > 0) {
-        return tavilyResults;
-      }
-    } catch (err) {
-      console.warn('[WebSearch] Tavily search failed, falling back:', err.message);
-    }
-  }
-
-  // 2. Serper Google Search (if key available)
-  if (process.env.SERPER_API_KEY && process.env.SERPER_API_KEY.trim()) {
-    try {
-      const serperResults = await fetchSerper(cleanQuery, limit);
-      if (serperResults && serperResults.length > 0) {
-        return serperResults;
-      }
-    } catch (err) {
-      console.warn('[WebSearch] Serper search failed, falling back:', err.message);
-    }
-  }
-
-  // 3. Free DuckDuckGo HTML Search
-  try {
-    const ddgResults = await fetchDuckDuckGo(cleanQuery, limit);
-    if (ddgResults && ddgResults.length > 0) {
-      return ddgResults;
-    }
-  } catch (err) {
-    console.warn('[WebSearch] DuckDuckGo search failed, falling back:', err.message);
-  }
-
-  // 4. Free Wikipedia OpenSearch API
-  try {
-    const wikiResults = await fetchWikipedia(cleanQuery, limit);
-    if (wikiResults && wikiResults.length > 0) {
-      return wikiResults;
-    }
-  } catch (err) {
-    console.warn('[WebSearch] Wikipedia search failed:', err.message);
-  }
-
-  return [];
-}
-
-/**
  * Strip CDATA markers and decode HTML entities safely
  */
 export function stripCdataAndDecode(str) {
@@ -123,8 +39,8 @@ export function stripCdataAndDecode(str) {
 }
 
 /**
- * Robust RSS XML parser for Google News and BBC feeds
- * Extracts headlines (without trailing outlet suffix), direct URLs, pubDates, and clean snippets.
+ * Robust RSS XML parser for Google News, Bing News, and BBC feeds
+ * Extracts headlines, clean target URLs, pubDates, outlets, and descriptions.
  */
 export function parseRssXml(xml, defaultSource = 'google-news', defaultOutlet = '') {
   if (!xml || typeof xml !== 'string') return [];
@@ -136,7 +52,7 @@ export function parseRssXml(xml, defaultSource = 'google-news', defaultOutlet = 
     const rawTitleMatch = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(block);
     const rawLinkMatch = /<link[^>]*>([\s\S]*?)<\/link>/i.exec(block);
     const rawPubDateMatch = /<pubDate[^>]*>([\s\S]*?)<\/pubDate>/i.exec(block);
-    const rawSourceMatch = /<source[^>]*>([\s\S]*?)<\/source>/i.exec(block);
+    const rawSourceMatch = /<(?:News:Source|source)[^>]*>([\s\S]*?)<\/(?:News:Source|source)>/i.exec(block);
     const rawDescMatch = /<description[^>]*>([\s\S]*?)<\/description>/i.exec(block);
 
     let title = rawTitleMatch ? stripCdataAndDecode(rawTitleMatch[1]) : '';
@@ -146,6 +62,20 @@ export function parseRssXml(xml, defaultSource = 'google-news', defaultOutlet = 
     const rawDesc = rawDescMatch ? rawDescMatch[1] : '';
 
     if (!title || !url) continue;
+
+    // Extract direct target URL from Bing redirect or tracking URLs if present
+    if (url.includes('url=')) {
+      try {
+        const decodedUrl = url.replace(/&amp;/g, '&');
+        const parsedUrl = new URL(decodedUrl);
+        const direct = parsedUrl.searchParams.get('url');
+        if (direct && direct.startsWith('http')) {
+          url = direct;
+        }
+      } catch {
+        // keep original url
+      }
+    }
 
     // Clean trailing outlet from headline if present (e.g. "Headline - Source Name")
     if (title.includes(' - ')) {
@@ -190,21 +120,32 @@ export function parseRssXml(xml, defaultSource = 'google-news', defaultOutlet = 
 }
 
 /**
- * Deduplicate news items by normalized URL and title token overlap
+ * Deduplicate items by normalized URL and title token overlap
  */
-function isDuplicateNews(item, existingItems) {
-  const normUrl = item.url.toLowerCase().split('?')[0];
-  const cleanTitleWords = item.title.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 3);
+export function isDuplicateItem(item, existingItems) {
+  if (!item || !item.url) return true;
+  const normUrl = item.url.toLowerCase().split('?')[0].replace(/\/+$/, '');
+  const cleanTitleWords = (item.title || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, '')
+    .split(/\s+/)
+    .filter(w => w.length > 3);
 
   for (const existing of existingItems) {
-    const existingNormUrl = existing.url.toLowerCase().split('?')[0];
+    if (!existing || !existing.url) continue;
+    const existingNormUrl = existing.url.toLowerCase().split('?')[0].replace(/\/+$/, '');
     if (normUrl && existingNormUrl && normUrl === existingNormUrl) return true;
 
-    const existingWords = existing.title.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 3);
+    const existingWords = (existing.title || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, '')
+      .split(/\s+/)
+      .filter(w => w.length > 3);
+
     if (cleanTitleWords.length > 0 && existingWords.length > 0) {
       const matchCount = cleanTitleWords.filter(w => existingWords.includes(w)).length;
       const minLen = Math.min(cleanTitleWords.length, existingWords.length);
-      if (minLen >= 3 && matchCount / minLen >= 0.7) {
+      if (minLen >= 3 && matchCount / minLen >= 0.75) {
         return true;
       }
     }
@@ -212,10 +153,343 @@ function isDuplicateNews(item, existingItems) {
   return false;
 }
 
-/**
- * BBC World News RSS Provider (High-Reliability Fallback)
- * https://feeds.bbci.co.uk/news/world/rss.xml
- */
+// Backward-compatible alias
+export const isDuplicateNews = isDuplicateItem;
+
+/* =====================================================================
+ * SPECIALIZED PROVIDER 1: LIVE CRYPTO (BINANCE TICKER API)
+ * ===================================================================== */
+
+const CRYPTO_COIN_MAP = [
+  { pattern: /\b(?:bitcoin|btc)\b/i, symbol: 'BTC', name: 'Bitcoin' },
+  { pattern: /\b(?:ethereum|eth|ether)\b/i, symbol: 'ETH', name: 'Ethereum' },
+  { pattern: /\b(?:solana|\bsol\b)\b/i, symbol: 'SOL', name: 'Solana' },
+  { pattern: /\b(?:dogecoin|doge)\b/i, symbol: 'DOGE', name: 'Dogecoin' },
+  { pattern: /\b(?:cardano|\bada\b)\b/i, symbol: 'ADA', name: 'Cardano' },
+  { pattern: /\b(?:ripple|xrp)\b/i, symbol: 'XRP', name: 'Ripple' },
+  { pattern: /\b(?:binance coin|\bbnb\b)\b/i, symbol: 'BNB', name: 'BNB' },
+  { pattern: /\b(?:shiba(?: inu)?|\bshib\b)\b/i, symbol: 'SHIB', name: 'Shiba Inu' },
+  { pattern: /\b(?:avalanche|\bavax\b)\b/i, symbol: 'AVAX', name: 'Avalanche' },
+  { pattern: /\b(?:polygon|\bmatic\b|\bpol\b)\b/i, symbol: 'MATIC', name: 'Polygon' }
+];
+
+export function detectCryptoQuery(query) {
+  if (!query || typeof query !== 'string') return null;
+  const clean = query.trim();
+
+  // Check specific coins
+  for (const coin of CRYPTO_COIN_MAP) {
+    if (coin.pattern.test(clean)) {
+      return { isCrypto: true, symbol: coin.symbol, name: coin.name };
+    }
+  }
+
+  // Check generic crypto queries
+  if (/\b(?:crypto(?:currency)?|crypto price|crypto market|crypto ticker)\b/i.test(clean)) {
+    return { isCrypto: true, symbol: 'BTC', name: 'Bitcoin' };
+  }
+
+  return null;
+}
+
+export async function fetchLiveCryptoPrice(symbol, name = 'Crypto') {
+  const cleanSymbol = (symbol || 'BTC').toUpperCase().trim();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+  try {
+    // 1. Try Binance 24hr ticker (provides rich stats: last price, 24h change %, high, low, volume)
+    const ticker24Url = `https://api.binance.com/api/v3/ticker/24hr?symbol=${encodeURIComponent(cleanSymbol)}USDT`;
+    const res = await fetch(ticker24Url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    if (res.ok) {
+      const data = await res.json();
+      const lastPrice = parseFloat(data.lastPrice);
+      const priceChangePercent = parseFloat(data.priceChangePercent);
+      const highPrice = parseFloat(data.highPrice);
+      const lowPrice = parseFloat(data.lowPrice);
+      const volume = parseFloat(data.volume);
+
+      const sign = priceChangePercent >= 0 ? '+' : '';
+      const priceFormatted = lastPrice >= 1
+        ? lastPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        : lastPrice.toPrecision(4);
+      const highFormatted = highPrice >= 1 ? highPrice.toLocaleString('en-US') : highPrice.toPrecision(4);
+      const lowFormatted = lowPrice >= 1 ? lowPrice.toLocaleString('en-US') : lowPrice.toPrecision(4);
+      const volumeFormatted = volume >= 1 ? volume.toLocaleString('en-US', { maximumFractionDigits: 2 }) : volume.toPrecision(4);
+
+      return {
+        title: `${name} (${cleanSymbol}) Live Price: $${priceFormatted} USDT (${sign}${priceChangePercent.toFixed(2)}%)`,
+        url: `https://www.binance.com/en/trade/${cleanSymbol}_USDT`,
+        snippet: `Current ${name} (${cleanSymbol}) Real-Time Price: $${priceFormatted} USDT (${sign}${priceChangePercent.toFixed(2)}% in 24h). 24h High: $${highFormatted} | 24h Low: $${lowFormatted} | 24h Volume: ${volumeFormatted} ${cleanSymbol}. Live verified cryptocurrency market data via Binance Ticker API.`,
+        source: 'binance-crypto'
+      };
+    }
+  } catch (err) {
+    clearTimeout(timeoutId);
+    console.warn(`[WebSearch] Binance 24hr ticker failed for ${cleanSymbol}:`, err.message);
+  }
+
+  // Fallback: Try Binance simple price ticker
+  const fallbackController = new AbortController();
+  const fallbackTimeout = setTimeout(() => fallbackController.abort(), 4000);
+  try {
+    const priceUrl = `https://api.binance.com/api/v3/ticker/price?symbol=${encodeURIComponent(cleanSymbol)}USDT`;
+    const res = await fetch(priceUrl, { signal: fallbackController.signal });
+    clearTimeout(fallbackTimeout);
+
+    if (res.ok) {
+      const data = await res.json();
+      const price = parseFloat(data.price);
+      const priceFormatted = price >= 1
+        ? price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        : price.toPrecision(4);
+
+      return {
+        title: `${name} (${cleanSymbol}) Live Price: $${priceFormatted} USDT`,
+        url: `https://www.binance.com/en/trade/${cleanSymbol}_USDT`,
+        snippet: `Current ${name} (${cleanSymbol}) Real-Time Price: $${priceFormatted} USDT. Live market data verified via Binance Price API.`,
+        source: 'binance-crypto'
+      };
+    }
+  } catch (err) {
+    clearTimeout(fallbackTimeout);
+    console.warn(`[WebSearch] Binance price ticker failed for ${cleanSymbol}:`, err.message);
+  }
+
+  return null;
+}
+
+/* =====================================================================
+ * SPECIALIZED PROVIDER 2: LIVE GLOBAL WEATHER (OPEN-METEO API)
+ * ===================================================================== */
+
+export const WMO_WEATHER_CODES = {
+  0: 'Clear sky',
+  1: 'Mainly clear',
+  2: 'Partly cloudy',
+  3: 'Overcast',
+  45: 'Fog',
+  48: 'Depositing rime fog',
+  51: 'Light drizzle',
+  53: 'Moderate drizzle',
+  55: 'Dense drizzle',
+  56: 'Light freezing drizzle',
+  57: 'Dense freezing drizzle',
+  61: 'Slight rain',
+  62: 'Moderate rain',
+  63: 'Heavy rain',
+  65: 'Very heavy rain',
+  66: 'Light freezing rain',
+  67: 'Heavy freezing rain',
+  71: 'Slight snow fall',
+  73: 'Moderate snow fall',
+  75: 'Heavy snow fall',
+  77: 'Snow grains',
+  80: 'Slight rain showers',
+  81: 'Moderate rain showers',
+  82: 'Violent rain showers',
+  85: 'Slight snow showers',
+  86: 'Heavy snow showers',
+  95: 'Thunderstorm',
+  96: 'Thunderstorm with slight hail',
+  99: 'Thunderstorm with heavy hail'
+};
+
+export function extractWeatherLocation(query) {
+  const clean = query.trim();
+  // Pattern: "weather in/for/at <city>", "temperature in/for/at <city>", "forecast in/for/at <city>"
+  const matchInFor = clean.match(/(?:weather|temperature|temp|forecast|climate)\s+(?:in|for|at|around|of)\s+([a-zA-Z\s,.-]+?)(?:\s+(?:today|tomorrow|now|currently|this week|next week))?$/i);
+  if (matchInFor && matchInFor[1].trim()) {
+    return matchInFor[1].trim();
+  }
+  // Pattern: "<city> weather" or "<city> forecast"
+  const matchCityFirst = clean.match(/^([a-zA-Z\s,.-]+?)\s+(?:weather|forecast|temperature|temp)(?:\s+(?:today|tomorrow|now|currently))?$/i);
+  if (matchCityFirst && matchCityFirst[1].trim()) {
+    return matchCityFirst[1].trim();
+  }
+  // Strip conversational wrappers
+  const stripped = clean
+    .replace(/^(what is the|what's the|tell me the|how is the|give me the|check|current)\s+/i, '')
+    .replace(/\b(weather|temperature|temp|forecast|climate|today|tomorrow|now|currently|this week)\b/gi, '')
+    .replace(/\b(in|for|at|of)\b/gi, '')
+    .trim();
+  return stripped || '';
+}
+
+export function detectWeatherQuery(query) {
+  if (!query || typeof query !== 'string') return null;
+  const clean = query.trim();
+  const weatherRegex = /\b(?:weather|temperature|temp|forecast|climate|rain|humidity|wind)\b/i;
+  if (!weatherRegex.test(clean)) return null;
+
+  const city = extractWeatherLocation(clean);
+  return { isWeather: true, city: city || 'New York' };
+}
+
+export async function fetchLiveWeather(city) {
+  if (!city || typeof city !== 'string' || !city.trim()) return null;
+  const cleanCity = city.trim();
+
+  const geoController = new AbortController();
+  const geoTimeout = setTimeout(() => geoController.abort(), 5000);
+
+  try {
+    // 1. Geocode city via Open-Meteo Geocoding API
+    const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cleanCity)}&count=1&language=en&format=json`;
+    const geoRes = await fetch(geoUrl, {
+      headers: { 'Accept': 'application/json' },
+      signal: geoController.signal
+    });
+    clearTimeout(geoTimeout);
+
+    if (!geoRes.ok) {
+      console.warn(`[WebSearch] Open-Meteo geocoding HTTP ${geoRes.status}`);
+      return null;
+    }
+
+    const geoData = await geoRes.json();
+    if (!geoData.results || geoData.results.length === 0) {
+      return null;
+    }
+
+    const loc = geoData.results[0];
+    const { latitude, longitude, name, admin1, country } = loc;
+    const placeName = [name, admin1, country].filter(Boolean).join(', ');
+
+    // 2. Fetch current weather and daily forecast via Open-Meteo Forecast API
+    const forecastController = new AbortController();
+    const forecastTimeout = setTimeout(() => forecastController.abort(), 5000);
+
+    const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto`;
+    const forecastRes = await fetch(forecastUrl, {
+      headers: { 'Accept': 'application/json' },
+      signal: forecastController.signal
+    });
+    clearTimeout(forecastTimeout);
+
+    if (!forecastRes.ok) {
+      console.warn(`[WebSearch] Open-Meteo forecast HTTP ${forecastRes.status}`);
+      return null;
+    }
+
+    const weatherData = await forecastRes.json();
+    const cur = weatherData.current || {};
+    const daily = weatherData.daily || {};
+
+    const tempC = typeof cur.temperature_2m === 'number' ? cur.temperature_2m : null;
+    if (tempC === null) return null;
+
+    const tempF = (tempC * 9 / 5 + 32).toFixed(1);
+    const condition = WMO_WEATHER_CODES[cur.weather_code] || 'Fair';
+    const humidity = cur.relative_humidity_2m ?? 'N/A';
+    const windSpeed = cur.wind_speed_10m ?? 'N/A';
+
+    const maxC = daily.temperature_2m_max?.[0];
+    const minC = daily.temperature_2m_min?.[0];
+    const maxF = maxC != null ? (maxC * 9 / 5 + 32).toFixed(1) : null;
+    const minF = minC != null ? (minC * 9 / 5 + 32).toFixed(1) : null;
+
+    const forecastSnippet = maxC != null && minC != null
+      ? ` Today's Forecast: High ${maxC}°C (${maxF}°F), Low ${minC}°C (${minF}°F).`
+      : '';
+
+    return {
+      title: `Live Weather in ${placeName}: ${tempC}°C (${tempF}°F), ${condition}`,
+      url: `https://open-meteo.com/en/docs#latitude=${latitude}&longitude=${longitude}`,
+      snippet: `Current conditions in ${placeName}: ${tempC}°C (${tempF}°F), ${condition}. Humidity: ${humidity}%, Wind Speed: ${windSpeed} km/h.${forecastSnippet} Live meteorological observations verified via Open-Meteo.`,
+      source: 'open-meteo'
+    };
+  } catch (err) {
+    clearTimeout(geoTimeout);
+    console.warn(`[WebSearch] Live weather fetch failed for "${cleanCity}":`, err.message);
+    return null;
+  }
+}
+
+/* =====================================================================
+ * SPECIALIZED PROVIDER 3: LIVE GOOGLE NEWS TOPIC RSS (ZERO-KEY, ALL QUERIES)
+ * ===================================================================== */
+
+export async function fetchGoogleNewsTopicRss(query, maxResults = 5) {
+  if (!query || typeof query !== 'string' || !query.trim()) return [];
+  const limit = Math.max(1, Math.min(Number(maxResults) || 5, 20));
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+  try {
+    const cleanTopic = query
+      .replace(/^(give me |what is |what are |tell me |show me )/i, '')
+      .replace(/\b(todays|today's|today|top \d+|top|news headlines|news)\b/gi, '')
+      .trim();
+    const searchTerm = cleanTopic || query.trim();
+    const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(searchTerm)}&hl=en-US&gl=US&ceid=US:en`;
+
+    const res = await fetch(rssUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 NamoGPT/1.0',
+        'Accept': 'application/rss+xml,application/xml,text/xml;q=0.9,*/*;q=0.8'
+      },
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      console.warn(`[WebSearch] Google News Topic RSS HTTP ${res.status}`);
+      return [];
+    }
+
+    const xml = await res.text();
+    const items = parseRssXml(xml, 'google-news');
+    return items.slice(0, limit);
+  } catch (err) {
+    clearTimeout(timeoutId);
+    console.warn('[WebSearch] Google News Topic RSS fetch failed:', err.message);
+    return [];
+  }
+}
+
+/* =====================================================================
+ * SPECIALIZED PROVIDER 4: LIVE BING NEWS RSS (REDUNDANT FALLBACK)
+ * ===================================================================== */
+
+export async function fetchBingNewsRss(query, maxResults = 5) {
+  if (!query || typeof query !== 'string' || !query.trim()) return [];
+  const limit = Math.max(1, Math.min(Number(maxResults) || 5, 20));
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+  try {
+    const rssUrl = `https://www.bing.com/news/search?q=${encodeURIComponent(query.trim())}&format=rss`;
+    const res = await fetch(rssUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 NamoGPT/1.0',
+        'Accept': 'application/rss+xml,application/xml,text/xml;q=0.9,*/*;q=0.8'
+      },
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      console.warn(`[WebSearch] Bing News RSS HTTP ${res.status}`);
+      return [];
+    }
+
+    const xml = await res.text();
+    const items = parseRssXml(xml, 'bing-news', 'Bing News');
+    return items.slice(0, limit);
+  } catch (err) {
+    clearTimeout(timeoutId);
+    console.warn('[WebSearch] Bing News RSS fetch failed:', err.message);
+    return [];
+  }
+}
+
+/* =====================================================================
+ * SPECIALIZED PROVIDER 5: BBC WORLD NEWS RSS (HIGH-RELIABILITY FALLBACK)
+ * ===================================================================== */
+
 export async function fetchBbcNewsRss(query = '', maxResults = 5) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 6000);
@@ -273,11 +547,10 @@ export async function fetchBbcNewsRss(query = '', maxResults = 5) {
   }
 }
 
-/**
- * Real-Time Google News RSS Provider with Multi-Feed Redundancy (100% Free, Zero-Key Required)
- * Captures live breaking news headlines, publishers, and publication timestamps.
- * Redundantly falls back to BBC World News RSS to ensure a minimum of 5 verified stories.
- */
+/* =====================================================================
+ * SPECIALIZED PROVIDER 6: GOOGLE NEWS GENERAL RSS (BREAKING & HEADLINES)
+ * ===================================================================== */
+
 export async function fetchGoogleNewsRss(query, maxResults = 5) {
   const limit = Math.max(1, Math.min(Number(maxResults) || 5, 20));
   let results = [];
@@ -328,7 +601,7 @@ export async function fetchGoogleNewsRss(query, maxResults = 5) {
       const bbcResults = await fetchBbcNewsRss(query, limit);
       for (const bbcItem of bbcResults) {
         if (results.length >= limit) break;
-        if (!isDuplicateNews(bbcItem, results)) {
+        if (!isDuplicateItem(bbcItem, results)) {
           results.push(bbcItem);
         }
       }
@@ -340,10 +613,11 @@ export async function fetchGoogleNewsRss(query, maxResults = 5) {
   return results.slice(0, limit);
 }
 
-/**
- * Tavily AI Search API Provider
- */
-async function fetchTavily(query, maxResults = 5) {
+/* =====================================================================
+ * SPECIALIZED PROVIDER 7: TAVILY AI SEARCH API
+ * ===================================================================== */
+
+export async function fetchTavily(query, maxResults = 5) {
   const apiKey = process.env.TAVILY_API_KEY.trim();
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 6000);
@@ -383,10 +657,11 @@ async function fetchTavily(query, maxResults = 5) {
   }
 }
 
-/**
- * Serper Google Search API Provider
- */
-async function fetchSerper(query, maxResults = 5) {
+/* =====================================================================
+ * SPECIALIZED PROVIDER 8: SERPER GOOGLE SEARCH API
+ * ===================================================================== */
+
+export async function fetchSerper(query, maxResults = 5) {
   const apiKey = process.env.SERPER_API_KEY.trim();
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 6000);
@@ -426,10 +701,11 @@ async function fetchSerper(query, maxResults = 5) {
   }
 }
 
-/**
- * DuckDuckGo HTML Search Provider
- */
-async function fetchDuckDuckGo(query, maxResults = 5) {
+/* =====================================================================
+ * SPECIALIZED PROVIDER 9: DUCKDUCKGO HTML SEARCH
+ * ===================================================================== */
+
+export async function fetchDuckDuckGo(query, maxResults = 5) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 6000);
 
@@ -486,10 +762,11 @@ async function fetchDuckDuckGo(query, maxResults = 5) {
   return results;
 }
 
-/**
- * Wikipedia OpenSearch Provider
- */
-async function fetchWikipedia(query, maxResults = 5) {
+/* =====================================================================
+ * SPECIALIZED PROVIDER 10: WIKIPEDIA OPENSEARCH API
+ * ===================================================================== */
+
+export async function fetchWikipedia(query, maxResults = 5) {
   const url = `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(query)}&limit=${maxResults}&namespace=0&format=json`;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 6000);
@@ -511,9 +788,12 @@ async function fetchWikipedia(query, maxResults = 5) {
     const results = [];
     for (let i = 0; i < titles.length && results.length < maxResults; i++) {
       if (urls[i]) {
+        const snippet = snippets[i] && snippets[i].trim()
+          ? snippets[i].trim()
+          : `Encyclopedia article covering ${titles[i]} on Wikipedia.`;
         results.push({
           title: titles[i],
-          snippet: snippets[i] || '',
+          snippet,
           url: urls[i],
           source: 'wikipedia'
         });
@@ -522,9 +802,207 @@ async function fetchWikipedia(query, maxResults = 5) {
     return results;
   } catch (err) {
     clearTimeout(timeoutId);
-    throw err;
+    console.warn('[WebSearch] Wikipedia search failed:', err.message);
+    return [];
   }
 }
+
+/* =====================================================================
+ * UNIFIED SEARCH WATERFALL (searchWeb)
+ * ===================================================================== */
+
+export async function searchWeb(query, maxResults = 5) {
+  if (!query || typeof query !== 'string' || !query.trim()) {
+    return [];
+  }
+
+  const cleanQuery = query.trim();
+  let limit = Math.max(1, Math.min(Number(maxResults) || 5, 20));
+
+  // Extract explicit count if mentioned in query (e.g. "top 5 news", "top 10 news")
+  const requestedCountMatch = cleanQuery.match(/\b(?:top|latest)?\s*(\d+)\s*(?:top|latest)?\s*news\b/i) || cleanQuery.match(/\btop\s*(\d+)\b/i);
+  if (requestedCountMatch && requestedCountMatch[1]) {
+    const parsedCount = parseInt(requestedCountMatch[1], 10);
+    if (parsedCount >= 1 && parsedCount <= 20) {
+      limit = Math.max(limit, parsedCount);
+    }
+  }
+
+  // 1. Live Crypto Provider (Binance Ticker API)
+  const cryptoInfo = detectCryptoQuery(cleanQuery);
+  if (cryptoInfo) {
+    try {
+      const [cryptoItemResult, topicNewsResult] = await Promise.allSettled([
+        fetchLiveCryptoPrice(cryptoInfo.symbol, cryptoInfo.name),
+        fetchGoogleNewsTopicRss(cleanQuery, limit)
+      ]);
+      const cryptoItem = cryptoItemResult.status === 'fulfilled' ? cryptoItemResult.value : null;
+      const topicNews = topicNewsResult.status === 'fulfilled' && Array.isArray(topicNewsResult.value) ? topicNewsResult.value : [];
+      const results = cryptoItem ? [cryptoItem] : [];
+      for (const item of topicNews) {
+        if (results.length >= limit) break;
+        if (!isDuplicateItem(item, results)) {
+          results.push(item);
+        }
+      }
+      if (results.length > 0) {
+        return results.slice(0, limit);
+      }
+    } catch (err) {
+      console.warn('[WebSearch] Crypto provider error, falling back:', err.message);
+    }
+  }
+
+  // 2. Live Global Weather Provider (Open-Meteo Geocoding + Forecast API)
+  const weatherInfo = detectWeatherQuery(cleanQuery);
+  if (weatherInfo) {
+    try {
+      const [weatherItemResult, topicNewsResult] = await Promise.allSettled([
+        fetchLiveWeather(weatherInfo.city),
+        fetchGoogleNewsTopicRss(cleanQuery, limit)
+      ]);
+      const weatherItem = weatherItemResult.status === 'fulfilled' ? weatherItemResult.value : null;
+      const topicNews = topicNewsResult.status === 'fulfilled' && Array.isArray(topicNewsResult.value) ? topicNewsResult.value : [];
+      const results = weatherItem ? [weatherItem] : [];
+      for (const item of topicNews) {
+        if (results.length >= limit) break;
+        if (!isDuplicateItem(item, results)) {
+          results.push(item);
+        }
+      }
+      if (results.length > 0) {
+        return results.slice(0, limit);
+      }
+    } catch (err) {
+      console.warn('[WebSearch] Weather provider error, falling back:', err.message);
+    }
+  }
+
+  // 3. General Breaking / Top News queries (Google News RSS + BBC World News RSS fallback)
+  const isGeneralTopNews = /(\b(top|latest|breaking|daily|current|world|national|local)? ?\d* ?news\b|\bheadlines?\b|\bwhat happened today\b|\btodays news\b|\btoday's news\b)/i.test(cleanQuery);
+  if (isGeneralTopNews) {
+    try {
+      const newsResults = await fetchGoogleNewsRss(cleanQuery, limit);
+      if (newsResults && newsResults.length > 0) {
+        return newsResults.slice(0, limit);
+      }
+    } catch (err) {
+      console.warn('[WebSearch] General news fetch failed, falling through:', err.message);
+    }
+  }
+
+  // 4. Unified Waterfall for ALL other queries (Sports, SpaceX, Politics, Tech, Finance, General)
+  const accumulated = [];
+
+  // 4a. Tavily API (if configured)
+  if (process.env.TAVILY_API_KEY && process.env.TAVILY_API_KEY.trim()) {
+    try {
+      const tavilyResults = await fetchTavily(cleanQuery, limit);
+      for (const item of (tavilyResults || [])) {
+        if (accumulated.length >= limit) break;
+        if (!isDuplicateItem(item, accumulated)) {
+          accumulated.push(item);
+        }
+      }
+      if (accumulated.length >= limit) {
+        return accumulated.slice(0, limit);
+      }
+    } catch (err) {
+      console.warn('[WebSearch] Tavily search failed, falling back:', err.message);
+    }
+  }
+
+  // 4b. Serper Google Search (if configured)
+  if (process.env.SERPER_API_KEY && process.env.SERPER_API_KEY.trim()) {
+    try {
+      const serperResults = await fetchSerper(cleanQuery, limit);
+      for (const item of (serperResults || [])) {
+        if (accumulated.length >= limit) break;
+        if (!isDuplicateItem(item, accumulated)) {
+          accumulated.push(item);
+        }
+      }
+      if (accumulated.length >= limit) {
+        return accumulated.slice(0, limit);
+      }
+    } catch (err) {
+      console.warn('[WebSearch] Serper search failed, falling back:', err.message);
+    }
+  }
+
+  // 4c. Live Google News Topic RSS (zero-key, works for ANY search query)
+  try {
+    const topicResults = await fetchGoogleNewsTopicRss(cleanQuery, limit);
+    for (const item of (topicResults || [])) {
+      if (accumulated.length >= limit) break;
+      if (!isDuplicateItem(item, accumulated)) {
+        accumulated.push(item);
+      }
+    }
+    if (accumulated.length >= limit) {
+      return accumulated.slice(0, limit);
+    }
+  } catch (err) {
+    console.warn('[WebSearch] Google News Topic RSS failed, falling back:', err.message);
+  }
+
+  // 4d. Live Bing News RSS (redundant fallback)
+  if (accumulated.length < limit) {
+    try {
+      const bingResults = await fetchBingNewsRss(cleanQuery, limit - accumulated.length);
+      for (const item of (bingResults || [])) {
+        if (accumulated.length >= limit) break;
+        if (!isDuplicateItem(item, accumulated)) {
+          accumulated.push(item);
+        }
+      }
+      if (accumulated.length >= limit) {
+        return accumulated.slice(0, limit);
+      }
+    } catch (err) {
+      console.warn('[WebSearch] Bing News RSS fallback failed:', err.message);
+    }
+  }
+
+  // 4e. Free DuckDuckGo HTML Search
+  if (accumulated.length < limit) {
+    try {
+      const ddgResults = await fetchDuckDuckGo(cleanQuery, limit - accumulated.length);
+      for (const item of (ddgResults || [])) {
+        if (accumulated.length >= limit) break;
+        if (!isDuplicateItem(item, accumulated)) {
+          accumulated.push(item);
+        }
+      }
+      if (accumulated.length >= limit) {
+        return accumulated.slice(0, limit);
+      }
+    } catch (err) {
+      console.warn('[WebSearch] DuckDuckGo search failed, falling back:', err.message);
+    }
+  }
+
+  // 4f. Free Wikipedia OpenSearch API
+  if (accumulated.length < limit) {
+    try {
+      const wikiResults = await fetchWikipedia(cleanQuery, limit - accumulated.length);
+      for (const item of (wikiResults || [])) {
+        if (accumulated.length >= limit) break;
+        if (!isDuplicateItem(item, accumulated)) {
+          accumulated.push(item);
+        }
+      }
+    } catch (err) {
+      console.warn('[WebSearch] Wikipedia search failed:', err.message);
+    }
+  }
+
+  return accumulated.slice(0, limit);
+}
+
+/* =====================================================================
+ * CONTEXT FORMATTER & WEB FETCHER
+ * ===================================================================== */
 
 /**
  * Formats search results into context prompt
@@ -540,7 +1018,7 @@ export function formatSearchContext(results) {
     context += '\n';
   });
 
-  context += 'Instructions: You are equipped with the live verified real-time web search results above. Synthesize these current findings into a clear, direct, comprehensive answer. Present the requested news stories directly with headlines, summaries, and Markdown citation links. DO NOT include disclaimers about cutoffs.\n====================================';
+  context += 'Instructions: You are equipped with the live verified real-time web search results above. Synthesize these verified real-time findings to directly answer the query. Cite sources using Markdown links [Source](URL). Never claim to lack real-time access when search findings are provided. Never generate unsolicited code. Present the requested news stories directly with headlines, summaries, and Markdown citation links. DO NOT include disclaimers about cutoffs.\n====================================';
   return context;
 }
 

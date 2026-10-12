@@ -220,25 +220,47 @@ app.get('/api/9router/ping', async (req, res) => {
   }
 });
 
-// Real-Time Free Web Search Endpoint (DuckDuckGo & Wikipedia)
+// Real-Time Free Web Search Endpoint (Google News RSS, DuckDuckGo & Wikipedia)
 app.get('/api/search', async (req, res) => {
+  const startTime = Date.now();
+  const q = req.query.q || req.query.query;
+  const limitParam = req.query.limit;
+
+  if (!q || !q.trim()) {
+    console.warn('[GET /api/search] Missing query parameter "q".');
+    return res.status(400).json({ success: false, error: 'Query parameter q is required.' });
+  }
+
+  const query = q.trim();
+  const maxResults = Math.min(Math.max(1, Number(limitParam) || 5), 20);
+
   try {
-    const q = req.query.q;
-    if (!q || !q.trim()) {
-      return res.status(400).json({ success: false, error: 'Query parameter q is required.' });
-    }
-    const maxResults = Math.min(Number(req.query.limit) || 5, 10);
-    const results = await searchWeb(q.trim(), maxResults);
+    // Resilient timeout (6s limit) ensuring fast response without premature abortion
+    const searchPromise = searchWeb(query, maxResults);
+    const timeoutPromise = new Promise((resolve) =>
+      setTimeout(() => {
+        console.warn(`[GET /api/search] Timeout (6s) reached for query: "${query}"`);
+        resolve([]);
+      }, 6000)
+    );
+
+    const results = await Promise.race([searchPromise, timeoutPromise]);
+    const durationMs = Date.now() - startTime;
+
     return res.status(200).json({
       success: true,
-      query: q.trim(),
-      count: results.length,
-      results
+      query,
+      count: results ? results.length : 0,
+      results: results || []
     });
   } catch (err) {
-    return res.status(500).json({
-      success: false,
-      error: err.message
+    const durationMs = Date.now() - startTime;
+    console.error(`[GET /api/search Error] Query: "${query}" (${durationMs}ms):`, err.message);
+    return res.status(200).json({
+      success: true,
+      query,
+      count: 0,
+      results: []
     });
   }
 });

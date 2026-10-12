@@ -193,7 +193,14 @@ Strict Quality & Response Guidelines:
 1. Answer the user prompt directly, factually, and concisely.
 2. NEVER offer or generate unsolicited code, programming tutorials, or code templates unless the user explicitly requested code or technical implementation.
 3. NEVER mention internal tool names (e.g. mcp_web_fetcher) in conversational responses unless explicitly asked.
-4. When real-time search context or news findings are provided, present the information directly with source citations. Never claim you lack real-time access.`;
+4. When real-time search context or news findings are provided, synthesize these verified real-time findings to directly answer the query. Cite sources using Markdown links [Source](URL). Never claim to lack real-time access when search findings are provided. Never generate unsolicited code.`;
+
+export const isRealTimeSearchIntentRegex = /\b(today('?s)?|tonight|yesterday|tomorrow|this week|this month|this year|right now|current|currently|latest|recent|recently|breaking|news|headline|headlines|weather|temperature|forecast|stock|stocks|crypto|price|prices|market|markets|btc|bitcoin|eth|ethereum|sports?|scores?|match|matches|who won|game|games|tournament|tournaments|cup|updates?|release date|status|what happened|2024|2025|2026|2027|election|elections)\b/i;
+
+export function isRealTimeSearchIntent(text) {
+  if (!text || typeof text !== 'string') return false;
+  return isRealTimeSearchIntentRegex.test(text);
+}
 
 export function sanitizeCompletionText(text) {
   if (!text || typeof text !== 'string') return text;
@@ -280,12 +287,30 @@ async function forwardRequest(item, forwardPath, originalReq) {
 }
 
 // Generate intelligent mock response if no external API keys are configured yet
-function handleDemoFallback(req, res, modelName) {
+function handleDemoFallback(req, res, modelName, searchResults = null) {
   const messages = req.body?.messages || [];
   const lastUserMsg = messages.filter(m => m.role === 'user').pop()?.content || 'Hello';
   const wantsStream = req.body?.stream === true;
   
-  const greeting = `### 🌟 Welcome to NamoGPT!\n\nI received your prompt: **"${lastUserMsg.length > 80 ? lastUserMsg.slice(0, 80) + '...' : lastUserMsg}"** using the **${modelName}** pool.\n\n> 💡 **Notice:** Your LiteLLM proxy server is running perfectly! To connect to real live API responses from **${modelName}**, simply provide your free API key:\n\n1. **Option A (Web UI)**: Click the **⚙️ Settings** gear in the bottom-left of NamoGPT and paste your key into the provider section.\n2. **Option B (Server .env)**: Add your free API key to your \`.env\` file (e.g. \`GEMINI_API_KEY_1=...\` or \`GROQ_API_KEY_1=...\`).\n\n#### 🚀 Quick Free Key Links:\n- **Google Gemini**: [aistudio.google.com/apikey](https://aistudio.google.com/apikey) (Free, 1M context)\n- **Groq Cloud**: [console.groq.com/keys](https://console.groq.com/keys) (Free, 300 tokens/s)\n- **OpenRouter**: [openrouter.ai/keys](https://openrouter.ai/keys) (Free Nemotron & DeepSeek R1)\n- **NVIDIA NIM**: [build.nvidia.com](https://build.nvidia.com) (Free 1,000 credits)\n\nOnce added, NamoGPT will automatically balance and route all your requests across free models seamlessly!`;
+  let greeting;
+  if (searchResults && searchResults.length > 0) {
+    let searchSummary = `### 🌐 Real-Time Search Findings\n\nVerified real-time findings synthesized for your query:\n\n`;
+    searchResults.forEach((item, idx) => {
+      searchSummary += `${idx + 1}. **[${item.title}](${item.url})**\n   ${item.snippet}\n\n`;
+    });
+    searchSummary += `> Sources verified via real-time search. Connect an API key in **⚙️ Settings** to activate live neural synthesis over these search results.\n`;
+    greeting = searchSummary;
+  } else {
+    greeting = `### 🌟 Welcome to NamoGPT!\n\nI received your prompt: **"${lastUserMsg.length > 80 ? lastUserMsg.slice(0, 80) + '...' : lastUserMsg}"** using the **${modelName}** pool.\n\n> 💡 **Notice:** Your LiteLLM proxy server is running perfectly! To connect to real live API responses from **${modelName}**, simply provide your free API key:\n\n1. **Option A (Web UI)**: Click the **⚙️ Settings** gear in the bottom-left of NamoGPT and paste your key into the provider section.\n2. **Option B (Server .env)**: Add your free API key to your \`.env\` file (e.g. \`GEMINI_API_KEY_1=...\` or \`GROQ_API_KEY_1=...\`).\n\n#### 🚀 Quick Free Key Links:\n- **Google Gemini**: [aistudio.google.com/apikey](https://aistudio.google.com/apikey) (Free, 1M context)\n- **Groq Cloud**: [console.groq.com/keys](https://console.groq.com/keys) (Free, 300 tokens/s)\n- **OpenRouter**: [openrouter.ai/keys](https://openrouter.ai/keys) (Free Nemotron & DeepSeek R1)\n- **NVIDIA NIM**: [build.nvidia.com](https://build.nvidia.com) (Free 1,000 credits)\n\nOnce added, NamoGPT will automatically balance and route all your requests across free models seamlessly!`;
+  }
+
+  const messageObj = {
+    role: 'assistant',
+    content: greeting
+  };
+  if (searchResults && searchResults.length > 0) {
+    messageObj.sources = searchResults;
+  }
 
   if (!wantsStream) {
     return res.status(200).json({
@@ -296,10 +321,7 @@ function handleDemoFallback(req, res, modelName) {
       choices: [
         {
           index: 0,
-          message: {
-            role: 'assistant',
-            content: greeting
-          },
+          message: messageObj,
           finish_reason: 'stop'
         }
       ],
@@ -464,17 +486,21 @@ export default async function handler(req, res) {
 
     // Intent detection flags
     const isVisionIntent = hasVision || /\b(describe this image|what is in this picture|look at this image|look at this photo|read this screenshot|image ocr|inspect this image)\b/i.test(userText);
-    const isRealTimeNewsWeather = /\b(today('?s)?|tonight|yesterday|tomorrow|this week|this month|this year|right now|current|currently|latest|recent|recently|breaking|news|headline|headlines|weather|temperature|forecast|stock|crypto|price|prices|market|live score|who won|election)\b/i.test(userText);
+    const hasSearchIntent = isRealTimeSearchIntent(userText) || Boolean(req.body?.web_search || req.body?.webSearch || req.query?.web_search);
+    const isRealTimeNewsWeather = hasSearchIntent;
     const isComplexStem = /\b(proof|prove|calculate|solve|derive|integral|differential|equation|calculus|algebra|physics|chemistry|algorithm|theorem|complexity|benchmark|step[- ]by[- ]step reasoning|logic puzzle|math problem)\b/i.test(userText);
 
     // Auto Real-Time Web Search Augmentation: auto-augment with searchWeb if query has time-sensitive intent
     const hasExistingSearchContext = userText.includes('REAL-TIME WEB SEARCH') || messages.some(m => typeof m.content === 'string' && m.content.includes('REAL-TIME WEB SEARCH'));
 
-    if (isRealTimeNewsWeather && !hasExistingSearchContext && userText) {
+    let injectedSearchResults = null;
+
+    if (hasSearchIntent && !hasExistingSearchContext && userText) {
       try {
         const { searchWeb, formatSearchContext } = await import('../search.js');
         const searchResults = await searchWeb(userText, 5);
         if (searchResults && searchResults.length > 0) {
+          injectedSearchResults = searchResults;
           const searchContext = formatSearchContext(searchResults);
           for (let i = req.body.messages.length - 1; i >= 0; i--) {
             if (req.body.messages[i].role === 'user') {
@@ -603,7 +629,7 @@ export default async function handler(req, res) {
     const hasAnyActiveKey = candidatePoolsList.some(p => isPoolActive(p));
     if (!hasAnyActiveKey) {
       console.log(`[NamoGPT] Notice: No API key found for ${selectedPrimaryPool}. Serving smart guidance response.`);
-      return handleDemoFallback(req, res, selectedPrimaryPool);
+      return handleDemoFallback(req, res, selectedPrimaryPool, injectedSearchResults);
     }
 
     // Robust LiteLLM key & pool cascade failover:
@@ -670,22 +696,28 @@ export default async function handler(req, res) {
             }
 
             let responseData = resp.data;
+            let json = null;
             if (Buffer.isBuffer(responseData)) {
               try {
-                const text = responseData.toString('utf8');
-                const json = JSON.parse(text);
-                if (json.choices && Array.isArray(json.choices)) {
-                  json.choices.forEach(c => {
-                    if (c.message?.content) {
-                      c.message.content = sanitizeCompletionText(c.message.content);
-                    }
-                  });
-                  return res.json(json);
-                }
+                json = JSON.parse(responseData.toString('utf8'));
               } catch {
                 const text = responseData.toString('utf8');
                 return res.send(Buffer.from(sanitizeCompletionText(text)));
               }
+            } else if (typeof responseData === 'object' && responseData !== null) {
+              json = responseData;
+            }
+
+            if (json && json.choices && Array.isArray(json.choices)) {
+              json.choices.forEach(c => {
+                if (c.message?.content) {
+                  c.message.content = sanitizeCompletionText(c.message.content);
+                }
+                if (injectedSearchResults && injectedSearchResults.length > 0 && c.message) {
+                  c.message.sources = injectedSearchResults;
+                }
+              });
+              return res.json(json);
             }
             return res.send(responseData);
           }
@@ -708,7 +740,7 @@ export default async function handler(req, res) {
 
     if (!requestSucceeded) {
       console.log(`[NamoGPT] Notice: All upstream keys & pools failed. Serving smart demo fallback without dropping user.`);
-      return handleDemoFallback(req, res, selectedPrimaryPool || 'auto');
+      return handleDemoFallback(req, res, selectedPrimaryPool || 'auto', injectedSearchResults);
     }
   } catch (err) {
     console.error('Handler error:', err);

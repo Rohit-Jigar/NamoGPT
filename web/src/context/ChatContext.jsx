@@ -40,6 +40,7 @@ export function ChatProvider({ children }) {
 
   // Advanced Feature Toggles (ChatGPT-style Web Search & Thinking Mode)
   const [isWebSearchEnabled, setIsWebSearchEnabled] = useState(false);
+  const [isSearchingWeb, setIsSearchingWeb] = useState(false);
   const [isThinkingModeEnabled, setIsThinkingModeEnabled] = useState(false);
 
   // UI Modals & Sidebar State
@@ -205,6 +206,7 @@ export function ChatProvider({ children }) {
       abortControllerRef.current = null;
     }
     setIsGenerating(false);
+    setIsSearchingWeb(false);
   }
 
   async function sendMessage(promptText, attachment = null) {
@@ -215,6 +217,53 @@ export function ChatProvider({ children }) {
     if (!chatId) {
       chatId = createNewChat(selectedModel);
     }
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    setIsGenerating(true);
+
+    const userMessageId = `msg-${Date.now()}`;
+    const assistantPlaceholderId = `msg-reply-${Date.now()}`;
+
+    const userMessage = {
+      id: userMessageId,
+      role: 'user',
+      content: promptText.trim(),
+      sources: null,
+      attachment: attachment ? {
+        name: attachment.name,
+        type: attachment.type,
+        dataUrl: attachment.dataUrl
+      } : null,
+      createdAt: Date.now()
+    };
+
+    const assistantMessage = {
+      id: assistantPlaceholderId,
+      role: 'assistant',
+      content: '',
+      modelUsed: selectedModel,
+      sources: null,
+      createdAt: Date.now()
+    };
+
+    // Auto-generate title from first prompt & add user + placeholder assistant messages immediately
+    setChats((prev) =>
+      prev.map((c) => {
+        if (c.id !== chatId) return c;
+        const isFirstMessage = c.messages.length === 0;
+        const newTitle = isFirstMessage
+          ? promptText.slice(0, 36) + (promptText.length > 36 ? '...' : '')
+          : c.title;
+
+        return {
+          ...c,
+          title: newTitle,
+          messages: [...c.messages, userMessage, assistantMessage],
+          updatedAt: Date.now()
+        };
+      })
+    );
 
     // 1. Long-Term Memory Auto-Detection & Context Injection
     if (promptText.trim()) {
@@ -233,26 +282,46 @@ export function ChatProvider({ children }) {
     let searchResults = [];
     let searchContext = '';
 
-    const hasRealTimeSearchIntent = /\b(today('?s)?|tonight|yesterday|tomorrow|right now|current|currently|latest|breaking|news|headline|headlines|weather|stock|crypto|price|prices|score|scores|game|who won|election|elections|update|updates|live|recent|recently|what happened)\b/i.test(promptText.trim()) || /\b(202[4-9]|203[0-9])\b/.test(promptText.trim());
+    const hasRealTimeSearchIntent = /\b(today('?s)?|tonight|yesterday|tomorrow|right now|current|currently|latest|breaking|news|headline|headlines|weather|forecast|temperature|stock|stocks|crypto|bitcoin|btc|eth|ethereum|solana|coin|coins|market|markets|share|shares|nasdaq|nifty|sensex|price|prices|score|scores|game|match|tournament|league|standing|standings|who won|who is winning|medal|medals|championship|cup|election|elections|poll|polls|update|updates|live|recent|recently|what happened|happening|situation|event|events|presidential)\b/i.test(promptText.trim()) || /\b(202[4-9]|203[0-9])\b/.test(promptText.trim());
     const shouldSearch = isWebSearchEnabled || hasRealTimeSearchIntent;
 
     if (shouldSearch && promptText.trim()) {
       if (hasRealTimeSearchIntent && !isWebSearchEnabled) {
         setIsWebSearchEnabled(true);
       }
+      setIsSearchingWeb(true);
       try {
         searchResults = await searchWebAPI(promptText.trim(), settings.serverUrl);
-        if (searchResults.length > 0) {
+        if (searchResults && searchResults.length > 0) {
           searchContext = '\n\n=== LIVE REAL-TIME WEB SEARCH RESULTS ===\n';
           searchResults.forEach((r, idx) => {
-            searchContext += `[${idx + 1}] ${r.title}\nURL: ${r.url}\nSummary: ${r.snippet}\n\n`;
+            searchContext += `[Source ${idx + 1}] ${r.title}\nURL: ${r.url || 'N/A'}\nSnippet: ${r.snippet || ''}\n\n`;
           });
-          searchContext += 'Instructions: You are equipped with the live real-time web search results above. Synthesize these findings to directly answer the user\'s real-time query. List headlines with brief descriptions and cite sources using Markdown links [Title](URL). DO NOT state that you do not have real-time information or that your cutoff is limited, because verified live search findings are explicitly provided above. DO NOT offer unsolicited code, tutorials, or mention internal tool names.\n=========================================\n\n';
+          searchContext += 'Instructions: You are equipped with the live real-time web search results above. Synthesize these findings to directly answer the user\'s real-time query. List key facts, updates, or headlines with concise descriptions, and cite sources using Markdown links [Title](URL). DO NOT state that you lack real-time information or that your cutoff is limited, because verified live search findings are explicitly provided above. DO NOT offer unsolicited code, tutorials, or mention internal tool names.\n=========================================\n\n';
+
+          // Attach searchResults to both userMessage.sources and assistantMessage.sources
+          setChats((prev) =>
+            prev.map((c) => {
+              if (c.id !== chatId) return c;
+              return {
+                ...c,
+                messages: c.messages.map((m) =>
+                  m.id === userMessageId || m.id === assistantPlaceholderId
+                    ? { ...m, sources: searchResults }
+                    : m
+                )
+              };
+            })
+          );
         }
       } catch (err) {
         console.warn('Live web search error:', err);
+      } finally {
+        setIsSearchingWeb(false);
       }
     }
+
+    if (controller.signal.aborted) return;
 
     // Assemble final augmented prompt
     let augmentedPrompt = promptText.trim();
@@ -260,53 +329,8 @@ export function ChatProvider({ children }) {
       augmentedPrompt = `${memoryContext ? memoryContext + '\n\n' : ''}${documentContext}${searchContext}User Prompt: ${promptText.trim()}`;
     }
 
-    const userMessage = {
-      id: `msg-${Date.now()}`,
-      role: 'user',
-      content: promptText.trim(),
-      sources: searchResults.length > 0 ? searchResults : null,
-      attachment: attachment ? {
-        name: attachment.name,
-        type: attachment.type,
-        dataUrl: attachment.dataUrl
-      } : null,
-      createdAt: Date.now()
-    };
-
-    const assistantPlaceholderId = `msg-reply-${Date.now()}`;
-    const assistantMessage = {
-      id: assistantPlaceholderId,
-      role: 'assistant',
-      content: '',
-      modelUsed: selectedModel,
-      sources: searchResults.length > 0 ? searchResults : null,
-      createdAt: Date.now()
-    };
-
-    // Auto-generate title from first prompt
-    setChats((prev) =>
-      prev.map((c) => {
-        if (c.id !== chatId) return c;
-        const isFirstMessage = c.messages.length === 0;
-        const newTitle = isFirstMessage
-          ? promptText.slice(0, 36) + (promptText.length > 36 ? '...' : '')
-          : c.title;
-
-        return {
-          ...c,
-          title: newTitle,
-          messages: [...c.messages, userMessage, assistantMessage],
-          updatedAt: Date.now()
-        };
-      })
-    );
-
-    setIsGenerating(true);
     const startTime = performance.now();
     let tokenCount = 0;
-
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
 
     // Build payload messages
     const chatInstance = chats.find((c) => c.id === chatId);
@@ -427,10 +451,12 @@ export function ChatProvider({ children }) {
         },
         onFinish: (fullText) => {
           setIsGenerating(false);
+          setIsSearchingWeb(false);
           abortControllerRef.current = null;
         },
         onError: (err) => {
           setIsGenerating(false);
+          setIsSearchingWeb(false);
           abortControllerRef.current = null;
 
           let friendlyError = err.message || 'Server connection failed.';
@@ -477,8 +503,8 @@ export function ChatProvider({ children }) {
     const userMsg = messages[assistantMessageIndex - 1];
     if (userMsg.role !== 'user') return;
 
-    // Truncate messages up to the user message
-    const truncated = messages.slice(0, assistantMessageIndex);
+    // Truncate messages before the user message, then re-send
+    const truncated = messages.slice(0, assistantMessageIndex - 1);
     setChats((prev) =>
       prev.map((c) => (c.id === currentChatId ? { ...c, messages: truncated } : c))
     );
@@ -526,6 +552,7 @@ export function ChatProvider({ children }) {
         selectedModel,
         setSelectedModel,
         isGenerating,
+        isSearchingWeb,
         generationStats,
         isWebSearchEnabled,
         setIsWebSearchEnabled,

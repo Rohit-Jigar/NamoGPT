@@ -232,17 +232,17 @@ export default function ChatInput() {
                 onClick={() => setIsWebSearchEnabled(!isWebSearchEnabled)}
                 className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-medium transition-all ${
                   isWebSearchEnabled
-                    ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30 shadow-sm shadow-blue-500/10'
+                    ? 'bg-blue-500/20 text-blue-300 border border-blue-400/50 shadow-md shadow-blue-500/25 ring-1 ring-blue-500/30'
                     : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/70 border border-transparent'
                 }`}
                 title={
                   isWebSearchEnabled
-                    ? 'Live web search active (auto-activates on real-time news & queries)'
-                    : 'Enable live web search (auto-activates on real-time queries)'
+                    ? 'Live Web Search: Active (Click to disable) • Live web grounding with verified citations'
+                    : 'Live Web Search: Off (Click to enable) • Automatically searches live web for news, weather & current events'
                 }
               >
-                <Globe className={`w-3.5 h-3.5 ${isWebSearchEnabled ? 'text-blue-400' : ''}`} />
-                <span className="text-[11px]">Search</span>
+                <Globe className={`w-3.5 h-3.5 transition-all ${isWebSearchEnabled ? 'text-blue-300 drop-shadow-[0_0_6px_rgba(96,165,250,0.7)]' : ''}`} />
+                <span className="text-[11px] font-medium">Search</span>
               </button>
 
               {/* Thinking Mode Toggle Pill */}
