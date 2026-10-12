@@ -6,6 +6,10 @@ import { webSearchPlugin } from './web_search.js';
 import { mcpWebFetcherPlugin } from './mcp_web_fetcher.js';
 import { weatherPlugin } from './weather.js';
 import { mathEvalPlugin } from './math_eval.js';
+import { context7Plugin } from './context7.js';
+import { chromeDevToolsPlugin } from './chrome_devtools.js';
+import { sentryPlugin } from './sentry.js';
+import { supabasePlugin } from './supabase.js';
 
 const registry = new Map();
 
@@ -70,15 +74,38 @@ export async function invokePlugin(name, args = {}) {
   return await plugin.handler(args);
 }
 
-// Pre-register default core plugins
+// Pre-register default core plugins & integrations (8 plugins total)
 registerPlugin(webSearchPlugin);
 registerPlugin(mcpWebFetcherPlugin);
 registerPlugin(weatherPlugin);
 registerPlugin(mathEvalPlugin);
+registerPlugin(context7Plugin);
+registerPlugin(chromeDevToolsPlugin);
+registerPlugin(sentryPlugin);
+registerPlugin(supabasePlugin);
+
+export {
+  webSearchPlugin,
+  mcpWebFetcherPlugin,
+  weatherPlugin,
+  mathEvalPlugin,
+  context7Plugin,
+  chromeDevToolsPlugin,
+  sentryPlugin,
+  supabasePlugin
+};
 
 export default {
   registerPlugin,
   getPlugin,
   listPlugins,
-  invokePlugin
+  invokePlugin,
+  webSearchPlugin,
+  mcpWebFetcherPlugin,
+  weatherPlugin,
+  mathEvalPlugin,
+  context7Plugin,
+  chromeDevToolsPlugin,
+  sentryPlugin,
+  supabasePlugin
 };

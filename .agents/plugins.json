@@ -1,0 +1,19 @@
+{
+  "entries": [
+    {
+      "path": ".agents/plugins",
+      "include_only": [
+        "context7",
+        "chrome-devtools",
+        "sentry",
+        "supabase"
+      ]
+    }
+  ],
+  "plugins": [
+    "context7",
+    "chrome-devtools",
+    "sentry",
+    "supabase"
+  ]
+}

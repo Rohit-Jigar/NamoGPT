@@ -1,0 +1,6 @@
+{
+  "name": "supabase",
+  "displayName": "Supabase Backend Management",
+  "description": "Supabase MCP for database schemas, tables, migrations, auth, and backend management",
+  "version": "1.0.0"
+}

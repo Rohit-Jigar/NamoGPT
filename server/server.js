@@ -22,7 +22,16 @@ import { searchWeb, formatSearchContext, fetchUrlContent } from './search.js';
 import { queryRag, formatRagContext } from './rag.js';
 import { executeCode } from './sandbox.js';
 import { conductDeepResearch } from './research.js';
-import { listPlugins, invokePlugin, registerPlugin, getPlugin } from './plugins/index.js';
+import {
+  listPlugins,
+  invokePlugin,
+  registerPlugin,
+  getPlugin,
+  context7Plugin,
+  chromeDevToolsPlugin,
+  sentryPlugin,
+  supabasePlugin
+} from './plugins/index.js';
 
 // Load .env from server dir or root
 if (fs.existsSync(path.resolve(process.cwd(), '.env'))) {
@@ -267,6 +276,12 @@ app.get('/api/search', async (req, res) => {
 
 // --- PLUGIN ARCHITECTURE ROUTES ---
 
+// Ensure core & integration plugins (context7, chrome-devtools, sentry, supabase) are registered
+registerPlugin(context7Plugin);
+registerPlugin(chromeDevToolsPlugin);
+registerPlugin(sentryPlugin);
+registerPlugin(supabasePlugin);
+
 // List all registered plugins and their parameter schemas
 app.get('/api/plugins/list', (_req, res) => {
   try {
@@ -481,7 +496,18 @@ app.post('/api/mcp/execute', async (req, res) => {
       });
     }
 
-    // 4. External Remote MCP Server execution (HTTP JSON-RPC or REST)
+    // 4. Built-in Registered Plugins execution (context7, chrome-devtools, sentry, supabase, etc.)
+    const registeredPlugin = getPlugin(cleanTool);
+    if (registeredPlugin) {
+      const pluginResult = await invokePlugin(cleanTool, toolArgs);
+      return res.status(200).json({
+        success: true,
+        toolName: cleanTool,
+        result: pluginResult
+      });
+    }
+
+    // 5. External Remote MCP Server execution (HTTP JSON-RPC or REST)
     if (serverUrl) {
       const axios = (await import('axios')).default;
       const cleanUrl = serverUrl.trim();

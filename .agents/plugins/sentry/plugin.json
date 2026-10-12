@@ -1,0 +1,6 @@
+{
+  "name": "sentry",
+  "displayName": "Sentry Error Monitoring",
+  "description": "Sentry MCP for production error tracking, issue triage, and stacktrace inspection",
+  "version": "1.0.0"
+}

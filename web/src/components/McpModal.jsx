@@ -151,7 +151,11 @@ export default function McpModal({ isOpen, onClose }) {
     if (tool.id === 'builtin-web-fetcher') return <Globe className="w-4 h-4 text-blue-400" />;
     if (tool.id === 'builtin-math-eval') return <Calculator className="w-4 h-4 text-emerald-400" />;
     if (tool.id === 'builtin-temporal-clock') return <Clock className="w-4 h-4 text-purple-400" />;
-    return <Cpu className="w-4 h-4 text-amber-400" />;
+    if (tool.id === 'builtin-context7') return <Code2 className="w-4 h-4 text-cyan-400" />;
+    if (tool.id === 'builtin-chrome-devtools') return <Terminal className="w-4 h-4 text-amber-400" />;
+    if (tool.id === 'builtin-sentry') return <AlertCircle className="w-4 h-4 text-rose-400" />;
+    if (tool.id === 'builtin-supabase') return <Layers className="w-4 h-4 text-emerald-400" />;
+    return <Cpu className="w-4 h-4 text-indigo-400" />;
   };
 
   return (
@@ -448,11 +452,22 @@ export default function McpModal({ isOpen, onClose }) {
                     <select
                       value={selectedToolId}
                       onChange={(e) => {
-                        setSelectedToolId(e.target.value);
-                        if (e.target.value === 'builtin-math-eval') {
-                          setPlaygroundArgs('{\n  \"expression\": \"Math.sqrt(256) * 10 + 42\"\n}');
-                        } else if (e.target.value === 'builtin-web-fetcher') {
-                          setPlaygroundArgs('{\n  \"url\": \"https://en.wikipedia.org/wiki/Artificial_intelligence\",\n  \"maxLength\": 500\n}');
+                        const newId = e.target.value;
+                        setSelectedToolId(newId);
+                        if (newId === 'builtin-math-eval') {
+                          setPlaygroundArgs('{\n  "expression": "Math.sqrt(256) * 10 + 42"\n}');
+                        } else if (newId === 'builtin-web-fetcher') {
+                          setPlaygroundArgs('{\n  "url": "https://en.wikipedia.org/wiki/Artificial_intelligence",\n  "maxLength": 500\n}');
+                        } else if (newId === 'builtin-context7') {
+                          setPlaygroundArgs('{\n  "library": "react",\n  "query": "useEffect"\n}');
+                        } else if (newId === 'builtin-chrome-devtools') {
+                          setPlaygroundArgs('{\n  "action": "status"\n}');
+                        } else if (newId === 'builtin-sentry') {
+                          setPlaygroundArgs('{\n  "action": "status",\n  "stacktrace": "TypeError: Cannot read properties of undefined (reading \\"map\\")\\n    at UserList (src/components/UserList.jsx:42:18)"\n}');
+                        } else if (newId === 'builtin-supabase') {
+                          setPlaygroundArgs('{\n  "action": "status"\n}');
+                        } else if (newId === 'builtin-temporal-clock') {
+                          setPlaygroundArgs('{\n  "targetTimezone": "UTC"\n}');
                         } else {
                           setPlaygroundArgs('{}');
                         }

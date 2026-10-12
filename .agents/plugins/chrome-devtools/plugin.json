@@ -1,0 +1,6 @@
+{
+  "name": "chrome-devtools",
+  "displayName": "Chrome DevTools",
+  "description": "Google Chrome DevTools MCP for live browser console, network tracing, and UI debugging",
+  "version": "1.0.0"
+}
