@@ -65,4 +65,20 @@ CF_API_TOKEN=your_cloudflare_api_token
 
 # Optional Dedicated Search
 TAVILY_API_KEY=tvly-...
+
+# Supabase Cloud Database (Primary DB)
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOi...
 ```
+
+---
+
+## 🗄️ 4. Supabase Database Configuration
+
+NamoGPT natively uses **Supabase** (Postgres + Row-Level Security) to persist registered users and ChatGPT-style multi-turn conversation history.
+
+| Service | Environment Variable | Free Quota | Direct Portal Link | Quick Setup Action |
+| :--- | :--- | :--- | :--- | :--- |
+| **Supabase** | `SUPABASE_URL`<br/>`SUPABASE_SERVICE_ROLE_KEY` *(or `SUPABASE_KEY`)* | 500 MB DB + 50,000 MAU Free | [supabase.com](https://supabase.com/dashboard) | 1. Create a free project at [supabase.com](https://supabase.com).<br/>2. In **Project Settings ➔ API**, copy `Project URL` and `service_role secret` (or `anon public`).<br/>3. Run the SQL migration from [`supabase/migrations/20261012180000_create_users_and_chats.sql`](file:///D:/NamoGPT/supabase/migrations/20261012180000_create_users_and_chats.sql) in your Supabase SQL Editor.<br/>4. Paste into `.env`! |
+
+> **💡 Zero Downtime Fallback**: If `SUPABASE_URL` is omitted, NamoGPT operates seamlessly on atomic local JSON storage without any interruption.

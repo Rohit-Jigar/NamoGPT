@@ -1,7 +1,7 @@
 {
   "testSuite": "NamoGPT Worker 4 Auth, Chat Persistence & Context Memory E2E QA",
-  "timestamp": "2026-10-12T18:06:19.407Z",
-  "durationMs": 8452,
+  "timestamp": "2026-10-12T18:31:28.603Z",
+  "durationMs": 10350,
   "targetUrl": "http://localhost:3001",
   "summary": {
     "total": 33,
@@ -24,27 +24,27 @@
         "success": true,
         "message": "Account created successfully.",
         "user": {
-          "id": "user-1791828371264-72f621f6",
-          "name": "Aarav Sharma 955",
-          "email": "aarav_test_1791828370955@namogpt.test",
+          "id": "user-1791829878535-0e8364a7",
+          "name": "Aarav Sharma 253",
+          "email": "aarav_test_1791829878253@namogpt.test",
           "dob": "1998-04-12",
-          "username": "aarav_sharma_95_775",
+          "username": "aarav_sharma_25_958",
           "role": "user",
-          "createdAt": "2026-10-12T18:06:11.264Z",
-          "lastLoginAt": "2026-10-12T18:06:11.264Z"
+          "createdAt": "2026-10-12T18:31:18.534Z",
+          "lastLoginAt": "2026-10-12T18:31:18.534Z"
         },
-        "username": "aarav_sharma_95_775",
-        "password": "Namo#FapGE",
-        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6InVzZXItMTc5MTgyODM3MTI2NC03MmY2MjFmNiIsImVtYWlsIjoiYWFyYXZfdGVzdF8xNzkxODI4MzcwOTU1QG5hbW9ncHQudGVzdCIsInVzZXJuYW1lIjoiYWFyYXZfc2hhcm1hXzk1Xzc3NSIsIm5hbWUiOiJBYXJhdiBTaGFybWEgOTU1Iiwicm9sZSI6InVzZXIiLCJleHAiOjE3OTI0MzMxNzd9.23NwbH-ckceyFl3-x2EfwWZ7vVuOboDZ2rNx4WbcEMs"
+        "username": "aarav_sharma_25_958",
+        "password": "Namo#9ys4R",
+        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6InVzZXItMTc5MTgyOTg3ODUzNS0wZTgzNjRhNyIsImVtYWlsIjoiYWFyYXZfdGVzdF8xNzkxODI5ODc4MjUzQG5hbW9ncHQudGVzdCIsInVzZXJuYW1lIjoiYWFyYXZfc2hhcm1hXzI1Xzk1OCIsIm5hbWUiOiJBYXJhdiBTaGFybWEgMjUzIiwicm9sZSI6InVzZXIiLCJleHAiOjE3OTI0MzQ2ODZ9.PLiSXLIQUM1_FsAYd81q9-K6sxVQ8d_JNAUH0lwoEAk"
       }
     },
     {
-      "test": "Generated unique username returned: @aarav_sharma_95_775",
+      "test": "Generated unique username returned: @aarav_sharma_25_958",
       "passed": true,
       "details": {}
     },
     {
-      "test": "Generated secure password returned: Namo#FapGE",
+      "test": "Generated secure password returned: Namo#9ys4R",
       "passed": true,
       "details": {}
     },
@@ -72,16 +72,16 @@
         "success": true,
         "message": "Logged in successfully.",
         "user": {
-          "id": "user-1791828371264-72f621f6",
-          "name": "Aarav Sharma 955",
-          "email": "aarav_test_1791828370955@namogpt.test",
+          "id": "user-1791829878535-0e8364a7",
+          "name": "Aarav Sharma 253",
+          "email": "aarav_test_1791829878253@namogpt.test",
           "dob": "1998-04-12",
-          "username": "aarav_sharma_95_775",
+          "username": "aarav_sharma_25_958",
           "role": "user",
-          "createdAt": "2026-10-12T18:06:11.264Z",
-          "lastLoginAt": "2026-10-12T18:06:17.527Z"
+          "createdAt": "2026-10-12T18:31:18.534Z",
+          "lastLoginAt": "2026-10-12T18:31:26.954Z"
         },
-        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6InVzZXItMTc5MTgyODM3MTI2NC03MmY2MjFmNiIsImVtYWlsIjoiYWFyYXZfdGVzdF8xNzkxODI4MzcwOTU1QG5hbW9ncHQudGVzdCIsInVzZXJuYW1lIjoiYWFyYXZfc2hhcm1hXzk1Xzc3NSIsIm5hbWUiOiJBYXJhdiBTaGFybWEgOTU1Iiwicm9sZSI6InVzZXIiLCJleHAiOjE3OTI0MzMxNzd9.23NwbH-ckceyFl3-x2EfwWZ7vVuOboDZ2rNx4WbcEMs"
+        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6InVzZXItMTc5MTgyOTg3ODUzNS0wZTgzNjRhNyIsImVtYWlsIjoiYWFyYXZfdGVzdF8xNzkxODI5ODc4MjUzQG5hbW9ncHQudGVzdCIsInVzZXJuYW1lIjoiYWFyYXZfc2hhcm1hXzI1Xzk1OCIsIm5hbWUiOiJBYXJhdiBTaGFybWEgMjUzIiwicm9sZSI6InVzZXIiLCJleHAiOjE3OTI0MzQ2ODZ9.PLiSXLIQUM1_FsAYd81q9-K6sxVQ8d_JNAUH0lwoEAk"
       }
     },
     {
@@ -90,7 +90,7 @@
       "details": {}
     },
     {
-      "test": "Logged in user matches @aarav_sharma_95_775",
+      "test": "Logged in user matches @aarav_sharma_25_958",
       "passed": true,
       "details": {}
     },
@@ -105,7 +105,7 @@
       "details": {}
     },
     {
-      "test": "Turn 1 assistant response received: \"Emerald green is a beautiful, vibrant shade—great choice!...\"",
+      "test": "Turn 1 assistant response received: \"Emerald green is a beautiful, vibrant shade of green—thanks ...\"",
       "passed": true,
       "details": {}
     },
@@ -120,8 +120,8 @@
       "details": {
         "success": true,
         "chat": {
-          "id": "chat-e2e-1791828370955",
-          "userId": "user-1791828371264-72f621f6",
+          "id": "chat-e2e-1791829878253",
+          "userId": "user-1791829878535-0e8364a7",
           "title": "Favorite Color Discussion",
           "model": "auto",
           "messages": [
@@ -129,18 +129,18 @@
               "id": "msg-1",
               "role": "user",
               "content": "My favorite color is emerald green",
-              "createdAt": 1791828378546
+              "createdAt": 1791829888251
             },
             {
               "id": "msg-2",
               "role": "assistant",
-              "content": "Emerald green is a beautiful, vibrant shade—great choice!",
-              "createdAt": 1791828378546
+              "content": "Emerald green is a beautiful, vibrant shade of green—thanks for sharing! If you’d like any recommendations or information related to that color, just let me know.",
+              "createdAt": 1791829888251
             }
           ],
           "isPinned": false,
-          "createdAt": "2026-10-12T18:06:18.546Z",
-          "updatedAt": "2026-10-12T18:06:18.552Z"
+          "createdAt": "2026-10-12T18:31:28.251Z",
+          "updatedAt": "2026-10-12T18:31:28.256Z"
         }
       }
     },
@@ -167,8 +167,8 @@
       "details": {
         "success": true,
         "chat": {
-          "id": "chat-e2e-1791828370955",
-          "userId": "user-1791828371264-72f621f6",
+          "id": "chat-e2e-1791829878253",
+          "userId": "user-1791829878535-0e8364a7",
           "title": "Favorite Color Discussion",
           "model": "auto",
           "messages": [
@@ -176,30 +176,30 @@
               "id": "msg-1",
               "role": "user",
               "content": "My favorite color is emerald green",
-              "createdAt": 1791828379360
+              "createdAt": 1791829888555
             },
             {
               "id": "msg-2",
               "role": "assistant",
-              "content": "Emerald green is a beautiful, vibrant shade—great choice!",
-              "createdAt": 1791828379360
+              "content": "Emerald green is a beautiful, vibrant shade of green—thanks for sharing! If you’d like any recommendations or information related to that color, just let me know.",
+              "createdAt": 1791829888555
             },
             {
               "id": "msg-3",
               "role": "user",
               "content": "What is my favorite color?",
-              "createdAt": 1791828379360
+              "createdAt": 1791829888555
             },
             {
               "id": "msg-4",
               "role": "assistant",
               "content": "Your favorite color is emerald green.",
-              "createdAt": 1791828379360
+              "createdAt": 1791829888555
             }
           ],
           "isPinned": false,
-          "createdAt": "2026-10-12T18:06:19.360Z",
-          "updatedAt": "2026-10-12T18:06:19.365Z"
+          "createdAt": "2026-10-12T18:31:28.555Z",
+          "updatedAt": "2026-10-12T18:31:28.560Z"
         }
       }
     },
@@ -214,7 +214,7 @@
       "details": {}
     },
     {
-      "test": "Created chat \"chat-e2e-1791828370955\" found in user chat list",
+      "test": "Created chat \"chat-e2e-1791829878253\" found in user chat list",
       "passed": true,
       "details": {}
     },
@@ -224,7 +224,7 @@
       "details": {}
     },
     {
-      "test": "Retrieved chat ID matches \"chat-e2e-1791828370955\"",
+      "test": "Retrieved chat ID matches \"chat-e2e-1791829878253\"",
       "passed": true,
       "details": {}
     },
@@ -255,8 +255,8 @@
         "success": true,
         "message": "Chat title updated successfully.",
         "chat": {
-          "id": "chat-e2e-1791828370955",
-          "userId": "user-1791828371264-72f621f6",
+          "id": "chat-e2e-1791829878253",
+          "userId": "user-1791829878535-0e8364a7",
           "title": "Renamed: Emerald Green Memories",
           "model": "auto",
           "messages": [
@@ -264,30 +264,30 @@
               "id": "msg-1",
               "role": "user",
               "content": "My favorite color is emerald green",
-              "createdAt": 1791828379360
+              "createdAt": 1791829888555
             },
             {
               "id": "msg-2",
               "role": "assistant",
-              "content": "Emerald green is a beautiful, vibrant shade—great choice!",
-              "createdAt": 1791828379360
+              "content": "Emerald green is a beautiful, vibrant shade of green—thanks for sharing! If you’d like any recommendations or information related to that color, just let me know.",
+              "createdAt": 1791829888555
             },
             {
               "id": "msg-3",
               "role": "user",
               "content": "What is my favorite color?",
-              "createdAt": 1791828379360
+              "createdAt": 1791829888555
             },
             {
               "id": "msg-4",
               "role": "assistant",
               "content": "Your favorite color is emerald green.",
-              "createdAt": 1791828379360
+              "createdAt": 1791829888555
             }
           ],
           "isPinned": false,
-          "createdAt": "2026-10-12T18:06:18.546Z",
-          "updatedAt": "2026-10-12T18:06:19.392Z"
+          "createdAt": "2026-10-12T18:31:28.555Z",
+          "updatedAt": "2026-10-12T18:31:28.581Z"
         },
         "title": "Renamed: Emerald Green Memories"
       }
@@ -308,7 +308,7 @@
       "details": {
         "success": true,
         "message": "Chat deleted successfully.",
-        "id": "chat-e2e-1791828370955",
+        "id": "chat-e2e-1791829878253",
         "deleted": true
       }
     },

@@ -12,6 +12,7 @@
     "test:integration": "node test-proxy.js"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.117.3",
     "axios": "^1.6.0",
     "cors": "^2.8.6",
     "dotenv": "^18.0.5",

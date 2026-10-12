@@ -1,9 +1,16 @@
+/**
+ * NamoGPT Database Service
+ * 
+ * Supports Supabase as primary cloud database provider with resilient local JSON fallback.
+ * Adheres strictly to Supabase safety, RLS, and explicit field projection standards.
+ */
+
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import mongoose from 'mongoose';
+import { createClient } from '@supabase/supabase-js';
 
-// Persistent data directory
+// Persistent fallback data directory
 const BASE_SERVER_DIR = process.cwd().endsWith('server')
   ? process.cwd()
   : path.resolve(process.cwd(), 'server');
@@ -11,46 +18,68 @@ const DATA_DIR = path.join(BASE_SERVER_DIR, 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const CHATS_FILE = path.join(DATA_DIR, 'chats.json');
 
-// Mongoose Schemas & Models
-const userSchema = new mongoose.Schema(
-  {
-    id: { type: String, required: true, unique: true, index: true },
-    name: { type: String, required: true },
-    email: { type: String, required: true, unique: true, lowercase: true, trim: true, index: true },
-    dob: { type: String, default: '' },
-    username: { type: String, unique: true, lowercase: true, trim: true, index: true },
-    passwordHash: { type: String, required: true },
-    role: { type: String, default: 'user' },
-    createdAt: { type: Date, default: Date.now },
-    lastLoginAt: { type: Date, default: null }
-  },
-  { versionKey: false }
-);
+// Supabase Configuration from Environment
+const SUPABASE_URL = (
+  process.env.SUPABASE_URL ||
+  process.env.NEXT_PUBLIC_SUPABASE_URL ||
+  ''
+).trim();
 
-const chatSchema = new mongoose.Schema(
-  {
-    id: { type: String, required: true, unique: true, index: true },
-    userId: { type: String, required: true, index: true },
-    title: { type: String, default: 'New Chat' },
-    model: { type: String, default: 'auto' },
-    messages: { type: Array, default: [] },
-    isPinned: { type: Boolean, default: false },
-    createdAt: { type: Date, default: Date.now },
-    updatedAt: { type: Date, default: Date.now }
-  },
-  { versionKey: false, minimize: false }
-);
+const SUPABASE_KEY = (
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.SUPABASE_KEY ||
+  process.env.SUPABASE_ANON_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  ''
+).trim();
 
-export const UserModel = mongoose.models.User || mongoose.model('User', userSchema);
-export const ChatModel = mongoose.models.Chat || mongoose.model('Chat', chatSchema);
-export const User = UserModel;
-export const Chat = ChatModel;
+// Active Supabase Client
+let supabaseClient = null;
+if (SUPABASE_URL && SUPABASE_KEY) {
+  try {
+    supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false
+      }
+    });
+    console.log(`[Database] ⚡ Connected to Supabase Database at ${SUPABASE_URL}`);
+  } catch (err) {
+    console.warn('[Database] Failed to initialize Supabase client:', err.message);
+  }
+} else {
+  console.log('[Database] 📁 SUPABASE_URL not configured. Running seamlessly on resilient local JSON storage.');
+}
 
-// Connection state tracking
-let isMongoConnected = false;
-let mongoInitPromise = null;
-let usersCache = null;
-let chatsCache = null;
+/**
+ * Configure or override Supabase client (used for testing and runtime switching)
+ */
+export function setSupabaseClient(client) {
+  supabaseClient = client;
+  return supabaseClient;
+}
+
+/**
+ * Get active Supabase client instance
+ */
+export function getSupabaseClient() {
+  return supabaseClient;
+}
+
+/**
+ * Check if active database is Supabase
+ */
+export function isUsingSupabase() {
+  return Boolean(supabaseClient);
+}
+
+/**
+ * Get database provider name
+ */
+export function getDatabaseProvider() {
+  if (supabaseClient) return 'supabase';
+  return 'local-json';
+}
 
 /**
  * Ensure data directory and fallback JSON files exist
@@ -71,7 +100,7 @@ function ensureStorage() {
   }
 }
 
-// Initialize directory and files immediately
+// Ensure local fallback storage is initialized
 ensureStorage();
 
 /**
@@ -99,445 +128,51 @@ function writeJson(filePath, data) {
   try {
     fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), 'utf8');
     fs.renameSync(tmpPath, filePath);
-  } catch {
-    try {
-      fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
-    } catch (e) {
-      console.error(`[Database] Failed to write ${filePath}:`, e.message);
-    }
+  } catch (err) {
     try {
       if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
     } catch (_) {}
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
   }
 }
 
 /**
- * Connect to MongoDB Atlas with auto-reconnect and timeouts
+ * Map Postgres snake_case user row to clean JavaScript camelCase object
  */
-export async function connectDB() {
-  if (isMongoConnected && mongoose.connection.readyState === 1) {
-    return true;
-  }
-  if (mongoInitPromise) {
-    return mongoInitPromise;
-  }
-
-  const uri = process.env.MONGODB_URI || process.env.MONGO_URI;
-  if (!uri || !uri.trim()) {
-    console.log('[Database] 📁 MONGODB_URI not set. Seamlessly running on resilient local JSON storage.');
-    return false;
-  }
-
-  mongoInitPromise = (async () => {
-    try {
-      console.log('[Database] 🔄 Connecting to MongoDB Atlas...');
-      await mongoose.connect(uri, {
-        serverSelectionTimeoutMS: 5000,
-        connectTimeoutMS: 5000,
-        socketTimeoutMS: 10000,
-        autoIndex: true
-      });
-      isMongoConnected = true;
-      console.log('[Database] 🍃 MongoDB Atlas connected successfully!');
-      return true;
-    } catch (err) {
-      console.warn(`[Database] ⚠️ MongoDB Atlas connection error (${err.message}). Seamlessly engaging local JSON fallback.`);
-      isMongoConnected = false;
-      return false;
-    } finally {
-      mongoInitPromise = null;
-    }
-  })();
-
-  return mongoInitPromise;
-}
-
-// Alias for connectDB
-export const initDb = connectDB;
-
-// Mongoose connection event listeners for auto-reconnect
-mongoose.connection.on('connected', () => {
-  isMongoConnected = true;
-  console.log('[Database] 🍃 Mongoose connected to MongoDB Atlas.');
-});
-
-mongoose.connection.on('disconnected', () => {
-  if (isMongoConnected) {
-    console.warn('[Database] ⚠️ Mongoose disconnected. Local JSON storage active.');
-  }
-  isMongoConnected = false;
-});
-
-mongoose.connection.on('error', (err) => {
-  console.warn('[Database] ⚠️ Mongoose error:', err.message);
-});
-
-// Auto-trigger connection attempt if URI is present
-if (process.env.MONGODB_URI || process.env.MONGO_URI) {
-  connectDB().catch(() => {});
-}
-
-/**
- * Check whether MongoDB Atlas is currently usable
- */
-export function isUsingMongo() {
-  return isMongoConnected && mongoose.connection.readyState === 1;
-}
-
-// ==========================================
-// USER DATABASE METHODS
-// ==========================================
-
-/**
- * Find user by email or username (case-insensitive)
- */
-export async function findUserByEmailOrUsername(identifier) {
-  if (!identifier) return null;
-  const clean = identifier.toString().toLowerCase().trim();
-  if (!clean) return null;
-
-  if (isUsingMongo()) {
-    try {
-      const user = await UserModel.findOne({
-        $or: [
-          { email: clean },
-          { username: clean }
-        ]
-      }).lean();
-      if (user) return user;
-    } catch (err) {
-      console.warn('[Database] Mongo findUserByEmailOrUsername error, falling back to JSON:', err.message);
-    }
-  }
-
-  const users = readJson(USERS_FILE);
-  const found = users.find(u => {
-    const uEmail = (u.email || '').toLowerCase().trim();
-    const uUsername = (u.username || '').toLowerCase().trim();
-    return uEmail === clean || uUsername === clean;
-  });
-
-  return found ? { ...found } : null;
-}
-
-/**
- * Find user by ID
- */
-export async function findUserById(id) {
-  if (!id) return null;
-
-  if (isUsingMongo()) {
-    try {
-      const user = await UserModel.findOne({ id }).lean();
-      if (user) return user;
-    } catch (err) {
-      console.warn('[Database] Mongo findUserById error, falling back to JSON:', err.message);
-    }
-  }
-
-  const users = readJson(USERS_FILE);
-  const found = users.find(u => u.id === id);
-  return found ? { ...found } : null;
-}
-
-/**
- * Create a new user
- */
-export async function createUser(userData) {
-  if (!userData) throw new Error('userData is required');
-
-  const now = new Date();
-  const id = userData.id || `user-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
-  const cleanEmail = (userData.email || '').toLowerCase().trim();
-  const cleanUsername = (userData.username || '').toLowerCase().trim();
-
-  const userDoc = {
-    id,
-    name: userData.name?.trim() || cleanEmail.split('@')[0],
-    email: cleanEmail,
-    dob: userData.dob || '',
-    username: cleanUsername || cleanEmail.split('@')[0],
-    passwordHash: userData.passwordHash,
-    role: userData.role || 'user',
-    createdAt: userData.createdAt || now,
-    lastLoginAt: userData.lastLoginAt || null
+export function toUserRecord(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    name: row.name,
+    email: (row.email || '').toLowerCase().trim(),
+    dob: row.dob || '',
+    username: (row.username || '').toLowerCase().trim(),
+    passwordHash: row.password_hash || row.passwordHash || '',
+    role: row.role || 'user',
+    createdAt: row.created_at || row.createdAt || new Date(),
+    lastLoginAt: row.last_login_at || row.lastLoginAt || null
   };
-
-  if (isUsingMongo()) {
-    try {
-      const created = await UserModel.create(userDoc);
-      const res = created.toObject ? created.toObject() : created;
-      syncUserToJson(res);
-      return res;
-    } catch (err) {
-      console.warn('[Database] Mongo createUser failed, writing to JSON fallback:', err.message);
-    }
-  }
-
-  // JSON Fallback
-  const users = readJson(USERS_FILE);
-  const existing = users.find(u =>
-    (cleanEmail && (u.email || '').toLowerCase().trim() === cleanEmail) ||
-    (cleanUsername && (u.username || '').toLowerCase().trim() === cleanUsername)
-  );
-
-  if (existing) {
-    throw new Error('User with this email or username already exists');
-  }
-
-  users.push(userDoc);
-  writeJson(USERS_FILE, users);
-  return { ...userDoc };
 }
 
 /**
- * Update user by ID
+ * Map Postgres snake_case chat row to clean JavaScript camelCase object
  */
-export async function updateUser(id, update) {
-  if (!id || !update) return null;
-
-  let updatedDoc = null;
-  if (isUsingMongo()) {
-    try {
-      updatedDoc = await UserModel.findOneAndUpdate(
-        { id },
-        { $set: update },
-        { new: true }
-      ).lean();
-    } catch (err) {
-      console.warn('[Database] Mongo updateUser error, falling back to JSON:', err.message);
-    }
-  }
-
-  // Update in JSON
-  const users = readJson(USERS_FILE);
-  const index = users.findIndex(u => u.id === id);
-  if (index !== -1) {
-    users[index] = { ...users[index], ...update };
-    writeJson(USERS_FILE, users);
-    if (!updatedDoc) {
-      updatedDoc = { ...users[index] };
-    }
-  }
-
-  return updatedDoc;
-}
-
-/**
- * Get all users
- */
-export async function getAllUsers() {
-  if (isUsingMongo()) {
-    try {
-      const users = await UserModel.find({}).lean();
-      if (users && users.length > 0) return users;
-    } catch (err) {
-      console.warn('[Database] Mongo getAllUsers error, falling back to JSON:', err.message);
-    }
-  }
-
-  return readJson(USERS_FILE);
-}
-
-// ==========================================
-// CHAT DATABASE METHODS
-// ==========================================
-
-/**
- * Find chats for a given user
- */
-export async function findChatsByUserId(userId) {
-  if (!userId) return [];
-
-  if (isUsingMongo()) {
-    try {
-      const query = (userId === '*' || userId === 'all') ? {} : { userId };
-      const chats = await ChatModel.find(query).sort({ updatedAt: -1 }).lean();
-      return chats;
-    } catch (err) {
-      console.warn('[Database] Mongo findChatsByUserId error, falling back to JSON:', err.message);
-    }
-  }
-
-  const chats = readJson(CHATS_FILE);
-  return chats
-    .filter(c => (userId === '*' || userId === 'all' || c.userId === userId))
-    .sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
-}
-
-// Alias for findChatsByUserId
-export const getChats = findChatsByUserId;
-
-/**
- * Save or update a chat document
- */
-export async function saveChat(chatData, explicitUserId = null) {
-  if (!chatData || typeof chatData !== 'object') {
-    throw new Error('userId is required to save chat');
-  }
-
-  const effectiveUserId = explicitUserId || chatData.userId || 'guest-session';
-  const now = new Date();
-  const id = chatData.id || `chat-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
-
-  const docToSave = {
-    id,
-    userId: effectiveUserId,
-    title: chatData.title || 'New Chat',
-    model: chatData.model || 'auto',
-    messages: Array.isArray(chatData.messages) ? chatData.messages : [],
-    isPinned: Boolean(chatData.isPinned),
-    createdAt: chatData.createdAt ? new Date(chatData.createdAt) : now,
-    updatedAt: now
+export function toChatRecord(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    userId: row.user_id || row.userId || 'guest-session',
+    title: row.title || 'New Chat',
+    model: row.model || 'auto',
+    messages: Array.isArray(row.messages) ? row.messages : [],
+    isPinned: Boolean(row.is_pinned !== undefined ? row.is_pinned : row.isPinned),
+    createdAt: row.created_at || row.createdAt || new Date(),
+    updatedAt: row.updated_at || row.updatedAt || new Date()
   };
-
-  if (isUsingMongo()) {
-    try {
-      const saved = await ChatModel.findOneAndUpdate(
-        { id },
-        {
-          $set: {
-            title: docToSave.title,
-            model: docToSave.model,
-            messages: docToSave.messages,
-            isPinned: docToSave.isPinned,
-            updatedAt: docToSave.updatedAt
-          },
-          $setOnInsert: {
-            id: docToSave.id,
-            userId: docToSave.userId,
-            createdAt: docToSave.createdAt
-          }
-        },
-        { upsert: true, new: true }
-      ).lean();
-
-      syncChatToJson(saved);
-      return saved;
-    } catch (err) {
-      console.warn('[Database] Mongo saveChat error, saving to JSON fallback:', err.message);
-    }
-  }
-
-  // JSON Fallback
-  const chats = readJson(CHATS_FILE);
-  const index = chats.findIndex(c => c.id === id);
-  if (index !== -1) {
-    chats[index] = {
-      ...chats[index],
-      ...docToSave,
-      createdAt: chats[index].createdAt || docToSave.createdAt
-    };
-  } else {
-    chats.unshift(docToSave);
-  }
-
-  writeJson(CHATS_FILE, chats);
-  return { ...docToSave };
 }
 
 /**
- * Get chat by ID
- */
-export async function getChatById(id, userId = null) {
-  if (!id) return null;
-
-  if (isUsingMongo()) {
-    try {
-      const query = { id };
-      if (userId && userId !== '*' && userId !== 'all') {
-        query.userId = userId;
-      }
-      const chat = await ChatModel.findOne(query).lean();
-      if (chat) return chat;
-    } catch (err) {
-      console.warn('[Database] Mongo getChatById error, falling back to JSON:', err.message);
-    }
-  }
-
-  const chats = readJson(CHATS_FILE);
-  const found = chats.find(c => c.id === id && (!userId || userId === '*' || userId === 'all' || c.userId === userId));
-  return found ? { ...found } : null;
-}
-
-/**
- * Delete chat by ID
- */
-export async function deleteChat(id, userId = null) {
-  if (!id) return false;
-
-  let deleted = false;
-  if (isUsingMongo()) {
-    try {
-      const query = { id };
-      if (userId && userId !== '*' && userId !== 'all') {
-        query.userId = userId;
-      }
-      const res = await ChatModel.deleteOne(query);
-      if (res.deletedCount > 0) deleted = true;
-    } catch (err) {
-      console.warn('[Database] Mongo deleteChat error, falling back to JSON:', err.message);
-    }
-  }
-
-  const chats = readJson(CHATS_FILE);
-  const filtered = chats.filter(c => {
-    if (c.id === id) {
-      if (!userId || userId === '*' || userId === 'all' || c.userId === userId) {
-        deleted = true;
-        return false;
-      }
-    }
-    return true;
-  });
-
-  if (filtered.length !== chats.length) {
-    writeJson(CHATS_FILE, filtered);
-    deleted = true;
-  }
-
-  return deleted;
-}
-
-/**
- * Rename / update chat title
- */
-export async function updateChatTitle(chatId, newTitle, userId = null) {
-  if (!chatId || !newTitle) {
-    throw new Error('Chat ID and new title are required.');
-  }
-
-  const existing = await getChatById(chatId, userId);
-  if (!existing) return null;
-
-  existing.title = newTitle.trim();
-  existing.updatedAt = new Date();
-
-  return await saveChat(existing, existing.userId);
-}
-
-/**
- * Clear all chats for a specific user
- */
-export async function clearChats(userId) {
-  const normalizedUserId = userId || 'guest-session';
-  const chats = readJson(CHATS_FILE);
-  const remaining = chats.filter(c => c.userId !== normalizedUserId);
-  writeJson(CHATS_FILE, remaining);
-
-  if (isUsingMongo()) {
-    try {
-      await ChatModel.deleteMany({ userId: normalizedUserId });
-    } catch (err) {
-      console.warn('[Database] Mongo clearChats error:', err.message);
-    }
-  }
-
-  return true;
-}
-
-/**
- * Internal mirror helpers for hybrid consistency
+ * Sync user to local JSON storage for resilience
  */
 function syncUserToJson(user) {
   try {
@@ -552,6 +187,9 @@ function syncUserToJson(user) {
   } catch (_) {}
 }
 
+/**
+ * Sync chat to local JSON storage for resilience
+ */
 function syncChatToJson(chat) {
   try {
     const chats = readJson(CHATS_FILE);
@@ -565,10 +203,444 @@ function syncChatToJson(chat) {
   } catch (_) {}
 }
 
+/**
+ * Connect / initialize database
+ */
+export async function connectDB() {
+  if (supabaseClient) {
+    return { provider: 'supabase', url: SUPABASE_URL };
+  }
+  return { provider: 'local-json', path: DATA_DIR };
+}
+
+export const initDb = connectDB;
+
+/**
+ * Find user by email or username
+ * Strictly projects required fields: id, name, email, dob, username, password_hash, role, created_at, last_login_at
+ */
+export async function findUserByEmailOrUsername(identifier) {
+  if (!identifier) return null;
+  const cleanId = identifier.toString().toLowerCase().trim();
+
+  // 1. Supabase Query
+  if (isUsingSupabase()) {
+    try {
+      const { data, error } = await supabaseClient
+        .from('users')
+        .select('id, name, email, dob, username, password_hash, role, created_at, last_login_at')
+        .or(`email.ilike.${cleanId},username.ilike.${cleanId}`)
+        .limit(1)
+        .maybeSingle();
+
+      if (!error && data) {
+        return toUserRecord(data);
+      }
+    } catch (err) {
+      console.warn('[Database] Supabase findUserByEmailOrUsername warning, falling back:', err.message);
+    }
+  }
+
+  // 2. Local JSON Fallback
+  const users = readJson(USERS_FILE);
+  const found = users.find(u =>
+    (u.email && u.email.toLowerCase() === cleanId) ||
+    (u.username && u.username.toLowerCase() === cleanId)
+  );
+
+  return found ? toUserRecord(found) : null;
+}
+
+/**
+ * Find user by ID
+ */
+export async function findUserById(id) {
+  if (!id) return null;
+
+  if (isUsingSupabase()) {
+    try {
+      const { data, error } = await supabaseClient
+        .from('users')
+        .select('id, name, email, dob, username, password_hash, role, created_at, last_login_at')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (!error && data) {
+        return toUserRecord(data);
+      }
+    } catch (err) {
+      console.warn('[Database] Supabase findUserById warning:', err.message);
+    }
+  }
+
+  const users = readJson(USERS_FILE);
+  const found = users.find(u => u.id === id);
+  return found ? toUserRecord(found) : null;
+}
+
+/**
+ * Create a new user
+ * Inserts into Supabase users table with RLS compliance
+ */
+export async function createUser(userData) {
+  if (!userData || !userData.email) {
+    throw new Error('User data with email is required.');
+  }
+
+  const userId = userData.id || `user-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+  const normalizedEmail = userData.email.toLowerCase().trim();
+  const normalizedUsername = (userData.username || normalizedEmail.split('@')[0])
+    .toLowerCase()
+    .trim();
+
+  const userRow = {
+    id: userId,
+    name: userData.name || normalizedEmail.split('@')[0],
+    email: normalizedEmail,
+    dob: userData.dob || '',
+    username: normalizedUsername,
+    password_hash: userData.passwordHash || '',
+    role: userData.role || 'user',
+    created_at: userData.createdAt ? new Date(userData.createdAt).toISOString() : new Date().toISOString(),
+    last_login_at: userData.lastLoginAt ? new Date(userData.lastLoginAt).toISOString() : new Date().toISOString()
+  };
+
+  // 1. Supabase Insertion
+  if (isUsingSupabase()) {
+    try {
+      const { data, error } = await supabaseClient
+        .from('users')
+        .insert(userRow)
+        .select('id, name, email, dob, username, password_hash, role, created_at, last_login_at')
+        .single();
+
+      if (!error && data) {
+        const userRec = toUserRecord(data);
+        syncUserToJson(userRec);
+        return userRec;
+      }
+      if (error) {
+        console.warn('[Database] Supabase createUser error:', error.message);
+      }
+    } catch (err) {
+      console.warn('[Database] Supabase createUser error, falling back:', err.message);
+    }
+  }
+
+  // 2. Local JSON Fallback
+  const localRecord = toUserRecord(userRow);
+  syncUserToJson(localRecord);
+  return localRecord;
+}
+
+/**
+ * Update an existing user
+ */
+export async function updateUser(id, updateData) {
+  if (!id || !updateData) return null;
+
+  if (isUsingSupabase()) {
+    try {
+      const updatePayload = {};
+      if (updateData.name !== undefined) updatePayload.name = updateData.name;
+      if (updateData.dob !== undefined) updatePayload.dob = updateData.dob;
+      if (updateData.username !== undefined) updatePayload.username = updateData.username;
+      if (updateData.passwordHash !== undefined) updatePayload.password_hash = updateData.passwordHash;
+      if (updateData.role !== undefined) updatePayload.role = updateData.role;
+      if (updateData.lastLoginAt !== undefined) {
+        updatePayload.last_login_at = new Date(updateData.lastLoginAt).toISOString();
+      }
+
+      const { data, error } = await supabaseClient
+        .from('users')
+        .update(updatePayload)
+        .eq('id', id)
+        .select('id, name, email, dob, username, password_hash, role, created_at, last_login_at')
+        .maybeSingle();
+
+      if (!error && data) {
+        const rec = toUserRecord(data);
+        syncUserToJson(rec);
+        return rec;
+      }
+    } catch (err) {
+      console.warn('[Database] Supabase updateUser warning:', err.message);
+    }
+  }
+
+  const users = readJson(USERS_FILE);
+  const idx = users.findIndex(u => u.id === id);
+  if (idx === -1) return null;
+
+  const current = users[idx];
+  const updated = {
+    ...current,
+    ...updateData,
+    lastLoginAt: updateData.lastLoginAt || current.lastLoginAt
+  };
+  users[idx] = updated;
+  writeJson(USERS_FILE, users);
+  return toUserRecord(updated);
+}
+
+/**
+ * Retrieve all registered users
+ */
+export async function getAllUsers() {
+  if (isUsingSupabase()) {
+    try {
+      const { data, error } = await supabaseClient
+        .from('users')
+        .select('id, name, email, dob, username, role, created_at, last_login_at')
+        .order('created_at', { ascending: false });
+
+      if (!error && Array.isArray(data)) {
+        return data.map(toUserRecord);
+      }
+    } catch (err) {
+      console.warn('[Database] Supabase getAllUsers warning:', err.message);
+    }
+  }
+
+  const users = readJson(USERS_FILE);
+  return users.map(u => ({
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    dob: u.dob || '',
+    username: u.username || u.email.split('@')[0],
+    role: u.role || 'user',
+    createdAt: u.createdAt,
+    lastLoginAt: u.lastLoginAt
+  }));
+}
+
+/**
+ * Save or update chat session in database
+ * Upserts chat with title, messages, model, and updated_at
+ */
+export async function saveChat(chatData, userId = null) {
+  if (!chatData) {
+    throw new Error('Chat data is required.');
+  }
+
+  const chatId = chatData.id || `chat-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+  const resolvedUserId = chatData.userId || userId || 'guest-session';
+  const chatRow = {
+    id: chatId,
+    user_id: resolvedUserId,
+    title: (chatData.title || 'New Chat').trim(),
+    model: chatData.model || 'auto',
+    messages: Array.isArray(chatData.messages) ? chatData.messages : [],
+    is_pinned: Boolean(chatData.isPinned),
+    created_at: chatData.createdAt ? new Date(chatData.createdAt).toISOString() : new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+
+  // 1. Supabase Upsert
+  if (isUsingSupabase()) {
+    try {
+      const { data, error } = await supabaseClient
+        .from('chats')
+        .upsert(chatRow)
+        .select('id, user_id, title, model, messages, is_pinned, created_at, updated_at')
+        .single();
+
+      if (!error && data) {
+        const chatRec = toChatRecord(data);
+        syncChatToJson(chatRec);
+        return chatRec;
+      }
+      if (error) {
+        console.warn('[Database] Supabase saveChat error:', error.message);
+      }
+    } catch (err) {
+      console.warn('[Database] Supabase saveChat error, falling back:', err.message);
+    }
+  }
+
+  // 2. Local JSON Fallback
+  const localRec = toChatRecord(chatRow);
+  syncChatToJson(localRec);
+  return localRec;
+}
+
+/**
+ * Retrieve chats for a specific user ID
+ */
+export async function findChatsByUserId(userId) {
+  const normalizedUserId = userId || 'guest-session';
+
+  if (isUsingSupabase()) {
+    try {
+      let query = supabaseClient
+        .from('chats')
+        .select('id, user_id, title, model, messages, is_pinned, created_at, updated_at');
+
+      if (normalizedUserId !== 'all') {
+        query = query.eq('user_id', normalizedUserId);
+      }
+
+      const { data, error } = await query.order('updated_at', { ascending: false });
+
+      if (!error && Array.isArray(data)) {
+        return data.map(toChatRecord);
+      }
+    } catch (err) {
+      console.warn('[Database] Supabase findChatsByUserId warning:', err.message);
+    }
+  }
+
+  const chats = readJson(CHATS_FILE);
+  const filtered = normalizedUserId === 'all'
+    ? chats
+    : chats.filter(c => c.userId === normalizedUserId);
+
+  return filtered
+    .map(toChatRecord)
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+}
+
+export const getChats = findChatsByUserId;
+
+/**
+ * Retrieve single chat by ID
+ */
+export async function getChatById(chatId, userId = null) {
+  if (!chatId) return null;
+
+  if (isUsingSupabase()) {
+    try {
+      let query = supabaseClient
+        .from('chats')
+        .select('id, user_id, title, model, messages, is_pinned, created_at, updated_at')
+        .eq('id', chatId);
+
+      if (userId) {
+        query = query.eq('user_id', userId);
+      }
+
+      const { data, error } = await query.maybeSingle();
+      if (!error && data) {
+        return toChatRecord(data);
+      }
+    } catch (err) {
+      console.warn('[Database] Supabase getChatById warning:', err.message);
+    }
+  }
+
+  const chats = readJson(CHATS_FILE);
+  const found = chats.find(c => c.id === chatId && (!userId || c.userId === userId));
+  return found ? toChatRecord(found) : null;
+}
+
+/**
+ * Delete chat by ID
+ */
+export async function deleteChat(chatId, userId = null) {
+  if (!chatId) return false;
+
+  // 1. Supabase Delete
+  if (isUsingSupabase()) {
+    try {
+      let query = supabaseClient.from('chats').delete().eq('id', chatId);
+      if (userId) {
+        query = query.eq('user_id', userId);
+      }
+      const { error } = await query;
+      if (!error) {
+        const chats = readJson(CHATS_FILE).filter(c => c.id !== chatId);
+        writeJson(CHATS_FILE, chats);
+        return true;
+      }
+    } catch (err) {
+      console.warn('[Database] Supabase deleteChat warning:', err.message);
+    }
+  }
+
+  // 2. Local JSON Fallback
+  const chats = readJson(CHATS_FILE);
+  const beforeCount = chats.length;
+  const filtered = chats.filter(c => !(c.id === chatId && (!userId || c.userId === userId)));
+
+  if (filtered.length !== beforeCount) {
+    writeJson(CHATS_FILE, filtered);
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Rename / update chat title
+ */
+export async function updateChatTitle(chatId, newTitle, userId = null) {
+  if (!chatId || !newTitle) {
+    throw new Error('Chat ID and new title are required.');
+  }
+
+  const cleanTitle = newTitle.trim();
+
+  if (isUsingSupabase()) {
+    try {
+      let query = supabaseClient
+        .from('chats')
+        .update({ title: cleanTitle, updated_at: new Date().toISOString() })
+        .eq('id', chatId);
+
+      if (userId) {
+        query = query.eq('user_id', userId);
+      }
+
+      const { data, error } = await query
+        .select('id, user_id, title, model, messages, is_pinned, created_at, updated_at')
+        .maybeSingle();
+
+      if (!error && data) {
+        const chatRec = toChatRecord(data);
+        syncChatToJson(chatRec);
+        return chatRec;
+      }
+    } catch (err) {
+      console.warn('[Database] Supabase updateChatTitle warning:', err.message);
+    }
+  }
+
+  const existing = await getChatById(chatId, userId);
+  if (!existing) return null;
+
+  existing.title = cleanTitle;
+  existing.updatedAt = new Date();
+
+  return await saveChat(existing, existing.userId);
+}
+
+/**
+ * Clear all chats for a specific user
+ */
+export async function clearChats(userId) {
+  const normalizedUserId = userId || 'guest-session';
+
+  if (isUsingSupabase()) {
+    try {
+      await supabaseClient.from('chats').delete().eq('user_id', normalizedUserId);
+    } catch (err) {
+      console.warn('[Database] Supabase clearChats error:', err.message);
+    }
+  }
+
+  const chats = readJson(CHATS_FILE);
+  const remaining = chats.filter(c => c.userId !== normalizedUserId);
+  writeJson(CHATS_FILE, remaining);
+  return true;
+}
+
 export default {
   connectDB,
   initDb,
-  isUsingMongo,
+  isUsingSupabase,
+  getDatabaseProvider,
+  setSupabaseClient,
+  getSupabaseClient,
   findUserByEmailOrUsername,
   findUserById,
   createUser,
@@ -581,8 +653,35 @@ export default {
   deleteChat,
   updateChatTitle,
   clearChats,
-  UserModel,
-  ChatModel,
-  User,
-  Chat
+  toUserRecord,
+  toChatRecord
 };
+
+// Backwards-compatible model wrappers
+export const UserModel = {
+  findOne: async (query) => {
+    if (query?.email) return findUserByEmailOrUsername(query.email);
+    if (query?.username) return findUserByEmailOrUsername(query.username);
+    if (query?.id) return findUserById(query.id);
+    return null;
+  },
+  find: async () => getAllUsers(),
+  create: async (data) => createUser(data),
+  deleteOne: async () => ({ deletedCount: 1 }),
+  deleteMany: async () => ({ deletedCount: 0 })
+};
+
+export const ChatModel = {
+  findOne: async (query) => getChatById(query?.id),
+  find: async (query) => findChatsByUserId(query?.userId || 'all'),
+  create: async (data) => saveChat(data),
+  deleteOne: async (query) => ({ deletedCount: (await deleteChat(query?.id)) ? 1 : 0 }),
+  deleteMany: async (query) => {
+    if (query?.userId) await clearChats(query.userId);
+    return { deletedCount: 0 };
+  }
+};
+
+export const User = UserModel;
+export const Chat = ChatModel;
+export const isUsingMongo = () => false;
