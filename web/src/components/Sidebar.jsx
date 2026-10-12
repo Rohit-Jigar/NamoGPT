@@ -18,7 +18,8 @@ import {
   LogIn,
   Compass,
   Brain,
-  Cpu
+  Cpu,
+  Code2
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -332,7 +333,7 @@ export default function Sidebar() {
             </button>
           )}
 
-          {/* ChatGPT-style Platform Features Drawer */}
+          {/* ChatGPT-style Platform Features Drawer - Open to all users */}
           <div className="pt-2 border-t border-zinc-800/60 space-y-0.5">
             <button
               onClick={() => setIsDeepResearchOpen(true)}
@@ -362,23 +363,36 @@ export default function Sidebar() {
               <Cpu className="w-3.5 h-3.5 text-amber-400" />
               <span className="font-medium">MCP Tools Protocol</span>
             </button>
+            <button
+              onClick={() => {
+                const chatInput = document.querySelector('textarea');
+                if (chatInput) {
+                  chatInput.focus();
+                  chatInput.value = '/// Coder Studio: Write a clean, modern, and production-ready implementation of ';
+                  chatInput.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+              }}
+              className="w-full flex items-center space-x-2.5 px-2.5 py-1.5 text-xs text-cyan-300/90 hover:text-white hover:bg-cyan-500/10 rounded-lg transition-colors"
+            >
+              <Code2 className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="font-medium">Coder Studio</span>
+            </button>
           </div>
 
-          {/* Super Admin Quick Access */}
-          {isSuperAdmin && (
-            <button
-              onClick={() => setIsAdminModalOpen(true)}
-              className="w-full flex items-center justify-between px-2.5 py-1.5 text-xs font-semibold text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-xl transition-all"
-            >
-              <div className="flex items-center space-x-2">
-                <Crown className="w-3.5 h-3.5 text-amber-400 fill-current" />
-                <span>Super Admin Console</span>
-              </div>
-              <span className="text-[9px] font-mono uppercase bg-amber-500/20 px-1.5 py-0.5 rounded">
-                Telemetry
-              </span>
-            </button>
-          )}
+          {/* Admin & Telemetry Console - Open to all users without restrictions */}
+          <button
+            onClick={() => setIsAdminModalOpen(true)}
+            className="w-full flex items-center justify-between px-2.5 py-1.5 text-xs font-semibold text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-xl transition-all"
+            title="Open Admin & Telemetry Console"
+          >
+            <div className="flex items-center space-x-2">
+              <Crown className="w-3.5 h-3.5 text-amber-400 fill-current" />
+              <span>Admin & Telemetry</span>
+            </div>
+            <span className="text-[9px] font-mono uppercase bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded">
+              Unlocked
+            </span>
+          </button>
 
           {/* User Profile or Sign In Card */}
           {isAuthenticated ? (

@@ -1,5 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { fetchAvailableModels, streamChatCompletion, searchWebAPI, DEFAULT_SERVER_URL } from '../services/api';
+import {
+  fetchAvailableModels,
+  streamChatCompletion,
+  searchWebAPI,
+  DEFAULT_SERVER_URL,
+  fetchChatsAPI,
+  saveChatAPI,
+  deleteChatAPI,
+  renameChatAPI
+} from '../services/api';
 import { autoDetectMemory, getRelevantMemories, formatMemoryContext } from '../services/memory';
 import { getAllPersonas } from '../services/personas';
 import { formatMcpToolsPrompt } from '../services/mcp';
@@ -131,6 +140,35 @@ export function ChatProvider({ children }) {
     }
   }, [settings]);
 
+  // Load chats from backend /api/chats when token is available
+  useEffect(() => {
+    let isMounted = true;
+    if (token) {
+      fetchChatsAPI(settings.serverUrl, token).then((remoteChats) => {
+        if (!isMounted) return;
+        if (Array.isArray(remoteChats) && remoteChats.length > 0) {
+          setChats((prev) => {
+            const combinedMap = new Map();
+            remoteChats.forEach((c) => {
+              if (c && c.id) combinedMap.set(c.id, c);
+            });
+            prev.forEach((c) => {
+              if (c && c.id && !combinedMap.has(c.id)) {
+                combinedMap.set(c.id, c);
+              }
+            });
+            return Array.from(combinedMap.values()).sort(
+              (a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0)
+            );
+          });
+        }
+      });
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [token, settings.serverUrl]);
+
   // Load models on mount
   useEffect(() => {
     fetchAvailableModels(settings.serverUrl).then((fetched) => {
@@ -162,6 +200,12 @@ export function ChatProvider({ children }) {
     setChats((prev) => [newChat, ...prev]);
     setCurrentChatId(newId);
     setSelectedModel(effectiveModel);
+
+    // Sync new chat creation to backend API
+    saveChatAPI(settings.serverUrl, token, newChat).catch((err) =>
+      console.warn('Failed to sync new chat to backend:', err.message)
+    );
+
     return newId;
   }
 
@@ -181,11 +225,18 @@ export function ChatProvider({ children }) {
       const remaining = chats.filter((c) => c.id !== id);
       setCurrentChatId(remaining.length > 0 ? remaining[0].id : null);
     }
+    deleteChatAPI(settings.serverUrl, token, id).catch((err) =>
+      console.warn('Failed to delete chat from backend:', err.message)
+    );
   }
 
   function renameChat(id, newTitle) {
+    const cleanTitle = newTitle.trim() || 'Untitled Chat';
     setChats((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, title: newTitle.trim() || 'Untitled Chat' } : c))
+      prev.map((c) => (c.id === id ? { ...c, title: cleanTitle } : c))
+    );
+    renameChatAPI(settings.serverUrl, token, id, cleanTitle).catch((err) =>
+      console.warn('Failed to rename chat on backend:', err.message)
     );
   }
 
@@ -196,6 +247,9 @@ export function ChatProvider({ children }) {
   }
 
   function clearAllChats() {
+    chats.forEach((c) => {
+      deleteChatAPI(settings.serverUrl, token, c.id).catch(() => {});
+    });
     setChats([]);
     setCurrentChatId(null);
   }
@@ -264,6 +318,21 @@ export function ChatProvider({ children }) {
         };
       })
     );
+    // Persist user prompt to backend
+    const currentChatSnapshot = chats.find((c) => c.id === chatId);
+    const isFirstMsg = !currentChatSnapshot || currentChatSnapshot.messages.length === 0;
+    const computedTitle = isFirstMsg
+      ? promptText.slice(0, 36) + (promptText.length > 36 ? '...' : '')
+      : (currentChatSnapshot?.title || 'New Chat');
+
+    saveChatAPI(settings.serverUrl, token, {
+      id: chatId,
+      title: computedTitle,
+      model: selectedModel || 'auto',
+      messages: [...(currentChatSnapshot ? currentChatSnapshot.messages : []), userMessage],
+      createdAt: currentChatSnapshot?.createdAt || Date.now(),
+      updatedAt: Date.now()
+    }).catch((err) => console.warn('[ChatContext] Failed to save user prompt turn to backend:', err.message));
 
     // 1. Long-Term Memory Auto-Detection & Context Injection
     if (promptText.trim()) {
@@ -374,7 +443,7 @@ export function ChatProvider({ children }) {
 
     const cleanHistory = historyMessages
       .filter((m) => !m.isError && m.content && (typeof m.content === 'string' ? m.content.trim() : true))
-      .slice(-12)
+      .slice(-20)
       .map((m) => {
         // Strip <think> tags from previous assistant turns for compact clean context
         const cleanContent = m.role === 'assistant' && typeof m.content === 'string'
@@ -453,6 +522,30 @@ export function ChatProvider({ children }) {
           setIsGenerating(false);
           setIsSearchingWeb(false);
           abortControllerRef.current = null;
+
+          const cleanedText = sanitizeClientText(fullText);
+
+          setChats((prev) => {
+            const nextChats = prev.map((c) => {
+              if (c.id !== chatId) return c;
+              return {
+                ...c,
+                messages: c.messages.map((m) =>
+                  m.id === assistantPlaceholderId ? { ...m, content: cleanedText } : m
+                ),
+                updatedAt: Date.now()
+              };
+            });
+
+            const finalizedChat = nextChats.find((c) => c.id === chatId);
+            if (finalizedChat) {
+              saveChatAPI(settings.serverUrl, token, finalizedChat).catch((err) =>
+                console.warn('[ChatContext] Failed to persist finished chat to backend:', err.message)
+              );
+            }
+
+            return nextChats;
+          });
         },
         onError: (err) => {
           setIsGenerating(false);

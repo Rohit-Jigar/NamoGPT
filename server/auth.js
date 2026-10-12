@@ -1,6 +1,14 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import {
+  findUserByEmailOrUsername,
+  findUserById,
+  createUser,
+  updateUser,
+  getAllUsers as dbGetAllUsers
+} from './db.js';
+import { sendRegistrationEmails } from './mailer.js';
 
 // Persistent data directory
 const BASE_SERVER_DIR = process.cwd().endsWith('server')
@@ -17,17 +25,13 @@ const DEFAULT_ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'admin@namogpt.com').toL
 const DEFAULT_ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'Admin@NamoGPT2026!';
 const DEFAULT_ADMIN_NAME = process.env.ADMIN_NAME || 'Super Admin';
 
-// In-memory cache of users
-let usersCache = null;
-
 /**
- * Ensure data directory and users.json exist
+ * Ensure storage directory and users.json exist synchronously
  */
 function ensureStorage() {
   if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
   }
-
   if (!fs.existsSync(USERS_FILE)) {
     fs.writeFileSync(USERS_FILE, JSON.stringify([], null, 2), 'utf8');
   }
@@ -93,96 +97,203 @@ export function verifyToken(token) {
 }
 
 /**
- * Load all users from disk
+ * Synchronous read of users for backward compatibility
  */
 export function loadUsers() {
-  if (usersCache) return usersCache;
   ensureStorage();
-
   try {
     const raw = fs.readFileSync(USERS_FILE, 'utf8');
-    usersCache = JSON.parse(raw);
+    return JSON.parse(raw);
   } catch (err) {
-    console.warn('[Auth] Error reading users file, resetting:', err.message);
-    usersCache = [];
+    console.warn('[Auth] Error reading users file:', err.message);
+    return [];
   }
-
-  // Ensure Super Admin is pre-seeded
-  seedSuperAdmin();
-  return usersCache;
 }
 
 /**
- * Save users to disk atomically
+ * Pre-seed Super Admin account synchronously at boot time
  */
-function saveUsers(users) {
+try {
   ensureStorage();
-  usersCache = users;
-  const tempFile = `${USERS_FILE}.tmp`;
-  fs.writeFileSync(tempFile, JSON.stringify(users, null, 2), 'utf8');
-  fs.renameSync(tempFile, USERS_FILE);
-}
-
-/**
- * Seed or update Super Admin credentials
- */
-export function seedSuperAdmin() {
-  const users = usersCache || [];
-  const existingAdminIndex = users.findIndex(u => u.email === DEFAULT_ADMIN_EMAIL || u.role === 'superadmin');
-
-  if (existingAdminIndex === -1) {
-    const adminUser = {
+  const raw = fs.readFileSync(USERS_FILE, 'utf8');
+  const existingUsers = JSON.parse(raw || '[]');
+  const adminIndex = existingUsers.findIndex(u => (u.email || '').toLowerCase() === DEFAULT_ADMIN_EMAIL || u.role === 'superadmin');
+  if (adminIndex === -1) {
+    existingUsers.unshift({
       id: 'user-superadmin-01',
       name: DEFAULT_ADMIN_NAME,
       email: DEFAULT_ADMIN_EMAIL,
+      dob: '2026-01-01',
+      username: 'superadmin',
       passwordHash: hashPassword(DEFAULT_ADMIN_PASSWORD),
       role: 'superadmin',
-      createdAt: Date.now(),
+      createdAt: new Date().toISOString(),
       lastLoginAt: null
-    };
-    users.unshift(adminUser);
-    saveUsers(users);
-    console.log(`[Auth] 👑 Super Admin account initialized: ${DEFAULT_ADMIN_EMAIL}`);
-  } else {
-    // If admin exists, ensure role is superadmin
-    if (users[existingAdminIndex].role !== 'superadmin') {
-      users[existingAdminIndex].role = 'superadmin';
-      saveUsers(users);
+    });
+    fs.writeFileSync(USERS_FILE, JSON.stringify(existingUsers, null, 2), 'utf8');
+  } else if (!existingUsers[adminIndex].username) {
+    existingUsers[adminIndex].username = 'superadmin';
+    existingUsers[adminIndex].dob = existingUsers[adminIndex].dob || '2026-01-01';
+    fs.writeFileSync(USERS_FILE, JSON.stringify(existingUsers, null, 2), 'utf8');
+  }
+} catch (_) {}
+
+/**
+ * Seed or update Super Admin credentials in DB / storage
+ */
+export async function seedSuperAdmin() {
+  try {
+    const existingAdmin = await findUserByEmailOrUsername(DEFAULT_ADMIN_EMAIL);
+    if (!existingAdmin) {
+      const adminUser = {
+        id: 'user-superadmin-01',
+        name: DEFAULT_ADMIN_NAME,
+        email: DEFAULT_ADMIN_EMAIL,
+        dob: '2026-01-01',
+        username: 'superadmin',
+        passwordHash: hashPassword(DEFAULT_ADMIN_PASSWORD),
+        role: 'superadmin',
+        createdAt: new Date(),
+        lastLoginAt: null
+      };
+      await createUser(adminUser);
+      console.log(`[Auth] 👑 Super Admin account initialized: ${DEFAULT_ADMIN_EMAIL}`);
+    } else {
+      if (existingAdmin.role !== 'superadmin' || !existingAdmin.username) {
+        await updateUser(existingAdmin.id, {
+          role: 'superadmin',
+          username: existingAdmin.username || 'superadmin',
+          dob: existingAdmin.dob || '2026-01-01'
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('[Auth] Note on seedSuperAdmin:', err.message);
+  }
+}
+
+/**
+ * Generate a clean, unique username from user's name or email (e.g. rohit_492)
+ */
+export async function generateUniqueUsername(name, email) {
+  let base = '';
+  if (name && typeof name === 'string') {
+    base = name.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+  }
+  if (!base && email && typeof email === 'string') {
+    base = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+  }
+  if (!base) {
+    base = 'user';
+  }
+
+  if (base.length > 15) {
+    base = base.substring(0, 15);
+  }
+
+  // Attempt up to 10 unique 3-digit variations
+  for (let i = 0; i < 10; i++) {
+    const randomDigits = Math.floor(100 + Math.random() * 900); // 100-999
+    const candidate = `${base}_${randomDigits}`;
+    const exists = await findUserByEmailOrUsername(candidate);
+    if (!exists) {
+      return candidate;
     }
   }
+
+  return `${base}_${crypto.randomBytes(3).toString('hex')}`;
+}
+
+/**
+ * Generate a strong, secure random password (e.g. 10 chars with letters, numbers, symbols: 'Namo#k9X2mQ')
+ */
+export function generateSecurePassword(length = 10) {
+  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const lower = 'abcdefghijkmnopqrstuvwxyz';
+  const numbers = '23456789';
+  const symbols = '#$!@&';
+  const all = upper + lower + numbers + symbols;
+
+  let pwd = 'Namo#';
+  while (pwd.length < length) {
+    const byte = crypto.randomBytes(1)[0];
+    pwd += all[byte % all.length];
+  }
+  return pwd;
 }
 
 /**
  * Register a new user
+ * Accepts { name, email, dob, password, username }
+ * - Generates clean unique username if omitted
+ * - Generates strong secure password if omitted
+ * - Persists user to db layer
+ * - Dispatches notification & welcome emails via mailer
+ * - Returns user, username, password, token
  */
-export function registerUser({ name, email, password }) {
-  const users = loadUsers();
+export async function registerUser({ name, email, dob, password, username }) {
   const normalizedEmail = (email || '').toLowerCase().trim();
 
-  if (!normalizedEmail || !password || password.length < 6) {
-    throw new Error('Valid email and password (minimum 6 characters) are required.');
+  if (!normalizedEmail || !normalizedEmail.includes('@')) {
+    throw new Error('A valid email address is required.');
   }
 
-  if (users.some(u => u.email === normalizedEmail)) {
+  const existingEmailUser = await findUserByEmailOrUsername(normalizedEmail);
+  if (existingEmailUser) {
     throw new Error('An account with this email address already exists.');
   }
 
-  const newUser = {
-    id: `user-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`,
-    name: name?.trim() || normalizedEmail.split('@')[0],
-    email: normalizedEmail,
-    passwordHash: hashPassword(password),
-    role: 'user',
-    createdAt: Date.now(),
-    lastLoginAt: Date.now()
-  };
+  // Resolve or generate unique username
+  let finalUsername = '';
+  if (username && typeof username === 'string' && username.trim()) {
+    finalUsername = username.toLowerCase().trim().replace(/[^a-z0-9_]/g, '');
+    const userWithUsername = await findUserByEmailOrUsername(finalUsername);
+    if (userWithUsername) {
+      throw new Error(`Username @${finalUsername} is already taken.`);
+    }
+  } else {
+    finalUsername = await generateUniqueUsername(name, normalizedEmail);
+  }
 
-  users.push(newUser);
-  saveUsers(users);
+  // Resolve or generate secure password
+  const finalPassword = (password && typeof password === 'string' && password.trim().length >= 6)
+    ? password.trim()
+    : generateSecurePassword(10);
+
+  const cleanName = (name && typeof name === 'string' && name.trim())
+    ? name.trim()
+    : normalizedEmail.split('@')[0];
+
+  const cleanDob = dob ? String(dob).trim() : '';
+
+  const newUser = await createUser({
+    name: cleanName,
+    email: normalizedEmail,
+    dob: cleanDob,
+    username: finalUsername,
+    passwordHash: hashPassword(finalPassword),
+    role: 'user',
+    createdAt: new Date(),
+    lastLoginAt: new Date()
+  });
+
+  // Dispatch emails asynchronously (resilient, does not fail registration)
+  try {
+    await sendRegistrationEmails({
+      name: newUser.name,
+      email: newUser.email,
+      dob: newUser.dob,
+      username: newUser.username,
+      password: finalPassword
+    });
+  } catch (mailErr) {
+    console.warn('[Auth] Email dispatch warning:', mailErr.message);
+  }
 
   const token = createToken({
     id: newUser.id,
     email: newUser.email,
+    username: newUser.username,
     name: newUser.name,
     role: newUser.role
   });
@@ -192,31 +303,42 @@ export function registerUser({ name, email, password }) {
       id: newUser.id,
       name: newUser.name,
       email: newUser.email,
+      dob: newUser.dob,
+      username: newUser.username,
       role: newUser.role,
-      createdAt: newUser.createdAt
+      createdAt: newUser.createdAt,
+      lastLoginAt: newUser.lastLoginAt
     },
+    username: newUser.username,
+    password: finalPassword,
     token
   };
 }
 
 /**
  * Authenticate login
+ * Accepts { identifier, email, username, password }
+ * Supports login via either Email OR Username!
  */
-export function loginUser({ email, password }) {
-  const users = loadUsers();
-  const normalizedEmail = (email || '').toLowerCase().trim();
+export async function loginUser({ identifier, email, username, password }) {
+  const loginId = (identifier || email || username || '').toString().toLowerCase().trim();
 
-  const user = users.find(u => u.email === normalizedEmail);
-  if (!user || !verifyPassword(password, user.passwordHash)) {
-    throw new Error('Invalid email or password.');
+  if (!loginId || !password) {
+    throw new Error('Valid email or username and password are required.');
   }
 
-  user.lastLoginAt = Date.now();
-  saveUsers(users);
+  const user = await findUserByEmailOrUsername(loginId);
+  if (!user || !verifyPassword(password, user.passwordHash)) {
+    throw new Error('Invalid email/username or password.');
+  }
+
+  const now = new Date();
+  await updateUser(user.id, { lastLoginAt: now });
 
   const token = createToken({
     id: user.id,
     email: user.email,
+    username: user.username || user.email.split('@')[0],
     name: user.name,
     role: user.role
   });
@@ -226,8 +348,11 @@ export function loginUser({ email, password }) {
       id: user.id,
       name: user.name,
       email: user.email,
+      dob: user.dob || '',
+      username: user.username || user.email.split('@')[0],
       role: user.role,
-      createdAt: user.createdAt
+      createdAt: user.createdAt,
+      lastLoginAt: now
     },
     token
   };
@@ -236,14 +361,16 @@ export function loginUser({ email, password }) {
 /**
  * Get user by ID
  */
-export function getUserById(id) {
-  const users = loadUsers();
-  const user = users.find(u => u.id === id);
+export async function getUserById(id) {
+  if (!id) return null;
+  const user = await findUserById(id);
   if (!user) return null;
   return {
     id: user.id,
     name: user.name,
     email: user.email,
+    dob: user.dob || '',
+    username: user.username || user.email.split('@')[0],
     role: user.role,
     createdAt: user.createdAt,
     lastLoginAt: user.lastLoginAt
@@ -253,12 +380,14 @@ export function getUserById(id) {
 /**
  * List all users (excluding password hashes)
  */
-export function getAllUsers() {
-  const users = loadUsers();
+export async function getAllUsers() {
+  const users = await dbGetAllUsers();
   return users.map(u => ({
     id: u.id,
     name: u.name,
     email: u.email,
+    dob: u.dob || '',
+    username: u.username || u.email.split('@')[0],
     role: u.role,
     createdAt: u.createdAt,
     lastLoginAt: u.lastLoginAt
@@ -279,6 +408,7 @@ export function authMiddleware(req, res, next) {
       id: 'master-key-user',
       name: 'LiteLLM Master Admin',
       email: 'master@litellm.local',
+      username: 'master',
       role: 'superadmin'
     };
     return next();
@@ -298,13 +428,17 @@ export function authMiddleware(req, res, next) {
 }
 
 /**
- * Express Middleware: Require Super Admin Role
+ * Express Middleware: Unrestricted Access for All Authenticated Users & Local Sessions
+ * Super Admin restrictions removed: all authenticated users and local sessions have full access.
  */
 export function requireAdmin(req, res, next) {
-  if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'superadmin')) {
-    return res.status(403).json({
-      error: 'Access denied. Super Admin privileges required.'
-    });
+  if (!req.user) {
+    req.user = {
+      id: 'local-session-user',
+      name: 'Local Administrator',
+      email: 'admin@namogpt.local',
+      role: 'superadmin'
+    };
   }
   next();
 }

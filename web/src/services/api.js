@@ -328,22 +328,28 @@ export async function streamChatCompletion({
  * Authentication & Admin API helpers
  */
 
-export async function loginApi(serverUrl, { email, password }) {
+export async function loginApi(serverUrl, { email, username, identifier, password }) {
+  const loginIdentifier = (identifier || email || username || '').trim();
   const res = await fetch(`${serverUrl}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password })
+    body: JSON.stringify({
+      email: loginIdentifier,
+      username: loginIdentifier,
+      identifier: loginIdentifier,
+      password
+    })
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Login failed.');
   return data;
 }
 
-export async function registerApi(serverUrl, { name, email, password }) {
+export async function registerApi(serverUrl, { name, email, dob, password, username }) {
   const res = await fetch(`${serverUrl}/api/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, email, password })
+    body: JSON.stringify({ name, email, dob, password, username })
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Registration failed.');
@@ -543,5 +549,88 @@ export async function fetchKeysStatusAPI(serverUrl = DEFAULT_SERVER_URL) {
   }
   return null;
 }
+
+/**
+ * Chat Persistence Database API Client
+ */
+export async function fetchChatsAPI(serverUrl = DEFAULT_SERVER_URL, token = null) {
+  try {
+    const headers = { 'Accept': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${serverUrl}/api/chats`, { headers });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return Array.isArray(data) ? data : (data.chats || data.data || []);
+  } catch (err) {
+    console.warn('[ChatsAPI] Failed to fetch chats from server:', err.message);
+    return [];
+  }
+}
+
+export async function saveChatAPI(serverUrl = DEFAULT_SERVER_URL, token = null, chatData = {}) {
+  try {
+    const headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${serverUrl}/api/chats`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(chatData)
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.warn('[ChatsAPI] Failed to save chat to server:', err.message);
+    return null;
+  }
+}
+
+export async function deleteChatAPI(serverUrl = DEFAULT_SERVER_URL, token = null, chatId) {
+  if (!chatId) return null;
+  try {
+    const headers = { 'Accept': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${serverUrl}/api/chats/${encodeURIComponent(chatId)}`, {
+      method: 'DELETE',
+      headers
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.warn('[ChatsAPI] Failed to delete chat from server:', err.message);
+    return null;
+  }
+}
+
+export async function renameChatAPI(serverUrl = DEFAULT_SERVER_URL, token = null, chatId, newTitle) {
+  if (!chatId) return null;
+  try {
+    const headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    let res = await fetch(`${serverUrl}/api/chats/${encodeURIComponent(chatId)}/title`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ title: newTitle })
+    });
+    if (!res.ok) {
+      res = await fetch(`${serverUrl}/api/chats/${encodeURIComponent(chatId)}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ title: newTitle })
+      });
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.warn('[ChatsAPI] Failed to rename chat on server:', err.message);
+    return null;
+  }
+}
+
 
 

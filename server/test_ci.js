@@ -13,20 +13,20 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
 // Auth endpoints for CI test
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
   try {
-    const { email, password } = req.body || {};
-    const result = loginUser({ email, password });
+    const { identifier, email, username, password } = req.body || {};
+    const result = await loginUser({ identifier, email, username, password });
     return res.status(200).json({ success: true, ...result });
   } catch (err) {
     return res.status(401).json({ success: false, error: err.message });
   }
 });
 
-app.post('/api/auth/register', (req, res) => {
+app.post('/api/auth/register', async (req, res) => {
   try {
-    const { name, email, password } = req.body || {};
-    const result = registerUser({ name, email, password });
+    const { name, email, dob, password, username } = req.body || {};
+    const result = await registerUser({ name, email, dob, password, username });
     return res.status(201).json({ success: true, ...result });
   } catch (err) {
     return res.status(400).json({ success: false, error: err.message });

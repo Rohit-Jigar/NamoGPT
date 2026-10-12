@@ -16,6 +16,14 @@ import {
   seedSuperAdmin,
   SUPER_ADMIN_CREDENTIALS
 } from './auth.js';
+import {
+  findChatsByUserId,
+  getChats,
+  saveChat,
+  getChatById,
+  deleteChat,
+  updateChatTitle
+} from './db.js';
 import { AVAILABLE_MODELS, getProviderKeysStatus } from './models-metadata.js';
 import { getMetrics } from './metrics.js';
 import { searchWeb, formatSearchContext, fetchUrlContent } from './search.js';
@@ -78,10 +86,10 @@ app.use(authMiddleware);
 // --- AUTHENTICATION ROUTES ---
 
 // 1. Register new user
-app.post('/api/auth/register', (req, res) => {
+app.post('/api/auth/register', async (req, res) => {
   try {
-    const { name, email, password } = req.body || {};
-    const result = registerUser({ name, email, password });
+    const { name, email, dob, password, username } = req.body || {};
+    const result = await registerUser({ name, email, dob, password, username });
     return res.status(201).json({
       success: true,
       message: 'Account created successfully.',
@@ -92,11 +100,11 @@ app.post('/api/auth/register', (req, res) => {
   }
 });
 
-// 2. Login user
-app.post('/api/auth/login', (req, res) => {
+// 2. Login user (accepts email or username)
+app.post('/api/auth/login', async (req, res) => {
   try {
-    const { email, password } = req.body || {};
-    const result = loginUser({ email, password });
+    const { identifier, email, username, password } = req.body || {};
+    const result = await loginUser({ identifier, email, username, password });
     return res.status(200).json({
       success: true,
       message: 'Logged in successfully.',
@@ -108,11 +116,11 @@ app.post('/api/auth/login', (req, res) => {
 });
 
 // 3. Current user profile
-app.get('/api/auth/me', (req, res) => {
+app.get('/api/auth/me', async (req, res) => {
   if (!req.user) {
     return res.status(401).json({ success: false, error: 'Unauthorized. Please log in.' });
   }
-  const user = getUserById(req.user.id);
+  const user = await getUserById(req.user.id);
   if (!user) {
     return res.status(404).json({ success: false, error: 'User not found.' });
   }
@@ -120,10 +128,86 @@ app.get('/api/auth/me', (req, res) => {
 });
 
 // 4. List all users (Super Admin only)
-app.get('/api/auth/users', requireAdmin, (req, res) => {
+app.get('/api/auth/users', requireAdmin, async (req, res) => {
   try {
-    const users = getAllUsers();
+    const users = await getAllUsers();
     return res.status(200).json({ success: true, users });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// --- CHAT PERSISTENCE ROUTES (MongoDB & Persistent JSON Storage) ---
+
+// 1. Get chats for active user or guest session
+app.get('/api/chats', async (req, res) => {
+  try {
+    const userId = req.user?.id || req.headers['x-session-id'] || req.headers['x-guest-id'] || req.query.userId || req.query.sessionId || 'guest';
+    const chats = await getChats(userId);
+    return res.status(200).json({ success: true, count: chats.length, chats });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 2. Save or update chat session
+app.post('/api/chats', async (req, res) => {
+  try {
+    const chatData = req.body || {};
+    const userId = req.user?.id || req.headers['x-session-id'] || req.headers['x-guest-id'] || req.query.sessionId || chatData.userId || 'guest';
+    if (!chatData.userId) {
+      chatData.userId = userId;
+    }
+    const saved = await saveChat(chatData, userId);
+    return res.status(200).json({ success: true, chat: saved });
+  } catch (err) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+// 3. Get chat session by ID
+app.get('/api/chats/:id', async (req, res) => {
+  try {
+    const chat = await getChatById(req.params.id);
+    if (!chat) return res.status(404).json({ success: false, error: 'Chat not found' });
+    return res.status(200).json({ success: true, chat });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 4. Delete chat session by ID
+app.delete('/api/chats/:id', async (req, res) => {
+  try {
+    const deleted = await deleteChat(req.params.id);
+    if (!deleted) {
+      return res.status(404).json({ success: false, error: 'Chat not found' });
+    }
+    return res.status(200).json({ success: true, message: 'Chat deleted successfully.', id: req.params.id, deleted });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 5. Rename chat session
+app.put('/api/chats/:id/title', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, newTitle } = req.body || {};
+    const effectiveTitle = (title || newTitle || '').trim();
+    if (!effectiveTitle) {
+      return res.status(400).json({ success: false, error: 'Title is required.' });
+    }
+    const updated = await updateChatTitle(id, effectiveTitle);
+    if (!updated) {
+      return res.status(404).json({ success: false, error: 'Chat not found' });
+    }
+    return res.status(200).json({
+      success: true,
+      message: 'Chat title updated successfully.',
+      chat: updated,
+      title: effectiveTitle
+    });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }
@@ -658,21 +742,29 @@ if (activeWebDist) {
 // All remaining requests routed to LiteLLM handler
 app.all('*', handler);
 
-app.listen(port, () => {
-  console.log(`
-  ╔═══════════════════════════════════════════════════════════════╗
-  ║                 ✨ NamoGPT LiteLLM Server ✨                  ║
-  ║                                                               ║
-  ║  📡 Status: Operational on port ${port}                          ║
-  ║  💻 Web UI: http://localhost:${port}                             ║
-  ║  ⚡ OpenAI API: http://localhost:${port}/v1/chat/completions     ║
-  ║  📋 Model Catalog: http://localhost:${port}/api/models            ║
-  ║  🔐 Auth Endpoints: http://localhost:${port}/api/auth/login        ║
-  ║  👑 Super Admin: ${SUPER_ADMIN_CREDENTIALS.email}                  ║
-  ║  📖 API Docs: http://localhost:${port}/docs                       ║
-  ╚═══════════════════════════════════════════════════════════════╝
-  `);
-});
+const isDirectRun = !process.env.TEST_MODE && (
+  !process.argv[1] ||
+  process.argv[1].endsWith('server.js') ||
+  process.argv[1].endsWith('server')
+);
 
-export { app };
+if (isDirectRun) {
+  app.listen(port, () => {
+    console.log(`
+    ╔═══════════════════════════════════════════════════════════════╗
+    ║                 ✨ NamoGPT LiteLLM Server ✨                  ║
+    ║                                                               ║
+    ║  📡 Status: Operational on port ${port}                          ║
+    ║  💻 Web UI: http://localhost:${port}                             ║
+    ║  ⚡ OpenAI API: http://localhost:${port}/v1/chat/completions     ║
+    ║  📋 Model Catalog: http://localhost:${port}/api/models            ║
+    ║  🔐 Auth Endpoints: http://localhost:${port}/api/auth/login        ║
+    ║  👑 Super Admin: ${SUPER_ADMIN_CREDENTIALS.email}                  ║
+    ║  📖 API Docs: http://localhost:${port}/docs                       ║
+    ╚═══════════════════════════════════════════════════════════════╝
+    `);
+  });
+}
+
+export { app, requireAdmin };
 export default app;

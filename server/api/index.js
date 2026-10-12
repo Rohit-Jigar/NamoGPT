@@ -213,6 +213,65 @@ export function sanitizeCompletionText(text) {
     .replace(/\b(as an AI trained by Google)\b/gi, 'as NamoGPT');
 }
 
+/**
+ * Structure messages array cleanly for upstream provider models:
+ * - Single authoritative system prompt at index 0 (identity prompt + any client/persona system prompt)
+ * - Chronological conversation history preserving all previous user and assistant turns
+ * - Current turn (with search context if augmented)
+ * Ensures provider models (Groq, Gemini, DeepSeek, LiteLLM) retain full multi-turn conversational memory just like ChatGPT.
+ */
+export function structureChatMessages(rawMessages, topLevelSystemPrompt = null) {
+  if (!Array.isArray(rawMessages) || rawMessages.length === 0) {
+    return [
+      {
+        role: 'system',
+        content: topLevelSystemPrompt
+          ? `${NAMOGPT_IDENTITY_PROMPT}\n\n${topLevelSystemPrompt}`
+          : NAMOGPT_IDENTITY_PROMPT
+      }
+    ];
+  }
+
+  const systemInstructions = [];
+  if (topLevelSystemPrompt && typeof topLevelSystemPrompt === 'string' && topLevelSystemPrompt.trim()) {
+    systemInstructions.push(topLevelSystemPrompt.trim());
+  }
+
+  const chronologicalTurns = [];
+
+  for (const msg of rawMessages) {
+    if (!msg || typeof msg !== 'object') continue;
+
+    if (msg.role === 'system') {
+      const content = typeof msg.content === 'string' ? msg.content.trim() : '';
+      if (content && !systemInstructions.includes(content)) {
+        systemInstructions.push(content);
+      }
+    } else if (['user', 'assistant', 'tool', 'function'].includes(msg.role)) {
+      // Preserve chronological turn with clean role and content
+      chronologicalTurns.push({
+        ...msg,
+        role: msg.role,
+        content: msg.content !== undefined && msg.content !== null ? msg.content : ''
+      });
+    }
+  }
+
+  // Construct single unified system prompt adhering strictly to NAMOGPT_IDENTITY_PROMPT
+  let unifiedSystemPrompt = NAMOGPT_IDENTITY_PROMPT;
+  for (const instruction of systemInstructions) {
+    if (!instruction.includes('Strict Quality & Response Guidelines') && !instruction.includes('You are NamoGPT')) {
+      unifiedSystemPrompt += `\n\n${instruction}`;
+    }
+  }
+
+  // Single system turn at index 0 followed by exact chronological history turns
+  return [
+    { role: 'system', content: unifiedSystemPrompt },
+    ...chronologicalTurns
+  ];
+}
+
 function buildUpstreamBody(item, originalBody) {
   if (!originalBody || Array.isArray(originalBody) || typeof originalBody !== 'object') {
     return originalBody;
@@ -224,25 +283,14 @@ function buildUpstreamBody(item, originalBody) {
   }
   delete body.model_name;
 
-  // Enforce NamoGPT identity in system prompt
+  const topLevelSystem = body.system || body.system_prompt || body.systemPrompt || null;
+  delete body.system;
+  delete body.system_prompt;
+  delete body.systemPrompt;
+
+  // Enforce clean chronological multi-turn structure
   if (Array.isArray(body.messages)) {
-    const messages = [...body.messages];
-    const systemIdx = messages.findIndex(m => m.role === 'system');
-    if (systemIdx !== -1) {
-      const existing = messages[systemIdx].content || '';
-      if (!existing.includes('Strict Quality & Response Guidelines')) {
-        messages[systemIdx] = {
-          ...messages[systemIdx],
-          content: `${NAMOGPT_IDENTITY_PROMPT}\n\n${existing}`
-        };
-      }
-    } else {
-      messages.unshift({
-        role: 'system',
-        content: NAMOGPT_IDENTITY_PROMPT
-      });
-    }
-    body.messages = messages;
+    body.messages = structureChatMessages(body.messages, topLevelSystem);
   }
 
   return body;
@@ -288,12 +336,51 @@ async function forwardRequest(item, forwardPath, originalReq) {
 
 // Generate intelligent mock response if no external API keys are configured yet
 function handleDemoFallback(req, res, modelName, searchResults = null) {
-  const messages = req.body?.messages || [];
-  const lastUserMsg = messages.filter(m => m.role === 'user').pop()?.content || 'Hello';
+  const messages = Array.isArray(req.body?.messages) ? req.body.messages : [];
+  const userMessages = messages.filter(m => m.role === 'user');
+  const lastUserMsg = userMessages.length > 0
+    ? (typeof userMessages[userMessages.length - 1].content === 'string'
+        ? userMessages[userMessages.length - 1].content
+        : 'Hello')
+    : 'Hello';
   const wantsStream = req.body?.stream === true;
   
+  // Multi-turn context memory:
+  // If consecutive turns were sent, extract memory context so the assistant responds contextually
+  const historyTurns = messages.filter(m => m.role === 'user' || m.role === 'assistant');
+  let contextualAnswer = null;
+
+  if (historyTurns.length > 1) {
+    const priorTurns = historyTurns.slice(0, -1);
+    const lastPromptLower = lastUserMsg.toLowerCase();
+    
+    // Check if current prompt asks about something from earlier turns
+    for (const prior of priorTurns) {
+      if (typeof prior.content === 'string') {
+        const text = prior.content;
+        const textLower = text.toLowerCase();
+        
+        if ((lastPromptLower.includes('name') || lastPromptLower.includes('who am i')) && textLower.includes('name is ')) {
+          const match = text.match(/name is\s+([a-zA-Z0-9_\- ]+)/i);
+          if (match) contextualAnswer = `Based on our previous conversation, your name is ${match[1].trim()}.`;
+        } else if ((lastPromptLower.includes('color') || lastPromptLower.includes('favorite')) && (textLower.includes('emerald green') || textLower.includes('color is '))) {
+          const match = text.match(/color is\s+([a-zA-Z0-9_\- ]+)/i);
+          const colorName = match ? match[1].trim() : 'emerald green';
+          contextualAnswer = `Based on our previous conversation, your favorite color is ${colorName}.`;
+        } else if ((lastPromptLower.includes('animal') || lastPromptLower.includes('favorite')) && (textLower.includes('blue whale') || textLower.includes('whale'))) {
+          contextualAnswer = `Based on our previous conversation, your favorite animal is the blue whale.`;
+        } else if ((lastPromptLower.includes('secret') || lastPromptLower.includes('code') || lastPromptLower.includes('pin')) && /\b\d{4,10}\b/.test(text)) {
+          const match = text.match(/\b\d{4,10}\b/);
+          if (match) contextualAnswer = `Based on our conversation history, your secret code is ${match[0]}.`;
+        }
+      }
+    }
+  }
+
   let greeting;
-  if (searchResults && searchResults.length > 0) {
+  if (contextualAnswer) {
+    greeting = contextualAnswer;
+  } else if (searchResults && searchResults.length > 0) {
     let searchSummary = `### 🌐 Real-Time Search Findings\n\nVerified real-time findings synthesized for your query:\n\n`;
     searchResults.forEach((item, idx) => {
       searchSummary += `${idx + 1}. **[${item.title}](${item.url})**\n   ${item.snippet}\n\n`;

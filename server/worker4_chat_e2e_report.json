@@ -1,0 +1,321 @@
+{
+  "testSuite": "NamoGPT Worker 4 Auth, Chat Persistence & Context Memory E2E QA",
+  "timestamp": "2026-10-12T18:06:19.407Z",
+  "durationMs": 8452,
+  "targetUrl": "http://localhost:3001",
+  "summary": {
+    "total": 33,
+    "passed": 33,
+    "failed": 0,
+    "passRate": "100%"
+  },
+  "results": [
+    {
+      "test": "Registration endpoint responded with HTTP 201",
+      "passed": true,
+      "details": {
+        "status": 201
+      }
+    },
+    {
+      "test": "Registration succeeded with success: true",
+      "passed": true,
+      "details": {
+        "success": true,
+        "message": "Account created successfully.",
+        "user": {
+          "id": "user-1791828371264-72f621f6",
+          "name": "Aarav Sharma 955",
+          "email": "aarav_test_1791828370955@namogpt.test",
+          "dob": "1998-04-12",
+          "username": "aarav_sharma_95_775",
+          "role": "user",
+          "createdAt": "2026-10-12T18:06:11.264Z",
+          "lastLoginAt": "2026-10-12T18:06:11.264Z"
+        },
+        "username": "aarav_sharma_95_775",
+        "password": "Namo#FapGE",
+        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6InVzZXItMTc5MTgyODM3MTI2NC03MmY2MjFmNiIsImVtYWlsIjoiYWFyYXZfdGVzdF8xNzkxODI4MzcwOTU1QG5hbW9ncHQudGVzdCIsInVzZXJuYW1lIjoiYWFyYXZfc2hhcm1hXzk1Xzc3NSIsIm5hbWUiOiJBYXJhdiBTaGFybWEgOTU1Iiwicm9sZSI6InVzZXIiLCJleHAiOjE3OTI0MzMxNzd9.23NwbH-ckceyFl3-x2EfwWZ7vVuOboDZ2rNx4WbcEMs"
+      }
+    },
+    {
+      "test": "Generated unique username returned: @aarav_sharma_95_775",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "test": "Generated secure password returned: Namo#FapGE",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "test": "Valid JWT token issued on registration",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "test": "Date of birth persisted in user record: 1998-04-12",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "test": "Login endpoint responded with HTTP 200",
+      "passed": true,
+      "details": {
+        "status": 200
+      }
+    },
+    {
+      "test": "Login succeeded with success: true",
+      "passed": true,
+      "details": {
+        "success": true,
+        "message": "Logged in successfully.",
+        "user": {
+          "id": "user-1791828371264-72f621f6",
+          "name": "Aarav Sharma 955",
+          "email": "aarav_test_1791828370955@namogpt.test",
+          "dob": "1998-04-12",
+          "username": "aarav_sharma_95_775",
+          "role": "user",
+          "createdAt": "2026-10-12T18:06:11.264Z",
+          "lastLoginAt": "2026-10-12T18:06:17.527Z"
+        },
+        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6InVzZXItMTc5MTgyODM3MTI2NC03MmY2MjFmNiIsImVtYWlsIjoiYWFyYXZfdGVzdF8xNzkxODI4MzcwOTU1QG5hbW9ncHQudGVzdCIsInVzZXJuYW1lIjoiYWFyYXZfc2hhcm1hXzk1Xzc3NSIsIm5hbWUiOiJBYXJhdiBTaGFybWEgOTU1Iiwicm9sZSI6InVzZXIiLCJleHAiOjE3OTI0MzMxNzd9.23NwbH-ckceyFl3-x2EfwWZ7vVuOboDZ2rNx4WbcEMs"
+      }
+    },
+    {
+      "test": "Authenticated JWT token received on login",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "test": "Logged in user matches @aarav_sharma_95_775",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "test": "Dual-identifier login via email also succeeded",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "test": "Turn 1 completion succeeded with HTTP 200",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "test": "Turn 1 assistant response received: \"Emerald green is a beautiful, vibrant shade—great choice!...\"",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "test": "POST /api/chats responded with HTTP 200",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "test": "Chat Turn 1 persisted successfully to DB",
+      "passed": true,
+      "details": {
+        "success": true,
+        "chat": {
+          "id": "chat-e2e-1791828370955",
+          "userId": "user-1791828371264-72f621f6",
+          "title": "Favorite Color Discussion",
+          "model": "auto",
+          "messages": [
+            {
+              "id": "msg-1",
+              "role": "user",
+              "content": "My favorite color is emerald green",
+              "createdAt": 1791828378546
+            },
+            {
+              "id": "msg-2",
+              "role": "assistant",
+              "content": "Emerald green is a beautiful, vibrant shade—great choice!",
+              "createdAt": 1791828378546
+            }
+          ],
+          "isPinned": false,
+          "createdAt": "2026-10-12T18:06:18.546Z",
+          "updatedAt": "2026-10-12T18:06:18.552Z"
+        }
+      }
+    },
+    {
+      "test": "DB stored 2 messages for Turn 1",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "test": "Turn 2 completion succeeded with HTTP 200",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "test": "Model retained conversational memory and recalled \"emerald green\"!",
+      "passed": true,
+      "details": {
+        "response": "Your favorite color is emerald green."
+      }
+    },
+    {
+      "test": "Turn 2 persisted successfully to DB",
+      "passed": true,
+      "details": {
+        "success": true,
+        "chat": {
+          "id": "chat-e2e-1791828370955",
+          "userId": "user-1791828371264-72f621f6",
+          "title": "Favorite Color Discussion",
+          "model": "auto",
+          "messages": [
+            {
+              "id": "msg-1",
+              "role": "user",
+              "content": "My favorite color is emerald green",
+              "createdAt": 1791828379360
+            },
+            {
+              "id": "msg-2",
+              "role": "assistant",
+              "content": "Emerald green is a beautiful, vibrant shade—great choice!",
+              "createdAt": 1791828379360
+            },
+            {
+              "id": "msg-3",
+              "role": "user",
+              "content": "What is my favorite color?",
+              "createdAt": 1791828379360
+            },
+            {
+              "id": "msg-4",
+              "role": "assistant",
+              "content": "Your favorite color is emerald green.",
+              "createdAt": 1791828379360
+            }
+          ],
+          "isPinned": false,
+          "createdAt": "2026-10-12T18:06:19.360Z",
+          "updatedAt": "2026-10-12T18:06:19.365Z"
+        }
+      }
+    },
+    {
+      "test": "DB stored 4 messages for multi-turn chat",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "test": "GET /api/chats responded with HTTP 200",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "test": "Created chat \"chat-e2e-1791828370955\" found in user chat list",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "test": "GET /api/chats/:id responded with HTTP 200",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "test": "Retrieved chat ID matches \"chat-e2e-1791828370955\"",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "test": "Retrieved chat has all 4 multi-turn messages",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "test": "Message 1 content verified",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "test": "Message 3 content verified",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "test": "PUT /api/chats/:id/title responded with HTTP 200",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "test": "Chat rename succeeded",
+      "passed": true,
+      "details": {
+        "success": true,
+        "message": "Chat title updated successfully.",
+        "chat": {
+          "id": "chat-e2e-1791828370955",
+          "userId": "user-1791828371264-72f621f6",
+          "title": "Renamed: Emerald Green Memories",
+          "model": "auto",
+          "messages": [
+            {
+              "id": "msg-1",
+              "role": "user",
+              "content": "My favorite color is emerald green",
+              "createdAt": 1791828379360
+            },
+            {
+              "id": "msg-2",
+              "role": "assistant",
+              "content": "Emerald green is a beautiful, vibrant shade—great choice!",
+              "createdAt": 1791828379360
+            },
+            {
+              "id": "msg-3",
+              "role": "user",
+              "content": "What is my favorite color?",
+              "createdAt": 1791828379360
+            },
+            {
+              "id": "msg-4",
+              "role": "assistant",
+              "content": "Your favorite color is emerald green.",
+              "createdAt": 1791828379360
+            }
+          ],
+          "isPinned": false,
+          "createdAt": "2026-10-12T18:06:18.546Z",
+          "updatedAt": "2026-10-12T18:06:19.392Z"
+        },
+        "title": "Renamed: Emerald Green Memories"
+      }
+    },
+    {
+      "test": "Renamed title verified in DB: \"Renamed: Emerald Green Memories\"",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "test": "DELETE /api/chats/:id responded with HTTP 200",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "test": "Chat deleted successfully from DB",
+      "passed": true,
+      "details": {
+        "success": true,
+        "message": "Chat deleted successfully.",
+        "id": "chat-e2e-1791828370955",
+        "deleted": true
+      }
+    },
+    {
+      "test": "GET deleted chat returns HTTP 404 (Not Found)",
+      "passed": true,
+      "details": {}
+    }
+  ]
+}
