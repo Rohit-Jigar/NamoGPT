@@ -37,6 +37,8 @@ jobs:
         run: |
           node --check server/server.js
           node --check server/auth.js
+          node --check server/db.js
+          node --check server/mailer.js
           node --check server/api/index.js
           node --check server/models-metadata.js
           node --check server/metrics.js

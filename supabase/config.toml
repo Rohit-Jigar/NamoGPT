@@ -1,0 +1,30 @@
+# NamoGPT Supabase CLI & GitHub Integration Configuration
+# For local development and automatic GitHub sync
+
+project_id = "namogpt"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[auth]
+enabled = true
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://localhost:3001", "https://namogpt.onrender.com"]
+jwt_expiry = 3600
+enable_signup = true
+
+# GitHub OAuth Provider Integration
+[auth.external.github]
+enabled = true
+client_id = "env(SUPABASE_AUTH_GITHUB_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_GITHUB_SECRET)"
+redirect_uri = "env(SUPABASE_AUTH_GITHUB_REDIRECT_URI)"

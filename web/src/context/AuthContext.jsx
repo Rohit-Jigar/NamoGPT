@@ -6,6 +6,14 @@ import {
   fetchSuperAdminCredentials,
   DEFAULT_SERVER_URL
 } from '../services/api';
+import {
+  supabase,
+  signInWithGitHub,
+  signInWithGoogle,
+  signInWithApple,
+  signOutSupabase,
+  isSupabaseClientAvailable
+} from '../services/supabase';
 
 const AuthContext = createContext();
 
@@ -107,6 +115,30 @@ export function AuthProvider({ children }) {
         });
     }
   }, [serverUrl]);
+
+  // Supabase Auth State Listener (GitHub, Google, Apple SSO)
+  useEffect(() => {
+    if (!supabase) return;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        const supaUser = session.user;
+        const mappedUser = {
+          id: supaUser.id,
+          name: supaUser.user_metadata?.full_name || supaUser.user_metadata?.name || supaUser.user_metadata?.user_name || supaUser.email?.split('@')[0] || 'GitHub User',
+          email: supaUser.email || `${supaUser.id}@github.supabase`,
+          username: supaUser.user_metadata?.user_name || supaUser.user_metadata?.preferred_username || supaUser.email?.split('@')[0] || 'github_user',
+          role: 'superadmin'
+        };
+        setUser(mappedUser);
+        setToken(session.access_token);
+        setIsAuthModalOpen(false);
+      }
+    });
+
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, []);
 
   async function login({ email, username, identifier, password }) {
     setIsLoading(true);
@@ -224,7 +256,8 @@ export function AuthProvider({ children }) {
     });
   }
 
-  function logout() {
+  async function logout() {
+    await signOutSupabase();
     setToken(null);
     setUser(null);
     setIsAdminModalOpen(false);
@@ -254,7 +287,11 @@ export function AuthProvider({ children }) {
         login,
         register,
         demoAdminLogin,
-        logout
+        logout,
+        signInWithGitHub,
+        signInWithGoogle,
+        signInWithApple,
+        isSupabaseAvailable: isSupabaseClientAvailable()
       }}
     >
       {children}
