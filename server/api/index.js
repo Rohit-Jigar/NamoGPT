@@ -515,7 +515,10 @@ export default async function handler(req, res) {
       const authToken = auth && auth.startsWith('Bearer ') ? auth.slice(7).trim() : null;
       const providedKey = authToken || xApiKey || null;
 
-      if (providedKey && providedKey !== masterKey) {
+      const isUserAuth = Boolean(req.user);
+      const isMasterKey = Boolean(providedKey && providedKey === masterKey);
+
+      if (providedKey && !isUserAuth && !isMasterKey) {
         return res.status(403).json({ error: 'forbidden: invalid master key' });
       }
     }
