@@ -69,6 +69,10 @@ TAVILY_API_KEY=tvly-...
 # Supabase Cloud Database (Primary DB)
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOi...
+
+# Gmail Automated Email Dispatch
+GMAIL_USER=rohitjigarmaheshbhai@gmail.com
+GMAIL_APP_PASSWORD=your_16_char_app_password
 ```
 
 ---
@@ -82,3 +86,16 @@ NamoGPT natively uses **Supabase** (Postgres + Row-Level Security) to persist re
 | **Supabase** | `SUPABASE_URL`<br/>`SUPABASE_SERVICE_ROLE_KEY` *(or `SUPABASE_KEY`)* | 500 MB DB + 50,000 MAU Free | [supabase.com](https://supabase.com/dashboard) | 1. Create a free project at [supabase.com](https://supabase.com).<br/>2. In **Project Settings ➔ API**, copy `Project URL` and `service_role secret` (or `anon public`).<br/>3. Run the SQL migration from [`supabase/migrations/20261012180000_create_users_and_chats.sql`](file:///D:/NamoGPT/supabase/migrations/20261012180000_create_users_and_chats.sql) in your Supabase SQL Editor.<br/>4. Paste into `.env`! |
 
 > **💡 Zero Downtime Fallback**: If `SUPABASE_URL` is omitted, NamoGPT operates seamlessly on atomic local JSON storage without any interruption.
+
+---
+
+## 📧 5. Gmail App Password Configuration
+
+NamoGPT automatically creates usernames and passwords upon user registration and delivers credentials via email.
+
+| Service | Environment Variable | Purpose | Setup Link | Quick Setup Action |
+| :--- | :--- | :--- | :--- | :--- |
+| **Google Gmail** | `GMAIL_USER`<br/>`GMAIL_APP_PASSWORD` | Sends login credentials to new users and alerts to `rohitjigarmaheshbhai@gmail.com` | [Google App Passwords](https://myaccount.google.com/apppasswords) | 1. Enable 2-Step Verification on your Google Account.<br/>2. Go to **App Passwords**, type "NamoGPT", click Create.<br/>3. Copy the 16-character password into `GMAIL_APP_PASSWORD` in your `.env`. |
+
+> **💡 Space Handling**: You can paste your App Password with or without spaces (e.g., `abcd efgh ijkl mnop` or `abcdefghijklmnop`) — NamoGPT automatically cleans and strips whitespace!
+

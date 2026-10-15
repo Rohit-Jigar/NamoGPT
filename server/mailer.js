@@ -15,19 +15,23 @@ export async function getTransporter() {
 
   transporterInitPromise = (async () => {
     // 1. Check for custom SMTP or Gmail App Password
-    const smtpUser = process.env.SMTP_USER;
-    const smtpPass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD;
+    const gmailUser = (process.env.GMAIL_USER || process.env.SMTP_USER || 'rohitjigarmaheshbhai@gmail.com').trim();
+    const rawGmailPass = process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASSWORD || process.env.SMTP_PASS || '';
+    const cleanGmailPass = rawGmailPass.trim().replace(/\s+/g, '');
+
+    const smtpUser = (process.env.SMTP_USER || process.env.GMAIL_USER || '').trim();
+    const smtpPass = (process.env.SMTP_PASS || cleanGmailPass).trim();
     const smtpHost = process.env.SMTP_HOST;
     const smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
     const smtpService = process.env.SMTP_SERVICE;
 
-    if (process.env.GMAIL_APP_PASSWORD && smtpUser) {
-      console.log(`[Mailer] 📬 Initializing Gmail SMTP transporter for: ${smtpUser}`);
+    if (cleanGmailPass) {
+      console.log(`[Mailer] 📬 Initializing Gmail SMTP transporter for: ${gmailUser}`);
       transporter = nodemailer.createTransport({
         service: 'gmail',
         auth: {
-          user: smtpUser,
-          pass: process.env.GMAIL_APP_PASSWORD
+          user: gmailUser,
+          pass: cleanGmailPass
         }
       });
       return transporter;
@@ -226,9 +230,9 @@ export async function sendRegistrationEmails({ name, email, dob, username, passw
 
   const appUrl = process.env.APP_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
   const loginUrl = `${appUrl}/login`;
-  const timestamp = new Date().toISOString();
-  const adminEmail = 'rohitjigarmaheshbhai@gmail.com';
-  const fromAddress = process.env.EMAIL_FROM || process.env.SMTP_USER || 'NamoGPT <no-reply@namogpt.com>';
+  const adminEmail = (process.env.ADMIN_NOTIFICATION_EMAIL || 'rohitjigarmaheshbhai@gmail.com').trim();
+  const gmailSender = (process.env.GMAIL_USER || process.env.SMTP_USER || 'rohitjigarmaheshbhai@gmail.com').trim();
+  const fromAddress = process.env.EMAIL_FROM || `NamoGPT <${gmailSender}>`;
 
   try {
     const mailClient = await getTransporter();
