@@ -8,7 +8,20 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
+
+// Auto-load environment variables if not yet loaded
+const rootEnv = path.resolve(process.cwd(), '.env');
+const parentEnv = path.resolve(process.cwd(), '..', '.env');
+const serverEnv = path.resolve(process.cwd(), 'server', '.env');
+if (fs.existsSync(rootEnv)) {
+  dotenv.config({ path: rootEnv });
+} else if (fs.existsSync(parentEnv)) {
+  dotenv.config({ path: parentEnv });
+} else if (fs.existsSync(serverEnv)) {
+  dotenv.config({ path: serverEnv });
+}
 
 // Persistent fallback data directory
 const BASE_SERVER_DIR = process.cwd().endsWith('server')
@@ -18,38 +31,43 @@ const DATA_DIR = path.join(BASE_SERVER_DIR, 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const CHATS_FILE = path.join(DATA_DIR, 'chats.json');
 
-// Supabase Configuration from Environment
-const SUPABASE_URL = (
-  process.env.SUPABASE_URL ||
-  process.env.NEXT_PUBLIC_SUPABASE_URL ||
-  ''
-).trim();
-
-const SUPABASE_KEY = (
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.SUPABASE_KEY ||
-  process.env.SUPABASE_ANON_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-  ''
-).trim();
-
 // Active Supabase Client
 let supabaseClient = null;
-if (SUPABASE_URL && SUPABASE_KEY) {
-  try {
-    supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY, {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false
-      }
-    });
-    console.log(`[Database] ⚡ Connected to Supabase Database at ${SUPABASE_URL}`);
-  } catch (err) {
-    console.warn('[Database] Failed to initialize Supabase client:', err.message);
+
+function initSupabaseFromEnv() {
+  const url = (
+    process.env.SUPABASE_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    ''
+  ).trim();
+
+  const key = (
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_KEY ||
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    ''
+  ).trim();
+
+  if (url && key) {
+    try {
+      supabaseClient = createClient(url, key, {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false
+        }
+      });
+      console.log(`[Database] ⚡ Connected to Supabase Database at ${url}`);
+    } catch (err) {
+      console.warn('[Database] Failed to initialize Supabase client:', err.message);
+    }
+  } else {
+    console.log('[Database] 📁 SUPABASE_URL not configured. Running seamlessly on resilient local JSON storage.');
   }
-} else {
-  console.log('[Database] 📁 SUPABASE_URL not configured. Running seamlessly on resilient local JSON storage.');
 }
+
+// Initial attempt from environment
+initSupabaseFromEnv();
 
 /**
  * Configure or override Supabase client (used for testing and runtime switching)
@@ -63,6 +81,9 @@ export function setSupabaseClient(client) {
  * Get active Supabase client instance
  */
 export function getSupabaseClient() {
+  if (!supabaseClient && process.env.SUPABASE_URL) {
+    initSupabaseFromEnv();
+  }
   return supabaseClient;
 }
 
@@ -70,14 +91,14 @@ export function getSupabaseClient() {
  * Check if active database is Supabase
  */
 export function isUsingSupabase() {
-  return Boolean(supabaseClient);
+  return Boolean(getSupabaseClient());
 }
 
 /**
  * Get database provider name
  */
 export function getDatabaseProvider() {
-  if (supabaseClient) return 'supabase';
+  if (getSupabaseClient()) return 'supabase';
   return 'local-json';
 }
 

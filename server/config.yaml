@@ -249,7 +249,7 @@ model_list:
   - model_name: embed-cloudflare
     litellm_params:
       model: openai/@cf/baai/bge-m3
-      api_base: https://api.cloudflare.com/client/v4/accounts/6ebde4a7292d3b3dde4b09c98291f978/ai/v1
+      api_base: https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/ai/v1
       api_key: os.environ/CF_API_TOKEN
 
   - model_name: transcribe-groq
@@ -358,7 +358,7 @@ model_list:
   - model_name: cloudflare
     litellm_params:
       model: openai/@cf/meta/llama-3.3-70b-instruct
-      api_base: https://api.cloudflare.com/client/v4/ai/v1
+      api_base: https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/ai/v1
       api_key: os.environ/CF_API_TOKEN
       rpm: 50
 
