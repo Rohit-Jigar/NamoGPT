@@ -243,4 +243,6 @@ build/
 server/data/users.json
 server/data/*.tmp
 supabase/.temp/
+.audit_reports/
+*.zip
 

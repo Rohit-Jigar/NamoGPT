@@ -271,7 +271,9 @@ export async function streamChatCompletion({
 
     if (!res.ok) {
       const errText = await res.text().catch(() => `HTTP ${res.status}`);
-      throw new Error(errText || `Server responded with ${res.status}`);
+      const err = new Error(errText || `Server responded with ${res.status}`);
+      err.status = res.status;
+      throw err;
     }
 
     const reader = res.body.getReader();
@@ -632,5 +634,213 @@ export async function renameChatAPI(serverUrl = DEFAULT_SERVER_URL, token = null
   }
 }
 
+/**
+ * Model Usage & Telemetry Stats API Client
+ */
+const STORAGE_KEY_USAGE = 'namogpt_model_usage_telemetry_v1';
 
+export const INITIAL_USAGE_STATS = {
+  totalTokens: 0,
+  promptTokens: 0,
+  completionTokens: 0,
+  totalRequests: 0,
+  lastSpeed: 0,
+  lastModel: 'auto',
+  lastTimestamp: null,
+  models: {
+    'gemini': { name: 'Gemini 2.5 Flash', promptTokens: 0, completionTokens: 0, totalTokens: 0, requests: 0, lastTps: 0 },
+    'groq': { name: 'GPT-OSS 120B (Groq)', promptTokens: 0, completionTokens: 0, totalTokens: 0, requests: 0, lastTps: 0 },
+    'groq-vision': { name: 'Llama 3.2 90B Vision', promptTokens: 0, completionTokens: 0, totalTokens: 0, requests: 0, lastTps: 0 },
+    'deepseek-r1': { name: 'DeepSeek R1 Thinking', promptTokens: 0, completionTokens: 0, totalTokens: 0, requests: 0, lastTps: 0 },
+    'openrouter': { name: 'Nemotron / OpenRouter', promptTokens: 0, completionTokens: 0, totalTokens: 0, requests: 0, lastTps: 0 },
+    'auto': { name: 'Smart Router (Dynamic)', promptTokens: 0, completionTokens: 0, totalTokens: 0, requests: 0, lastTps: 0 }
+  },
+  quotas: {
+    gemini: { name: 'Google Gemini', used: 0, limit: 15, unit: 'RPM', window: '60s' },
+    groq: { name: 'Groq Cloud', used: 0, limit: 14400, unit: 'RPD', window: 'Daily' },
+    openrouter: { name: 'OpenRouter Free', used: 0, limit: 200, unit: 'RPD', window: 'Daily' }
+  },
+  costSavings: {
+    commercialCostEstimated: 0.0,
+    savedAmount: 0.0
+  }
+};
 
+export function getLocalUsageStats() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_USAGE);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return {
+        ...INITIAL_USAGE_STATS,
+        ...parsed,
+        models: { ...INITIAL_USAGE_STATS.models, ...(parsed.models || {}) },
+        quotas: { ...INITIAL_USAGE_STATS.quotas, ...(parsed.quotas || {}) },
+        costSavings: { ...INITIAL_USAGE_STATS.costSavings, ...(parsed.costSavings || {}) }
+      };
+    }
+  } catch (err) {
+    console.warn('[UsageAPI] Failed to parse local usage stats:', err);
+  }
+  return { ...INITIAL_USAGE_STATS };
+}
+
+export function saveLocalUsageStats(stats) {
+  try {
+    localStorage.setItem(STORAGE_KEY_USAGE, JSON.stringify(stats));
+  } catch (err) {
+    console.warn('[UsageAPI] Failed to persist local usage stats:', err);
+  }
+}
+
+export function updateLocalUsage(data = {}) {
+  const current = getLocalUsageStats();
+  const promptTokens = Number(data.promptTokens || 0);
+  const completionTokens = Number(data.completionTokens || 0);
+  const totalTokens = Number(data.totalTokens || (promptTokens + completionTokens));
+  const tps = Number(data.tps || 0);
+  const modelKey = data.model || 'auto';
+
+  // Cost calculation benchmark:
+  // OpenAI GPT-4o: $2.50 / 1M prompt, $10.00 / 1M completion
+  // Claude 3.5 Sonnet: $3.00 / 1M prompt, $15.00 / 1M completion
+  // Avg: $2.75 / 1M prompt ($0.00000275), $12.50 / 1M completion ($0.0000125)
+  const incrementalSavings = (promptTokens * 0.00000275) + (completionTokens * 0.0000125);
+
+  const prevModelObj = current.models[modelKey] || {
+    name: modelKey,
+    promptTokens: 0,
+    completionTokens: 0,
+    totalTokens: 0,
+    requests: 0,
+    lastTps: 0
+  };
+
+  const updatedModels = {
+    ...current.models,
+    [modelKey]: {
+      ...prevModelObj,
+      promptTokens: (prevModelObj.promptTokens || 0) + promptTokens,
+      completionTokens: (prevModelObj.completionTokens || 0) + completionTokens,
+      totalTokens: (prevModelObj.totalTokens || 0) + totalTokens,
+      requests: (prevModelObj.requests || 0) + 1,
+      lastTps: tps > 0 ? tps : (prevModelObj.lastTps || 0)
+    }
+  };
+
+  const updatedQuotas = { ...current.quotas };
+  if (modelKey === 'gemini') {
+    updatedQuotas.gemini = { ...updatedQuotas.gemini, used: (updatedQuotas.gemini?.used || 0) + 1 };
+  } else if (modelKey === 'groq' || modelKey === 'groq-vision') {
+    updatedQuotas.groq = { ...updatedQuotas.groq, used: (updatedQuotas.groq?.used || 0) + 1 };
+  } else if (modelKey === 'openrouter' || modelKey === 'deepseek-r1') {
+    updatedQuotas.openrouter = { ...updatedQuotas.openrouter, used: (updatedQuotas.openrouter?.used || 0) + 1 };
+  }
+
+  const prevSavings = current.costSavings?.savedAmount || 0;
+  const newSavings = Number((prevSavings + incrementalSavings).toFixed(4));
+
+  const updated = {
+    ...current,
+    totalTokens: current.totalTokens + totalTokens,
+    promptTokens: current.promptTokens + promptTokens,
+    completionTokens: current.completionTokens + completionTokens,
+    totalRequests: current.totalRequests + 1,
+    lastSpeed: tps > 0 ? tps : current.lastSpeed,
+    lastModel: modelKey,
+    lastTimestamp: Date.now(),
+    models: updatedModels,
+    quotas: updatedQuotas,
+    costSavings: {
+      commercialCostEstimated: newSavings,
+      savedAmount: newSavings
+    }
+  };
+
+  saveLocalUsageStats(updated);
+  return updated;
+}
+
+export function resetLocalUsage() {
+  const fresh = {
+    ...INITIAL_USAGE_STATS,
+    models: Object.keys(INITIAL_USAGE_STATS.models).reduce((acc, k) => {
+      acc[k] = { ...INITIAL_USAGE_STATS.models[k], promptTokens: 0, completionTokens: 0, totalTokens: 0, requests: 0, lastTps: 0 };
+      return acc;
+    }, {})
+  };
+  saveLocalUsageStats(fresh);
+  return fresh;
+}
+
+export async function getUsageStatsAPI(token = null, serverUrl = DEFAULT_SERVER_URL) {
+  try {
+    const headers = { 'Accept': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${serverUrl}/api/usage/stats`, { headers });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && typeof data === 'object') {
+        const stats = data.stats || data.data || data;
+        saveLocalUsageStats(stats);
+        return stats;
+      }
+    }
+  } catch (err) {
+    // Backend offline / 404 - gracefully fallback to local storage
+  }
+  return getLocalUsageStats();
+}
+
+export async function recordUsageAPI(token = null, data = {}, serverUrl = DEFAULT_SERVER_URL) {
+  const localUpdated = updateLocalUsage(data);
+  try {
+    const headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${serverUrl}/api/usage/record`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(data)
+    });
+    if (res.ok) {
+      const serverData = await res.json();
+      if (serverData && typeof serverData === 'object') {
+        const stats = serverData.stats || serverData.data || serverData;
+        saveLocalUsageStats(stats);
+        return stats;
+      }
+    }
+  } catch (err) {
+    // Backend offline / 404
+  }
+  return localUpdated;
+}
+
+export async function resetUsageAPI(token = null, serverUrl = DEFAULT_SERVER_URL) {
+  const resetStats = resetLocalUsage();
+  try {
+    const headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${serverUrl}/api/usage/reset`, {
+      method: 'POST',
+      headers
+    });
+    if (res.ok) {
+      const serverData = await res.json();
+      if (serverData && typeof serverData === 'object') {
+        const stats = serverData.stats || serverData.data || serverData;
+        saveLocalUsageStats(stats);
+        return stats;
+      }
+    }
+  } catch (err) {
+    // Backend offline
+  }
+  return resetStats;
+}

@@ -178,10 +178,22 @@ function spawnPythonProcess(cmd, code, effectiveTimeout, startTime) {
     let timedOut = false;
     let bufferOverflow = false;
 
+    // DeepSeek Harness Sandbox Security: Scrub environment to prevent host secret leakage
+    const sanitizedEnv = {
+      PATH: process.env.PATH || '',
+      SYSTEMROOT: process.env.SYSTEMROOT || '',
+      WINDIR: process.env.WINDIR || '',
+      TEMP: process.env.TEMP || '',
+      TMP: process.env.TMP || '',
+      PYTHONUNBUFFERED: '1',
+      HOME: process.env.HOME || process.env.USERPROFILE || ''
+    };
+
     // Use python -u - (unbuffered mode reading from stdin)
     const child = spawn(cmd, ['-u', '-'], {
       stdio: ['pipe', 'pipe', 'pipe'],
-      windowsHide: true
+      windowsHide: true,
+      env: sanitizedEnv
     });
 
     const timeoutHandle = setTimeout(() => {

@@ -1,9 +1,61 @@
 import fs from 'fs';
 import path from 'path';
+import http from 'node:http';
+import https from 'node:https';
 import yaml from 'js-yaml';
 import axios from 'axios';
 import anthropicHandler from './anthropic_adaptions.js';
 import { AVAILABLE_MODELS } from '../models-metadata.js';
+import { recordUsage } from '../usage.js';
+import { recordTokens } from '../metrics.js';
+import { detectPromptCache, globalAgentHarness } from '../agent-harness.js';
+
+// High-Performance Keep-Alive Agent Pool for Upstream LLM Providers
+const keepAliveHttpAgent = new http.Agent({
+  keepAlive: true,
+  maxSockets: 64,
+  maxFreeSockets: 24,
+  timeout: 60000
+});
+
+const keepAliveHttpsAgent = new https.Agent({
+  keepAlive: true,
+  maxSockets: 64,
+  maxFreeSockets: 24,
+  timeout: 60000
+});
+
+/**
+ * Heuristic token estimators when upstream provider does not return usage
+ */
+export function estimateTokensFromText(text) {
+  if (!text || typeof text !== 'string') return 0;
+  const byChars = Math.ceil(text.length / 4);
+  const words = text.trim().split(/\s+/).filter(Boolean).length;
+  const byWords = Math.ceil(words * 1.33);
+  return Math.max(1, Math.round((byChars + byWords) / 2));
+}
+
+export function estimatePromptTokens(messages) {
+  if (!messages) return 10;
+  if (typeof messages === 'string') return estimateTokensFromText(messages);
+  if (Array.isArray(messages)) {
+    let totalChars = 0;
+    for (const msg of messages) {
+      if (typeof msg.content === 'string') {
+        totalChars += msg.content.length;
+      } else if (Array.isArray(msg.content)) {
+        for (const part of msg.content) {
+          if (part.type === 'text' && part.text) {
+            totalChars += part.text.length;
+          }
+        }
+      }
+    }
+    return Math.max(1, Math.ceil(totalChars / 4));
+  }
+  return 10;
+}
 
 let cachedConfig = null;
 let cachedPools = null;
@@ -325,6 +377,8 @@ async function forwardRequest(item, forwardPath, originalReq) {
       data: isMultipart ? originalReq : buildUpstreamBody(item, originalReq.body),
       maxBodyLength: Infinity,
       timeout: 30000,
+      httpAgent: keepAliveHttpAgent,
+      httpsAgent: keepAliveHttpsAgent,
       responseType: wantsStream ? 'stream' : 'arraybuffer',
       validateStatus: () => true
     });
@@ -335,7 +389,7 @@ async function forwardRequest(item, forwardPath, originalReq) {
 }
 
 // Generate intelligent mock response if no external API keys are configured yet
-function handleDemoFallback(req, res, modelName, searchResults = null) {
+async function handleDemoFallback(req, res, modelName, searchResults = null) {
   const messages = Array.isArray(req.body?.messages) ? req.body.messages : [];
   const userMessages = messages.filter(m => m.role === 'user');
   const lastUserMsg = userMessages.length > 0
@@ -400,6 +454,21 @@ function handleDemoFallback(req, res, modelName, searchResults = null) {
   }
 
   if (!wantsStream) {
+    const activeUserId = req.user?.id || req.headers['x-session-id'] || req.headers['x-guest-id'] || req.query?.userId || req.query?.sessionId || 'anonymous';
+    try {
+      await recordUsage({
+        userId: activeUserId,
+        model: modelName,
+        promptTokens: 20,
+        completionTokens: 150,
+        totalTokens: 170,
+        durationSec: 0.1
+      });
+    } catch {
+      // Ignore fallback record errors
+    }
+    recordTokens(modelName, 20, 150);
+
     return res.status(200).json({
       id: `chatcmpl-${Date.now()}`,
       object: 'chat.completion',
@@ -457,6 +526,18 @@ function handleDemoFallback(req, res, modelName, searchResults = null) {
       res.write('data: [DONE]\n\n');
       clearInterval(timer);
       res.end();
+
+      const activeUserId = req.user?.id || req.headers['x-session-id'] || req.headers['x-guest-id'] || req.query?.userId || req.query?.sessionId || 'anonymous';
+      const cTokens = Math.max(1, Math.ceil(greeting.length / 4));
+      recordUsage({
+        userId: activeUserId,
+        model: modelName,
+        promptTokens: 20,
+        completionTokens: cTokens,
+        totalTokens: 20 + cTokens,
+        durationSec: 0.5
+      }).catch(() => {});
+      recordTokens(modelName, 20, cTokens);
     }
   }, 25);
 }
@@ -526,6 +607,7 @@ export default async function handler(req, res) {
     console.warn('Auth check notice:', err.message);
   }
 
+  const reqStartTime = Date.now();
   try {
     const cfg = loadConfig();
     const pools = buildPools(cfg);
@@ -719,7 +801,7 @@ export default async function handler(req, res) {
     const hasAnyActiveKey = candidatePoolsList.some(p => isPoolActive(p));
     if (!hasAnyActiveKey) {
       console.log(`[NamoGPT] Notice: No API key found for ${selectedPrimaryPool}. Serving smart guidance response.`);
-      return handleDemoFallback(req, res, selectedPrimaryPool, injectedSearchResults);
+      return await handleDemoFallback(req, res, selectedPrimaryPool, injectedSearchResults);
     }
 
     // Robust LiteLLM key & pool cascade failover:
@@ -759,18 +841,39 @@ export default async function handler(req, res) {
             pool.rr = (itemIdx + 1) % n;
             if (baseItem.tokens !== null) baseItem.tokens -= 1;
 
-            for (const h of Object.keys(resp.headers || {})) {
-              if (['transfer-encoding', 'connection', 'content-encoding'].includes(h)) continue;
-              res.setHeader(h, resp.headers[h]);
+            if (!res.headersSent) {
+              for (const h of Object.keys(resp.headers || {})) {
+                if (['transfer-encoding', 'connection', 'content-encoding'].includes(h)) continue;
+                res.setHeader(h, resp.headers[h]);
+              }
+              res.status(resp.status);
             }
-            res.status(resp.status);
 
             if (typeof resp.data?.pipe === 'function') {
               const { Transform } = await import('stream');
+              let accumulatedCompletionText = '';
+              let streamUsage = null;
+
               const sanitizeStream = new Transform({
                 transform(chunk, encoding, callback) {
                   try {
                     const chunkStr = chunk.toString();
+                    const lines = chunkStr.split('\n');
+                    for (const line of lines) {
+                      const trimmed = line.trim();
+                      if (trimmed.startsWith('data: ') && !trimmed.includes('[DONE]')) {
+                        try {
+                          const parsed = JSON.parse(trimmed.slice(6));
+                          if (parsed.usage) {
+                            streamUsage = parsed.usage;
+                          }
+                          const deltaContent = parsed.choices?.[0]?.delta?.content;
+                          if (deltaContent) {
+                            accumulatedCompletionText += deltaContent;
+                          }
+                        } catch (_) {}
+                      }
+                    }
                     const sanitized = sanitizeCompletionText(chunkStr);
                     callback(null, Buffer.from(sanitized));
                   } catch {
@@ -778,6 +881,37 @@ export default async function handler(req, res) {
                   }
                 }
               });
+
+              resp.data.on('end', () => {
+                try {
+                  const durationSec = Math.max(0.01, (Date.now() - reqStartTime) / 1000);
+                  let promptTokens = streamUsage?.prompt_tokens;
+                  let completionTokens = streamUsage?.completion_tokens;
+
+                  if (promptTokens === undefined || promptTokens === null) {
+                    promptTokens = estimatePromptTokens(messages);
+                  }
+                  if (completionTokens === undefined || completionTokens === null) {
+                    completionTokens = estimateTokensFromText(accumulatedCompletionText);
+                  }
+
+                  const activeUser = req.user?.id || req.headers['x-session-id'] || req.headers['x-guest-id'] || req.query?.userId || req.query?.sessionId || 'anonymous';
+                  const cacheInfo = detectPromptCache({ messages, usage: streamUsage, model: currentPoolName });
+                  recordUsage({
+                    userId: activeUser,
+                    model: currentPoolName,
+                    promptTokens,
+                    completionTokens,
+                    cachedTokens: cacheInfo.cachedTokens,
+                    durationSec
+                  }).catch(err => console.warn('[Usage Telemetry] Stream recordUsage notice:', err.message));
+
+                  recordTokens(currentPoolName, promptTokens, completionTokens);
+                } catch (metricErr) {
+                  console.warn('[Usage Telemetry] Stream metrics error:', metricErr.message);
+                }
+              });
+
               resp.data.on('error', (streamErr) => {
                 console.error('[NamoGPT Stream] Upstream stream error:', streamErr.message);
                 res.destroy(streamErr);
@@ -796,6 +930,41 @@ export default async function handler(req, res) {
               }
             } else if (typeof responseData === 'object' && responseData !== null) {
               json = responseData;
+            }
+
+            // Estimate/parse tokens and record usage telemetry for non-streaming response
+            try {
+              const durationSec = Math.max(0.01, (Date.now() - reqStartTime) / 1000);
+              let promptTokens = json?.usage?.prompt_tokens;
+              let completionTokens = json?.usage?.completion_tokens;
+
+              if (promptTokens === undefined || promptTokens === null) {
+                promptTokens = estimatePromptTokens(messages);
+              }
+              if (completionTokens === undefined || completionTokens === null) {
+                let completionText = '';
+                if (json?.choices && Array.isArray(json.choices)) {
+                  completionText = json.choices.map(c => c.message?.content || '').join(' ');
+                } else if (typeof responseData === 'string') {
+                  completionText = responseData;
+                }
+                completionTokens = estimateTokensFromText(completionText);
+              }
+
+              const activeUser = req.user?.id || req.headers['x-session-id'] || req.headers['x-guest-id'] || req.query?.userId || req.query?.sessionId || 'anonymous';
+              const cacheInfo = detectPromptCache({ messages, usage: json?.usage, model: currentPoolName });
+              recordUsage({
+                userId: activeUser,
+                model: currentPoolName,
+                promptTokens,
+                completionTokens,
+                cachedTokens: cacheInfo.cachedTokens,
+                durationSec
+              }).catch(err => console.warn('[Usage Telemetry] Non-stream recordUsage notice:', err.message));
+
+              recordTokens(currentPoolName, promptTokens, completionTokens);
+            } catch (metricErr) {
+              console.warn('[Usage Telemetry] Non-stream metrics error:', metricErr.message);
             }
 
             if (json && json.choices && Array.isArray(json.choices)) {
@@ -830,7 +999,7 @@ export default async function handler(req, res) {
 
     if (!requestSucceeded) {
       console.log(`[NamoGPT] Notice: All upstream keys & pools failed. Serving smart demo fallback without dropping user.`);
-      return handleDemoFallback(req, res, selectedPrimaryPool || 'auto', injectedSearchResults);
+      return await handleDemoFallback(req, res, selectedPrimaryPool || 'auto', injectedSearchResults);
     }
   } catch (err) {
     console.error('Handler error:', err);

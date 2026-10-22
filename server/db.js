@@ -30,6 +30,7 @@ const BASE_SERVER_DIR = process.cwd().endsWith('server')
 const DATA_DIR = path.join(BASE_SERVER_DIR, 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const CHATS_FILE = path.join(DATA_DIR, 'chats.json');
+const USAGE_FILE = path.join(DATA_DIR, 'usage.json');
 
 // Active Supabase Client
 let supabaseClient = null;
@@ -115,6 +116,9 @@ function ensureStorage() {
     }
     if (!fs.existsSync(CHATS_FILE)) {
       fs.writeFileSync(CHATS_FILE, JSON.stringify([], null, 2), 'utf8');
+    }
+    if (!fs.existsSync(USAGE_FILE)) {
+      fs.writeFileSync(USAGE_FILE, JSON.stringify([], null, 2), 'utf8');
     }
   } catch (err) {
     console.warn('[Database] Storage init notice:', err.message);
@@ -221,6 +225,44 @@ function syncChatToJson(chat) {
       chats.unshift({ ...chat });
     }
     writeJson(CHATS_FILE, chats);
+  } catch (_) {}
+}
+
+/**
+ * Map Postgres snake_case user_usage row to clean JavaScript camelCase object
+ */
+export function toUsageRecord(row) {
+  if (!row) return null;
+  const pTokens = Number(row.prompt_tokens ?? row.promptTokens ?? 0);
+  const cTokens = Number(row.completion_tokens ?? row.completionTokens ?? 0);
+  const tTokens = Number(row.total_tokens ?? row.totalTokens ?? (pTokens + cTokens));
+  const durSec = Number(row.duration_sec ?? row.durationSec ?? 0);
+
+  return {
+    id: row.id,
+    userId: row.user_id || row.userId || 'anonymous',
+    model: row.model || 'unknown',
+    promptTokens: pTokens,
+    completionTokens: cTokens,
+    totalTokens: tTokens,
+    durationSec: durSec,
+    createdAt: row.created_at || row.createdAt || new Date().toISOString()
+  };
+}
+
+/**
+ * Sync usage to local JSON storage for resilience
+ */
+function syncUsageToJson(usage) {
+  try {
+    const usages = readJson(USAGE_FILE);
+    const idx = usages.findIndex(u => u.id === usage.id);
+    if (idx !== -1) {
+      usages[idx] = { ...usage };
+    } else {
+      usages.unshift({ ...usage });
+    }
+    writeJson(USAGE_FILE, usages);
   } catch (_) {}
 }
 
@@ -655,6 +697,149 @@ export async function clearChats(userId) {
   return true;
 }
 
+/**
+ * Save or insert usage record in database
+ * Persists to Supabase table public.user_usage with local JSON fallback
+ */
+export async function saveUsageRecord(record) {
+  if (!record) {
+    throw new Error('Usage record data is required.');
+  }
+
+  const usageId = record.id || `usage-${Date.now()}-${Math.random().toString(36).substr(2, 7)}`;
+  const resolvedUserId = record.userId || 'anonymous';
+  const promptTokens = Math.max(0, Number(record.promptTokens ?? record.prompt_tokens ?? 0));
+  const completionTokens = Math.max(0, Number(record.completionTokens ?? record.completion_tokens ?? 0));
+  const totalTokens = Math.max(0, Number(record.totalTokens ?? record.total_tokens ?? (promptTokens + completionTokens)));
+  const durationSec = Math.max(0, Number(record.durationSec ?? record.duration_sec ?? 0));
+  const createdAt = record.createdAt ? new Date(record.createdAt).toISOString() : new Date().toISOString();
+
+  const usageRow = {
+    id: usageId,
+    user_id: resolvedUserId,
+    model: record.model || 'unknown',
+    prompt_tokens: promptTokens,
+    completion_tokens: completionTokens,
+    total_tokens: totalTokens,
+    duration_sec: durationSec,
+    created_at: createdAt
+  };
+
+  // 1. Supabase Insert
+  if (isUsingSupabase()) {
+    try {
+      let { data, error } = await supabaseClient
+        .from('user_usage')
+        .insert(usageRow)
+        .select('id, user_id, model, prompt_tokens, completion_tokens, total_tokens, duration_sec, created_at')
+        .single();
+
+      // If foreign key constraint failed (e.g. user does not exist in public.users), retry with user_id = null
+      if (error && (error.code === '23503' || String(error.message).includes('foreign key') || String(error.message).includes('violates foreign key'))) {
+        const nullUserRow = { ...usageRow, user_id: null };
+        const retry = await supabaseClient
+          .from('user_usage')
+          .insert(nullUserRow)
+          .select('id, user_id, model, prompt_tokens, completion_tokens, total_tokens, duration_sec, created_at')
+          .single();
+        if (!retry.error && retry.data) {
+          data = retry.data;
+          error = null;
+        }
+      }
+
+      if (!error && data) {
+        const usageRec = toUsageRecord(data);
+        usageRec.userId = resolvedUserId;
+        syncUsageToJson(usageRec);
+        return usageRec;
+      }
+      if (error) {
+        console.warn('[Database] Supabase saveUsageRecord error:', error.message);
+      }
+    } catch (err) {
+      console.warn('[Database] Supabase saveUsageRecord error, falling back:', err.message);
+    }
+  }
+
+  // 2. Local JSON Fallback
+  const localRec = toUsageRecord(usageRow);
+  syncUsageToJson(localRec);
+  return localRec;
+}
+
+/**
+ * Retrieve usage records for a specific user ID
+ * Explicit projection adhering strictly to Supabase guidelines
+ */
+export async function getUserUsageRecords(userId = 'anonymous') {
+  const normalizedUserId = userId || 'anonymous';
+
+  if (isUsingSupabase()) {
+    try {
+      let query = supabaseClient
+        .from('user_usage')
+        .select('id, user_id, model, prompt_tokens, completion_tokens, total_tokens, duration_sec, created_at');
+
+      if (normalizedUserId !== 'all') {
+        if (normalizedUserId === 'anonymous') {
+          query = query.or('user_id.eq.anonymous,user_id.is.null');
+        } else {
+          query = query.eq('user_id', normalizedUserId);
+        }
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
+
+      if (!error && Array.isArray(data)) {
+        return data.map(toUsageRecord);
+      }
+      if (error) {
+        console.warn('[Database] Supabase getUserUsageRecords error:', error.message);
+      }
+    } catch (err) {
+      console.warn('[Database] Supabase getUserUsageRecords warning:', err.message);
+    }
+  }
+
+  const usages = readJson(USAGE_FILE);
+  const filtered = normalizedUserId === 'all'
+    ? usages
+    : usages.filter(u => u.userId === normalizedUserId || (normalizedUserId === 'anonymous' && (!u.userId || u.userId === 'anonymous')));
+
+  return filtered
+    .map(toUsageRecord)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+/**
+ * Clear usage records for a specific user ID or all
+ */
+export async function clearUserUsage(userId = 'anonymous') {
+  const normalizedUserId = userId || 'anonymous';
+
+  if (isUsingSupabase()) {
+    try {
+      if (normalizedUserId === 'all') {
+        await supabaseClient.from('user_usage').delete().neq('id', 'keep_all_none');
+      } else if (normalizedUserId === 'anonymous') {
+        await supabaseClient.from('user_usage').delete().or('user_id.eq.anonymous,user_id.is.null');
+      } else {
+        await supabaseClient.from('user_usage').delete().eq('user_id', normalizedUserId);
+      }
+    } catch (err) {
+      console.warn('[Database] Supabase clearUserUsage error:', err.message);
+    }
+  }
+
+  const usages = readJson(USAGE_FILE);
+  const remaining = normalizedUserId === 'all'
+    ? []
+    : usages.filter(u => !(u.userId === normalizedUserId || (normalizedUserId === 'anonymous' && (!u.userId || u.userId === 'anonymous'))));
+  writeJson(USAGE_FILE, remaining);
+  return true;
+}
+
 export default {
   connectDB,
   initDb,
@@ -675,7 +860,11 @@ export default {
   updateChatTitle,
   clearChats,
   toUserRecord,
-  toChatRecord
+  toChatRecord,
+  toUsageRecord,
+  saveUsageRecord,
+  getUserUsageRecords,
+  clearUserUsage
 };
 
 // Backwards-compatible model wrappers

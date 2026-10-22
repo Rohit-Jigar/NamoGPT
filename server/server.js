@@ -24,8 +24,11 @@ import {
   deleteChat,
   updateChatTitle
 } from './db.js';
+import { forkConversation, rewindConversation } from './agent-harness.js';
+import { verifyMailer } from './mailer.js';
 import { AVAILABLE_MODELS, getProviderKeysStatus } from './models-metadata.js';
-import { getMetrics } from './metrics.js';
+import { getMetrics, recordTokens } from './metrics.js';
+import { recordUsage, getUsageStats, resetUsage } from './usage.js';
 import { searchWeb, formatSearchContext, fetchUrlContent } from './search.js';
 import { queryRag, formatRagContext } from './rag.js';
 import { executeCode } from './sandbox.js';
@@ -213,6 +216,53 @@ app.put('/api/chats/:id/title', async (req, res) => {
   }
 });
 
+// 6. DeepSeek Harness Chat Forking: Branch a conversation from any message
+app.post('/api/chats/:id/fork', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { sourceMessageId, title } = req.body || {};
+    const userId = req.user?.id || req.headers['x-session-id'] || req.headers['x-guest-id'] || 'guest-session';
+    const forkedChat = await forkConversation({ chatId: id, sourceMessageId, userId, newTitle: title });
+    return res.status(201).json({
+      success: true,
+      message: 'Conversation forked successfully.',
+      chat: forkedChat
+    });
+  } catch (err) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+// 7. DeepSeek Harness Chat Rewind: Roll back conversation to a specific checkpoint
+app.post('/api/chats/:id/rewind', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { targetMessageId } = req.body || {};
+    if (!targetMessageId) {
+      return res.status(400).json({ success: false, error: 'targetMessageId is required for rewind.' });
+    }
+    const userId = req.user?.id || req.headers['x-session-id'] || req.headers['x-guest-id'] || 'guest-session';
+    const rewoundChat = await rewindConversation({ chatId: id, targetMessageId, userId });
+    return res.status(200).json({
+      success: true,
+      message: 'Conversation rewound successfully.',
+      chat: rewoundChat
+    });
+  } catch (err) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+// 8. Mailer Production Connectivity & Verification Diagnostic
+app.get('/api/mailer/verify', async (_req, res) => {
+  try {
+    const verification = await verifyMailer();
+    return res.status(verification.success ? 200 : 500).json(verification);
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // 5. Public Super Admin Credentials info (for 1-click evaluation & deployment login)
 app.get('/api/auth/superadmin-credentials', (_req, res) => {
   return res.status(200).json({
@@ -222,6 +272,68 @@ app.get('/api/auth/superadmin-credentials', (_req, res) => {
     name: SUPER_ADMIN_CREDENTIALS.name,
     isDefault: SUPER_ADMIN_CREDENTIALS.email === 'admin@namogpt.com'
   });
+});
+
+// --- MODEL USAGE METER & TELEMETRY ROUTES ---
+
+// 1. Get usage statistics (supports per-user, per-session, and anonymous fallback)
+app.get('/api/usage/stats', async (req, res) => {
+  try {
+    const userId = req.user?.id || req.headers['x-session-id'] || req.headers['x-guest-id'] || req.query.userId || req.query.sessionId || 'anonymous';
+    const stats = await getUsageStats({ userId });
+    return res.status(200).json({
+      success: true,
+      userId,
+      ...stats
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 2. Client-reported token usage recording
+app.post('/api/usage/record', async (req, res) => {
+  try {
+    const { model, promptTokens, completionTokens, totalTokens, durationSec } = req.body || {};
+    const userId = req.user?.id || req.headers['x-session-id'] || req.headers['x-guest-id'] || req.body?.userId || req.query?.userId || 'anonymous';
+
+    if (!model) {
+      return res.status(400).json({ success: false, error: 'Parameter "model" is required.' });
+    }
+
+    const recorded = await recordUsage({
+      userId,
+      model,
+      promptTokens,
+      completionTokens,
+      totalTokens,
+      durationSec
+    });
+
+    // Record in Prometheus metrics
+    recordTokens(model, recorded.promptTokens, recorded.completionTokens);
+
+    return res.status(200).json({
+      success: true,
+      record: recorded
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 3. Reset usage statistics
+app.post('/api/usage/reset', async (req, res) => {
+  try {
+    const userId = req.user?.id || req.headers['x-session-id'] || req.headers['x-guest-id'] || req.body?.userId || req.query?.userId || 'anonymous';
+    const result = await resetUsage({ userId });
+    return res.status(200).json({
+      success: true,
+      ...result
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // --- ADMIN & DIAGNOSTIC ROUTES ---

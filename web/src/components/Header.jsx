@@ -12,7 +12,6 @@ import {
   Brain,
   Plus,
   Crown,
-  User,
   LogIn,
   LogOut,
   Settings as SettingsIcon,
@@ -21,9 +20,9 @@ import {
   Bot,
   Cpu,
   Lock,
-  ExternalLink,
-  Layers
+  Activity
 } from 'lucide-react';
+import { ModelUsageMeterPill } from './ModelUsageMeter';
 
 export default function Header() {
   const {
@@ -81,59 +80,93 @@ export default function Header() {
         ...(foundModel || {}),
         name: '✨ Auto (Smart Router)',
         badge: 'LiteLLM Dynamic',
-        badgeColor: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+        speed: '⚡ Dynamic',
+        badgeColor: 'bg-cyan-500/10 text-cyan-300 border-cyan-500/20'
       }
     : (foundModel || {
         name: '✨ Auto (Smart Router)',
         badge: 'LiteLLM Dynamic',
-        badgeColor: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+        speed: '⚡ Dynamic',
+        badgeColor: 'bg-cyan-500/10 text-cyan-300 border-cyan-500/20'
       });
 
+  function getModelTags(m) {
+    const tags = [];
+    const id = (m.id || '').toLowerCase();
+    const name = (m.name || '').toLowerCase();
+    const desc = (m.description || '').toLowerCase();
+
+    if (m.supportsVision || id.includes('vision') || name.includes('vision') || desc.includes('vision') || desc.includes('image')) {
+      tags.push({ label: 'Vision', color: 'bg-sky-500/10 text-sky-400 border-sky-500/25', icon: 'vision' });
+    }
+    if (id === 'gemini' || desc.includes('1m') || name.includes('gemini') || desc.includes('context')) {
+      tags.push({ label: '1M Context', color: 'bg-indigo-500/10 text-indigo-300 border-indigo-500/25', icon: 'context' });
+    }
+    if (m.speed?.includes('300') || id.includes('groq') || desc.includes('300')) {
+      tags.push({ label: '~300 t/s', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25', icon: 'speed' });
+    }
+    if (m.supportsReasoning || id.includes('r1') || id.includes('deepseek') || name.includes('reasoning') || desc.includes('reasoning') || desc.includes('thinking')) {
+      tags.push({ label: 'Deep Reasoning', color: 'bg-purple-500/10 text-purple-300 border-purple-500/25', icon: 'reasoning' });
+    }
+    if (id === 'auto') {
+      tags.push({ label: 'Smart Router', color: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/25', icon: 'router' });
+    }
+    return tags;
+  }
+
   return (
-    <header className="h-14 glass-nav px-3 sm:px-4 flex items-center justify-between shrink-0 select-none z-30">
-      {/* Left: Sidebar Toggle & Model Switcher */}
-      <div className="flex items-center space-x-2">
+    <header className="h-14 glass-nav px-3 sm:px-4 flex items-center justify-between shrink-0 select-none z-30 transition-all duration-200">
+      {/* Left: Sidebar Toggle & Stitch Model Switcher Capsule */}
+      <div className="flex items-center space-x-2 sm:space-x-3">
         <button
           onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          className="p-2 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/70 border border-transparent hover:border-zinc-700/50 transition-all"
+          className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/[0.06] border border-transparent hover:border-white/[0.08] transition-all"
           title={isSidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
         >
           <PanelLeft className="w-4 h-4" />
         </button>
 
-        {/* Model Selector Dropdown (shadcn-style model-select) */}
+        {/* Google Stitch Model Switcher Capsule */}
         <div className="relative" ref={dropdownRef}>
           <button
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-            className="flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-zinc-900/80 hover:bg-zinc-800/80 border border-zinc-800 hover:border-zinc-700 text-zinc-100 font-medium text-xs sm:text-sm tracking-tight transition-all shadow-sm group"
+            className="flex items-center space-x-2 px-3 py-1.5 rounded-full bg-[#121622]/90 hover:bg-[#161c2b] border border-white/[0.08] hover:border-cyan-500/35 text-slate-100 font-medium text-xs sm:text-sm tracking-tight transition-all duration-200 shadow-sm group"
           >
-            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-            <span className="truncate max-w-[130px] sm:max-w-[190px] md:max-w-none font-semibold">
+            <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-sm shadow-cyan-400/50 shrink-0" />
+            <span className="truncate max-w-[130px] sm:max-w-[200px] md:max-w-none font-semibold text-white">
               {currentModelObj.name}
             </span>
-            <span
-              className={`text-[10px] font-medium px-2 py-0.5 rounded-full border hidden xs:inline-block ${
-                currentModelObj.badgeColor || 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-              }`}
-            >
-              {currentModelObj.badge || 'Ready'}
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/[0.06] text-cyan-300 border border-white/[0.08] hidden xs:inline-flex items-center gap-0.5">
+              {currentModelObj.speed || '⚡ Fast'}
             </span>
-            <ChevronDown className={`w-3.5 h-3.5 text-zinc-400 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180 text-zinc-100' : ''}`} />
+            <ChevronDown
+              className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${
+                isDropdownOpen ? 'rotate-180 text-white' : 'group-hover:text-slate-200'
+              }`}
+            />
           </button>
 
+          {/* Model Switcher Dropdown */}
           {isDropdownOpen && (
-            <div className="absolute left-0 mt-2 w-84 sm:w-96 bg-[#121215] border border-zinc-800/90 rounded-2xl shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150 backdrop-blur-xl">
-              <div className="px-3 py-2 text-xs font-semibold text-zinc-400 uppercase tracking-wider border-b border-zinc-800/70 flex items-center justify-between">
-                <span>Model Intelligence Catalog</span>
-                <span className="text-[10px] text-emerald-400 font-mono">100% Free Tiers</span>
+            <div className="absolute left-0 mt-2 w-84 sm:w-96 bg-[#121622]/95 backdrop-blur-2xl border border-white/[0.1] rounded-2xl shadow-2xl p-2.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+              <div className="px-3 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider border-b border-white/[0.06] flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-slate-300">
+                  <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                  Model Intelligence Catalog
+                </span>
+                <span className="text-[10px] text-cyan-400 font-mono px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20">
+                  100% Free Tiers
+                </span>
               </div>
 
-              <div className="mx-2 my-2 p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-300 flex items-center gap-2">
-                <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span>Auto Mode handles search, vision, STEM reasoning, and failovers transparently. No manual model selection needed.</span>
+              <div className="mx-1 my-2 p-2.5 rounded-xl bg-gradient-to-r from-indigo-500/10 via-violet-500/10 to-cyan-500/10 border border-indigo-500/20 text-[11px] text-slate-300 flex items-start gap-2 leading-relaxed">
+                <Sparkles className="w-3.5 h-3.5 text-cyan-400 shrink-0 mt-0.5" />
+                <span>
+                  <strong>Auto Mode</strong> selects optimal latency, routes images to multimodal LPUs, and triggers deep thinking automatically.
+                </span>
               </div>
 
-              <div className="max-h-[380px] overflow-y-auto py-1 space-y-1 no-scrollbar">
+              <div className="max-h-[380px] overflow-y-auto py-1 space-y-1.5 no-scrollbar">
                 {models
                   .filter((m) => m.id !== '9router' || settings?.nineRouter?.enabled !== false)
                   .map((m) => {
@@ -141,10 +174,7 @@ export default function Header() {
                     const isComingSoon = m.isComingSoon || m.badge === 'Coming Soon';
                     const isAuto = m.id === 'auto';
                     const modelName = isAuto ? '✨ Auto (Smart Router)' : m.name;
-                    const modelBadge = isAuto ? 'LiteLLM Dynamic' : (m.badge || (isComingSoon ? 'Coming Soon' : 'Ready'));
-                    const modelBadgeColor = isAuto
-                      ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-                      : (m.badgeColor || 'bg-zinc-800 text-zinc-300 border-zinc-700');
+                    const tags = getModelTags(m);
 
                     return (
                       <div
@@ -153,62 +183,57 @@ export default function Header() {
                           setSelectedModel(m.id);
                           setIsDropdownOpen(false);
                         }}
-                        className={`flex items-start justify-between p-2.5 rounded-xl cursor-pointer transition-all ${
+                        className={`flex items-start justify-between p-2.5 rounded-xl cursor-pointer transition-all duration-150 ${
                           isSelected
-                            ? 'bg-zinc-800/90 border border-emerald-500/50 text-white shadow-md'
+                            ? 'bg-[#181f30] border border-cyan-500/50 text-white shadow-md shadow-cyan-950/20'
                             : isAuto
-                            ? 'bg-emerald-950/20 hover:bg-emerald-950/40 border border-emerald-500/30 text-zinc-100'
+                            ? 'bg-gradient-to-r from-indigo-950/20 to-cyan-950/20 hover:from-indigo-950/40 hover:to-cyan-950/40 border border-cyan-500/20 text-slate-200'
                             : isComingSoon
-                            ? 'hover:bg-zinc-900/50 text-zinc-400 opacity-80'
-                            : 'hover:bg-zinc-800/60 text-zinc-300 hover:text-white'
+                            ? 'hover:bg-white/[0.02] text-slate-500 opacity-75'
+                            : 'hover:bg-white/[0.04] text-slate-300 hover:text-white border border-transparent hover:border-white/[0.05]'
                         }`}
                       >
-                        <div className="space-y-1 flex-1 pr-2">
+                        <div className="space-y-1.5 flex-1 pr-2">
                           <div className="flex items-center space-x-2">
-                            <span className={`font-semibold text-xs sm:text-sm ${isAuto ? 'text-emerald-400' : ''}`}>
+                            <span className={`font-semibold text-xs sm:text-sm ${isAuto ? 'text-cyan-300' : 'text-slate-100'}`}>
                               {modelName}
                             </span>
-                            <span
-                              className={`text-[9px] font-medium px-1.5 py-0.5 rounded border flex items-center gap-0.5 ${
-                                isComingSoon
-                                  ? 'bg-zinc-800 text-zinc-400 border-zinc-700'
-                                  : modelBadgeColor
-                              }`}
-                            >
-                              {isComingSoon && <Lock className="w-2.5 h-2.5" />}
-                              {modelBadge}
-                            </span>
+                            {isComingSoon && (
+                              <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-white/[0.05] text-slate-400 border border-white/[0.08] flex items-center gap-0.5">
+                                <Lock className="w-2.5 h-2.5" /> Coming Soon
+                              </span>
+                            )}
                           </div>
-                          <p className="text-[11px] text-zinc-400 line-clamp-1 leading-relaxed">{m.description}</p>
-                          <div className="flex items-center space-x-2 text-[10px] text-zinc-500 pt-0.5">
-                            <span className="flex items-center gap-1">
-                              <Zap className="w-3 h-3 text-amber-400" /> {m.speed}
+                          
+                          <p className="text-[11px] text-slate-400 line-clamp-1 leading-relaxed">
+                            {m.description}
+                          </p>
+
+                          {/* Stitch Pill Model Tags */}
+                          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                            <span className="text-[10px] font-mono text-slate-400 flex items-center gap-1 mr-1">
+                              <Zap className="w-3 h-3 text-amber-400" />
+                              {m.speed}
                             </span>
-                            <span>•</span>
-                            <span>{m.provider}</span>
-                            {m.supportsVision && (
-                              <>
-                                <span>•</span>
-                                <span className="flex items-center gap-0.5 text-blue-400">
-                                  <Eye className="w-3 h-3" /> Vision
-                                </span>
-                              </>
-                            )}
-                            {m.supportsReasoning && (
-                              <>
-                                <span>•</span>
-                                <span className="flex items-center gap-0.5 text-purple-400">
-                                  <Brain className="w-3 h-3" /> Reasoning
-                                </span>
-                              </>
-                            )}
+
+                            {tags.map((tag, idx) => (
+                              <span
+                                key={idx}
+                                className={`text-[9px] font-mono font-medium px-2 py-0.5 rounded-full border ${tag.color} flex items-center gap-1`}
+                              >
+                                {tag.icon === 'vision' && <Eye className="w-2.5 h-2.5" />}
+                                {tag.icon === 'reasoning' && <Brain className="w-2.5 h-2.5" />}
+                                {tag.icon === 'speed' && <Zap className="w-2.5 h-2.5" />}
+                                {tag.label}
+                              </span>
+                            ))}
                           </div>
                         </div>
 
                         {isSelected && (
                           <div className="shrink-0 pt-1">
-                            <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
-                              <Check className="w-3 h-3 stroke-[3]" />
+                            <div className="w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-300 flex items-center justify-center border border-cyan-500/40">
+                              <Check className="w-3 h-3 stroke-[2.5]" />
                             </div>
                           </div>
                         )}
@@ -223,7 +248,7 @@ export default function Header() {
         {/* AI Persona Selector Pill */}
         <button
           onClick={() => setIsPersonaOpen(true)}
-          className="hidden md:flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-zinc-900/60 hover:bg-zinc-800/80 border border-zinc-800 text-zinc-300 hover:text-white text-xs font-medium transition-all"
+          className="hidden md:flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-[#121622]/80 hover:bg-[#161c2b] border border-white/[0.08] hover:border-emerald-500/30 text-slate-300 hover:text-white text-xs font-medium transition-all"
           title="Switch AI Persona or Custom GPT"
         >
           <Bot className="w-3.5 h-3.5 text-emerald-400" />
@@ -231,104 +256,97 @@ export default function Header() {
         </button>
       </div>
 
-      {/* Right Action Bar */}
+      {/* Center/Right: Usage Meter, New Chat, Badges & Profile */}
       <div className="flex items-center space-x-1.5 sm:space-x-2">
-        {/* Live Generation Telemetry */}
-        {generationStats && isGenerating && (
-          <div className="hidden md:flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono animate-pulse">
-            <Zap className="w-3.5 h-3.5" />
-            <span>{generationStats.tps} t/s</span>
-          </div>
-        )}
+        {/* Live Model Usage Meter Trigger Pill */}
+        <ModelUsageMeterPill />
 
-        {/* Super Admin Console Button */}
-        {isSuperAdmin && (
-          <button
-            onClick={() => setIsAdminModalOpen(true)}
-            className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold shadow-sm transition-all hover:scale-105"
-            title="Open Super Admin Console"
-          >
-            <Crown className="w-3.5 h-3.5 fill-current text-amber-400" />
-            <span className="hidden sm:inline">Admin</span>
-          </button>
-        )}
+        {/* New Chat Button */}
+        <button
+          onClick={() => createNewChat()}
+          className="flex items-center space-x-1 px-2.5 py-1.5 rounded-full bg-[#121622]/80 hover:bg-[#161c2b] border border-white/[0.08] hover:border-white/[0.18] text-slate-300 hover:text-white text-xs font-medium transition-all"
+          title="New Chat (Ctrl+N)"
+        >
+          <Plus className="w-3.5 h-3.5 text-cyan-400" />
+          <span className="hidden sm:inline">New Chat</span>
+        </button>
 
         {/* MCP Tools Button */}
         <button
           onClick={() => setIsMcpOpen(true)}
-          className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold shadow-sm transition-all hover:scale-105"
+          className="hidden sm:flex items-center space-x-1.5 px-2.5 py-1.5 rounded-full bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/25 text-xs font-semibold transition-all hover:scale-105"
           title="Model Context Protocol (MCP) Tools Registry"
         >
           <Cpu className="w-3.5 h-3.5 text-amber-400" />
-          <span className="hidden sm:inline">MCP</span>
+          <span className="hidden md:inline">MCP</span>
         </button>
 
         {/* Autonomous Deep Research Button */}
         <button
           onClick={() => setIsDeepResearchOpen(true)}
-          className="hidden sm:flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-xs font-semibold shadow-sm transition-all hover:scale-105"
+          className="hidden md:flex items-center space-x-1.5 px-2.5 py-1.5 rounded-full bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/25 text-xs font-semibold transition-all hover:scale-105"
           title="Autonomous Deep Research Mode"
         >
           <Compass className="w-3.5 h-3.5 text-indigo-400" />
-          <span className="hidden md:inline">Research</span>
-        </button>
-
-        {/* New Chat Button (Mobile) */}
-        <button
-          onClick={() => createNewChat()}
-          className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 border border-transparent hover:border-zinc-700/50 transition-all sm:hidden"
-          title="New Chat"
-        >
-          <Plus className="w-4 h-4" />
+          <span>Research</span>
         </button>
 
         {/* Export Conversation Button */}
         <button
           onClick={() => setIsExportOpen(true)}
-          className="flex items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-zinc-300 hover:text-white hover:bg-zinc-800/80 text-xs font-medium border border-zinc-800 transition-all"
+          className="flex items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-slate-300 hover:text-white bg-[#121622]/80 hover:bg-[#161c2b] border border-white/[0.08] hover:border-white/[0.18] text-xs font-medium transition-all"
           title="Export conversation"
         >
-          <Share2 className="w-3.5 h-3.5" />
+          <Share2 className="w-3.5 h-3.5 text-slate-400" />
           <span className="hidden sm:inline">Export</span>
         </button>
 
-        {/* User Auth Section */}
+        {/* Settings Gear Button */}
+        <button
+          onClick={() => setIsSettingsOpen(true)}
+          className="p-2 rounded-full text-slate-400 hover:text-white bg-[#121622]/80 hover:bg-[#161c2b] border border-white/[0.08] hover:border-white/[0.18] transition-all"
+          title="Settings & API Keys"
+        >
+          <SettingsIcon className="w-4 h-4" />
+        </button>
+
+        {/* User Auth / Profile Menu */}
         {isAuthenticated ? (
           <div className="relative" ref={userMenuRef}>
             <button
               onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-              className="flex items-center space-x-2.5 p-1.5 pl-3 rounded-2xl bg-zinc-900/80 hover:bg-zinc-800/90 border border-zinc-800 hover:border-emerald-500/40 transition-all shadow-sm group"
+              className="flex items-center space-x-2 p-1 pl-2.5 rounded-full bg-[#121622]/90 hover:bg-[#161c2b] border border-white/[0.08] hover:border-cyan-500/40 transition-all duration-200 shadow-sm group"
               title="User Profile Card"
             >
               <div className="flex flex-col items-end mr-0.5 hidden md:flex">
-                <span className="text-xs font-semibold text-zinc-200 group-hover:text-white max-w-[110px] truncate">
+                <span className="text-xs font-semibold text-slate-200 group-hover:text-white max-w-[110px] truncate">
                   {user.name}
                 </span>
-                <span className="text-[9px] font-mono font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                <span className="text-[9px] font-mono font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1">
                   <ShieldCheck className="w-2.5 h-2.5" />
                   <span>SuperAdmin</span>
                 </span>
               </div>
-              <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 text-black font-extrabold text-xs flex items-center justify-center shadow-md ring-2 ring-emerald-500/30">
+              <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-violet-500 via-indigo-500 to-cyan-400 text-black font-extrabold text-xs flex items-center justify-center shadow-md ring-2 ring-cyan-500/30">
                 {user.name ? user.name[0].toUpperCase() : 'U'}
               </div>
             </button>
 
             {isUserMenuOpen && (
-              <div className="absolute right-0 mt-2 w-64 bg-[#121215]/95 backdrop-blur-2xl border border-zinc-800/90 rounded-2xl shadow-2xl p-2.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+              <div className="absolute right-0 mt-2 w-64 bg-[#121622]/98 backdrop-blur-2xl border border-white/[0.1] rounded-2xl shadow-2xl p-2.5 z-50 animate-in fade-in zoom-in-95 duration-150">
                 {/* User Profile Card Header */}
-                <div className="p-3 rounded-xl bg-gradient-to-br from-white/[0.04] to-transparent border border-white/5 space-y-1.5">
+                <div className="p-3 rounded-xl bg-gradient-to-br from-white/[0.04] to-transparent border border-white/[0.06] space-y-1.5">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 text-black font-extrabold text-sm flex items-center justify-center shadow-lg ring-2 ring-emerald-500/30">
+                    <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-violet-500 via-indigo-500 to-cyan-400 text-black font-extrabold text-sm flex items-center justify-center shadow-lg ring-2 ring-cyan-500/30">
                       {user.name ? user.name[0].toUpperCase() : 'U'}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="font-bold text-xs text-white truncate">{user.name}</div>
-                      <div className="text-[11px] text-zinc-400 truncate">{user.email}</div>
+                      <div className="text-[11px] text-slate-400 truncate">{user.email}</div>
                     </div>
                   </div>
                   <div className="flex items-center justify-between pt-1">
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold uppercase tracking-wider flex items-center gap-1">
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/25 font-bold uppercase tracking-wider flex items-center gap-1">
                       <Crown className="w-3 h-3 text-amber-400" />
                       <span>SuperAdmin (All Unlocked)</span>
                     </span>
@@ -341,9 +359,9 @@ export default function Header() {
                       setIsUserMenuOpen(false);
                       setIsSettingsOpen(true);
                     }}
-                    className="w-full flex items-center space-x-2.5 px-3 py-2 text-xs text-zinc-300 hover:text-white hover:bg-zinc-800 rounded-xl transition-colors"
+                    className="w-full flex items-center space-x-2.5 px-3 py-2 text-xs text-slate-300 hover:text-white hover:bg-white/[0.04] rounded-xl transition-colors"
                   >
-                    <SettingsIcon className="w-3.5 h-3.5 text-zinc-400" />
+                    <SettingsIcon className="w-3.5 h-3.5 text-slate-400" />
                     <span>Settings & API Keys</span>
                   </button>
 
@@ -352,7 +370,7 @@ export default function Header() {
                       setIsUserMenuOpen(false);
                       setIsMcpOpen(true);
                     }}
-                    className="w-full flex items-center space-x-2.5 px-3 py-2 text-xs text-zinc-300 hover:text-white hover:bg-zinc-800 rounded-xl transition-colors"
+                    className="w-full flex items-center space-x-2.5 px-3 py-2 text-xs text-slate-300 hover:text-white hover:bg-white/[0.04] rounded-xl transition-colors"
                   >
                     <Cpu className="w-3.5 h-3.5 text-amber-400" />
                     <span>MCP Tools Protocol</span>
@@ -374,7 +392,7 @@ export default function Header() {
                       setIsUserMenuOpen(false);
                       logout();
                     }}
-                    className="w-full flex items-center space-x-2.5 px-3 py-2 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-xl transition-colors mt-1 border-t border-zinc-800/80 pt-2"
+                    className="w-full flex items-center space-x-2.5 px-3 py-2 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-xl transition-colors mt-1 border-t border-white/[0.06] pt-2"
                   >
                     <LogOut className="w-3.5 h-3.5" />
                     <span>Sign Out</span>
@@ -386,10 +404,10 @@ export default function Header() {
         ) : (
           <button
             onClick={() => setIsAuthModalOpen(true)}
-            className="flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600/90 to-teal-600/90 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold border border-emerald-400/30 shadow-md shadow-emerald-950/40 transition-all hover:scale-105 active:scale-95"
+            className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-indigo-500/20 via-violet-500/20 to-cyan-500/20 hover:from-indigo-500/30 hover:via-violet-500/30 hover:to-cyan-500/30 text-white text-xs font-semibold border border-indigo-500/35 hover:border-cyan-400/50 shadow-sm transition-all hover:scale-105 active:scale-95"
           >
-            <LogIn className="w-3.5 h-3.5 text-white" />
-            <span>Sign In / Register</span>
+            <LogIn className="w-3.5 h-3.5 text-cyan-400" />
+            <span>Sign In</span>
           </button>
         )}
       </div>

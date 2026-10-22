@@ -808,8 +808,11 @@ export async function fetchWikipedia(query, maxResults = 5) {
 }
 
 /* =====================================================================
- * UNIFIED SEARCH WATERFALL (searchWeb)
+ * UNIFIED SEARCH WATERFALL (searchWeb) WITH IN-MEMORY TTL CACHE
  * ===================================================================== */
+
+const searchCache = new Map();
+const SEARCH_CACHE_TTL_MS = 8 * 60 * 1000; // 8 minutes TTL for real-time web grounding
 
 export async function searchWeb(query, maxResults = 5) {
   if (!query || typeof query !== 'string' || !query.trim()) {
@@ -826,6 +829,13 @@ export async function searchWeb(query, maxResults = 5) {
     if (parsedCount >= 1 && parsedCount <= 20) {
       limit = Math.max(limit, parsedCount);
     }
+  }
+
+  // Fast In-Memory TTL Cache Check
+  const cacheKey = `${cleanQuery.toLowerCase()}_${limit}`;
+  const cachedEntry = searchCache.get(cacheKey);
+  if (cachedEntry && (Date.now() - cachedEntry.timestamp < SEARCH_CACHE_TTL_MS)) {
+    return cachedEntry.results;
   }
 
   // 1. Live Crypto Provider (Binance Ticker API)
@@ -997,7 +1007,13 @@ export async function searchWeb(query, maxResults = 5) {
     }
   }
 
-  return accumulated.slice(0, limit);
+  const finalResults = accumulated.slice(0, limit);
+  searchCache.set(cacheKey, { timestamp: Date.now(), results: finalResults });
+  if (searchCache.size > 250) {
+    const oldestKey = searchCache.keys().next().value;
+    searchCache.delete(oldestKey);
+  }
+  return finalResults;
 }
 
 /* =====================================================================

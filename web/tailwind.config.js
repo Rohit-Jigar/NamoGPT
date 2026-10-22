@@ -8,6 +8,16 @@ export default {
   theme: {
     extend: {
       colors: {
+        stitch: {
+          canvas: '#0a0d14',
+          surface: '#121622',
+          surfaceElevated: '#171c2b',
+          border: 'rgba(255, 255, 255, 0.08)',
+          subtle: '#1b2234',
+          violet: '#818cf8',
+          cyan: '#38bdf8',
+          emerald: '#10b981'
+        },
         chatgpt: {
           main: '#212121',
           sidebar: '#171717',

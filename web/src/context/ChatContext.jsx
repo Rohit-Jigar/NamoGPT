@@ -7,7 +7,10 @@ import {
   fetchChatsAPI,
   saveChatAPI,
   deleteChatAPI,
-  renameChatAPI
+  renameChatAPI,
+  getUsageStatsAPI,
+  recordUsageAPI,
+  resetUsageAPI
 } from '../services/api';
 import { autoDetectMemory, getRelevantMemories, formatMemoryContext } from '../services/memory';
 import { getAllPersonas } from '../services/personas';
@@ -60,6 +63,12 @@ export function ChatProvider({ children }) {
   const [isMemoryOpen, setIsMemoryOpen] = useState(false);
   const [isPersonaOpen, setIsPersonaOpen] = useState(false);
   const [isMcpOpen, setIsMcpOpen] = useState(false);
+  const [isUsageMeterOpen, setIsUsageMeterOpen] = useState(false);
+  const [usageStats, setUsageStats] = useState(null);
+  const [sessionTokens, setSessionTokens] = useState({ promptTokens: 0, completionTokens: 0, totalTokens: 0 });
+
+  // Resilience & Negative Flow States (Rate Limiting 429, Failover, Context Limiting)
+  const [rateLimitInfo, setRateLimitInfo] = useState(null); // { active, resetSeconds, failoverModel, originalModel, message }
 
   // Active AI Persona / Custom GPT
   const [currentPersona, setCurrentPersona] = useState(() => {
@@ -181,6 +190,22 @@ export function ChatProvider({ children }) {
     });
   }, [settings.serverUrl]);
 
+  // Load and refresh usage telemetry statistics
+  const fetchUsageStats = async () => {
+    try {
+      const stats = await getUsageStatsAPI(token, settings.serverUrl);
+      if (stats) {
+        setUsageStats(stats);
+      }
+    } catch (err) {
+      console.warn('[ChatContext] Failed to load usage stats:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchUsageStats();
+  }, [token, settings.serverUrl]);
+
   // Select or create chat
   const currentChat = chats.find((c) => c.id === currentChatId) || null;
 
@@ -243,6 +268,59 @@ export function ChatProvider({ children }) {
   function pinChat(id) {
     setChats((prev) =>
       prev.map((c) => (c.id === id ? { ...c, isPinned: !c.isPinned } : c))
+    );
+  }
+
+  function forkChat(chatId, sourceMessageId) {
+    const targetChat = chats.find((c) => c.id === chatId) || currentChat;
+    if (!targetChat) return null;
+
+    const messages = Array.isArray(targetChat.messages) ? targetChat.messages : [];
+    let branchedMessages = [...messages];
+    if (sourceMessageId) {
+      const idx = messages.findIndex((m) => m.id === sourceMessageId);
+      if (idx !== -1) {
+        branchedMessages = messages.slice(0, idx + 1);
+      }
+    }
+
+    const newId = `chat-fork-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+    const newForkedChat = {
+      id: newId,
+      title: `${targetChat.title || 'Chat'} (Fork)`,
+      model: targetChat.model || selectedModel || 'auto',
+      messages: branchedMessages,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      isPinned: false
+    };
+
+    setChats((prev) => [newForkedChat, ...prev]);
+    setCurrentChatId(newId);
+
+    saveChatAPI(settings.serverUrl, token, newForkedChat).catch((err) =>
+      console.warn('Failed to save forked chat:', err.message)
+    );
+    return newId;
+  }
+
+  function rewindChat(chatId, targetMessageId) {
+    const targetChat = chats.find((c) => c.id === chatId) || currentChat;
+    if (!targetChat) return;
+
+    const messages = Array.isArray(targetChat.messages) ? targetChat.messages : [];
+    const idx = messages.findIndex((m) => m.id === targetMessageId);
+    if (idx === -1) return;
+
+    const rewoundMessages = messages.slice(0, idx + 1);
+    setChats((prev) =>
+      prev.map((c) =>
+        c.id === targetChat.id ? { ...c, messages: rewoundMessages, updatedAt: Date.now() } : c
+      )
+    );
+
+    saveChatAPI(settings.serverUrl, token, { ...targetChat, messages: rewoundMessages }).catch((err) =>
+      console.warn('Failed to sync rewound chat:', err.message)
     );
   }
 
@@ -488,6 +566,13 @@ export function ChatProvider({ children }) {
         .replace(/\b(as an AI trained by Google)\b/gi, 'as NamoGPT');
     }
 
+    // Calculate prompt tokens for telemetry & usage stats
+    const promptCharCount = (effectiveSystemPrompt?.length || 0) + outgoingMessages.reduce((acc, m) => {
+      const contentStr = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
+      return acc + (contentStr?.length || 0);
+    }, 0);
+    const promptTokens = Math.max(1, Math.ceil(promptCharCount / 3.8));
+
     try {
       await streamChatCompletion({
         messages: outgoingMessages,
@@ -500,9 +585,17 @@ export function ChatProvider({ children }) {
         signal: controller.signal,
         onChunk: (delta, fullText) => {
           tokenCount++;
-          const elapsedSec = (performance.now() - startTime) / 1000;
-          const tps = elapsedSec > 0 ? (tokenCount / elapsedSec).toFixed(1) : 0;
-          setGenerationStats({ tps, elapsed: elapsedSec.toFixed(1) });
+          const elapsedSec = Math.max(0.01, (performance.now() - startTime) / 1000);
+          const completionTokens = Math.max(tokenCount, Math.ceil(fullText.length / 3.8));
+          const totalTokens = promptTokens + completionTokens;
+          const tps = Number((completionTokens / elapsedSec).toFixed(1));
+          setGenerationStats({
+            tps,
+            elapsed: elapsedSec.toFixed(1),
+            promptTokens,
+            completionTokens,
+            totalTokens
+          });
 
           const cleanedText = sanitizeClientText(fullText);
 
@@ -522,6 +615,45 @@ export function ChatProvider({ children }) {
           setIsGenerating(false);
           setIsSearchingWeb(false);
           abortControllerRef.current = null;
+
+          const elapsedSec = Math.max(0.05, (performance.now() - startTime) / 1000);
+          const completionTokens = Math.max(tokenCount, Math.ceil(fullText.length / 3.8));
+          const totalTokens = promptTokens + completionTokens;
+          const tps = Number((completionTokens / elapsedSec).toFixed(1));
+
+          setGenerationStats({
+            tps,
+            elapsed: elapsedSec.toFixed(1),
+            promptTokens,
+            completionTokens,
+            totalTokens
+          });
+
+          // Track cumulative session tokens
+          setSessionTokens((prev) => ({
+            promptTokens: prev.promptTokens + promptTokens,
+            completionTokens: prev.completionTokens + completionTokens,
+            totalTokens: prev.totalTokens + totalTokens
+          }));
+
+          // Record usage telemetry to backend and reload usage stats
+          recordUsageAPI(token, {
+            model: effectiveModel,
+            promptTokens,
+            completionTokens,
+            totalTokens,
+            elapsedSec: Number(elapsedSec.toFixed(2)),
+            tps
+          }, settings.serverUrl)
+            .then((newStats) => {
+              if (newStats) setUsageStats(newStats);
+            })
+            .catch((err) => {
+              console.warn('[ChatContext] Failed to record usage stats:', err);
+            })
+            .finally(() => {
+              fetchUsageStats();
+            });
 
           const cleanedText = sanitizeClientText(fullText);
 
@@ -553,13 +685,47 @@ export function ChatProvider({ children }) {
           abortControllerRef.current = null;
 
           let friendlyError = err.message || 'Server connection failed.';
-          if (
+
+          // Check for Rate Limit (HTTP 429) or Upstream Provider Quota Saturation
+          const isRateLimit =
+            err?.status === 429 ||
+            friendlyError.includes('429') ||
+            /rate limit|quota exceeded|tpm|rpm|too many requests/i.test(friendlyError);
+
+          if (isRateLimit) {
+            setRateLimitInfo({
+              active: true,
+              resetSeconds: 35,
+              failoverModel: 'Groq Llama 3.3',
+              originalModel: effectiveModel,
+              message: friendlyError
+            });
+            friendlyError = 'Upstream provider rate limit reached (HTTP 429). Continuous zero-downtime failover to Groq Llama 3.3 is available.';
+          } else if (
             friendlyError.includes('Upstream returned') ||
             friendlyError.includes('no healthy upstreams') ||
             friendlyError.includes('400') ||
             friendlyError.includes('401')
           ) {
             friendlyError = 'The upstream model provider returned an error (rate limit reached or unverified API key).\n\n💡 **Tip:** Switch to **✨ Auto (Smart Router)** for automatic failover, or enter your personal API key in **⚙️ Settings**.';
+          }
+
+          // Check for Gateway Timeout (HTTP 504)
+          const isTimeout =
+            err?.status === 504 ||
+            friendlyError.includes('504') ||
+            /gateway timeout|timed out|request timeout/i.test(friendlyError);
+
+          if (isTimeout) {
+            window.dispatchEvent(
+              new CustomEvent('namogpt:timeout', {
+                detail: {
+                  chatId,
+                  assistantPlaceholderId,
+                  message: friendlyError
+                }
+              })
+            );
           }
 
           setChats((prev) =>
@@ -616,6 +782,61 @@ export function ChatProvider({ children }) {
     await sendMessage(newContent);
   }
 
+  function dismissRateLimit() {
+    setRateLimitInfo(null);
+  }
+
+  async function summarizeChatContext(chatId) {
+    const targetChat = chats.find((c) => c.id === chatId);
+    if (!targetChat || !targetChat.messages || targetChat.messages.length < 3) return 0;
+
+    const charsBefore = targetChat.messages.reduce(
+      (sum, m) => sum + (typeof m.content === 'string' ? m.content.length : 0),
+      0
+    );
+    const tokensBefore = Math.round(charsBefore / 4);
+
+    const recentMessages = targetChat.messages.slice(-2);
+    const olderMessages = targetChat.messages.slice(0, -2);
+
+    const keyPoints = [];
+    olderMessages.forEach((m) => {
+      if (m.role === 'user' && typeof m.content === 'string') {
+        keyPoints.push(`• User: "${m.content.slice(0, 100)}${m.content.length > 100 ? '...' : ''}"`);
+      } else if (m.role === 'assistant' && typeof m.content === 'string') {
+        const firstLine = m.content.replace(/<think>[\s\S]*?<\/think>/g, '').trim().split('\n')[0].slice(0, 120);
+        keyPoints.push(`• NamoGPT: "${firstLine}..."`);
+      }
+    });
+
+    const summaryMessage = {
+      id: `summary-${Date.now()}`,
+      role: 'system',
+      content: `[NamoGPT Compressed Context Summary]: Earlier conversation turns were compressed to free model context window capacity:\n${keyPoints.join('\n')}\nUse these key facts for continuous topic continuity.`,
+      createdAt: Date.now(),
+      isSummary: true
+    };
+
+    const updatedMessages = [summaryMessage, ...recentMessages];
+    const charsAfter = updatedMessages.reduce(
+      (sum, m) => sum + (typeof m.content === 'string' ? m.content.length : 0),
+      0
+    );
+    const tokensAfter = Math.round(charsAfter / 4);
+    const freedTokens = Math.max(0, tokensBefore - tokensAfter);
+
+    setChats((prev) =>
+      prev.map((c) => (c.id === chatId ? { ...c, messages: updatedMessages, updatedAt: Date.now() } : c))
+    );
+
+    const updatedChat = { ...targetChat, messages: updatedMessages, updatedAt: Date.now() };
+    saveChatAPI(settings.serverUrl, token, updatedChat).catch((err) =>
+      console.warn('[ChatContext] Failed to persist summarized chat to backend:', err.message)
+    );
+
+    return freedTokens;
+  }
+
   function updateSettings(partial) {
     setSettings((prev) => ({
       ...prev,
@@ -665,11 +886,19 @@ export function ChatProvider({ children }) {
         setIsPersonaOpen,
         isMcpOpen,
         setIsMcpOpen,
+        isUsageMeterOpen,
+        setIsUsageMeterOpen,
+        usageStats,
+        setUsageStats,
+        fetchUsageStats,
+        sessionTokens,
         currentPersona,
         setCurrentPersona,
         settings,
         updateSettings,
         createNewChat,
+        forkChat,
+        rewindChat,
         selectChat,
         deleteChat,
         renameChat,
@@ -678,7 +907,11 @@ export function ChatProvider({ children }) {
         sendMessage,
         stopGeneration,
         regenerateMessage,
-        editAndResend
+        editAndResend,
+        rateLimitInfo,
+        setRateLimitInfo,
+        dismissRateLimit,
+        summarizeChatContext
       }}
     >
       {children}

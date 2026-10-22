@@ -1,6 +1,12 @@
 import React, { useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ChatProvider, useChat } from './context/ChatContext';
+import { ToastProvider } from './context/ToastContext';
+import ErrorBoundary from './components/common/ErrorBoundary';
+import NetworkOfflineBanner from './components/common/NetworkOfflineBanner';
+import RateLimitNotice from './components/common/RateLimitNotice';
+import ContextLimitWarning from './components/common/ContextLimitWarning';
+import ToastContainer from './components/common/ToastContainer';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import ChatArea from './components/ChatArea';
@@ -13,6 +19,7 @@ import DeepResearchModal from './components/DeepResearchModal';
 import MemoryModal from './components/MemoryModal';
 import PersonaSelectorModal from './components/PersonaSelectorModal';
 import McpModal from './components/McpModal';
+import ModelUsageMeter from './components/ModelUsageMeter';
 import { Sparkles, ArrowRight } from 'lucide-react';
 
 function MainApp() {
@@ -26,7 +33,9 @@ function MainApp() {
     isPersonaOpen,
     setIsPersonaOpen,
     isMcpOpen,
-    setIsMcpOpen
+    setIsMcpOpen,
+    isUsageMeterOpen,
+    setIsUsageMeterOpen
   } = useChat();
 
   const {
@@ -51,7 +60,8 @@ function MainApp() {
   }, [createNewChat, setIsSettingsOpen]);
 
   return (
-    <div className="flex h-[100dvh] min-h-[100dvh] w-screen overflow-hidden bg-[#09090b]">
+    <div className="flex h-[100dvh] min-h-[100dvh] w-screen overflow-hidden bg-[#0a0d14] relative">
+      <NetworkOfflineBanner />
       <Sidebar />
       <main className="flex-1 flex flex-col min-w-0 h-full relative">
         {/* Unauthenticated Top Notice Bar */}
@@ -79,6 +89,8 @@ function MainApp() {
 
         <Header />
         <ChatArea />
+        <RateLimitNotice />
+        <ContextLimitWarning />
         <ChatInput />
       </main>
       <SettingsModal />
@@ -101,16 +113,25 @@ function MainApp() {
         isOpen={isMcpOpen}
         onClose={() => setIsMcpOpen(false)}
       />
+      <ModelUsageMeter
+        isOpen={isUsageMeterOpen}
+        onClose={() => setIsUsageMeterOpen(false)}
+      />
+      <ToastContainer />
     </div>
   );
 }
 
 export default function App() {
   return (
-    <AuthProvider>
-      <ChatProvider>
-        <MainApp />
-      </ChatProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <ToastProvider>
+          <ChatProvider>
+            <MainApp />
+          </ChatProvider>
+        </ToastProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }

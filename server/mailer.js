@@ -5,78 +5,220 @@ let transporter = null;
 let transporterInitPromise = null;
 let isEthereal = false;
 let isLocalLogger = false;
+let activeProviderMode = 'uninitialized';
 
 /**
- * Initialize or get active Nodemailer Transporter
+ * Clean and normalize environment variables (stripping quotes, whitespace, newlines)
+ */
+function cleanEnv(val, defaultVal = '') {
+  if (!val) return defaultVal;
+  return String(val).trim().replace(/^["']|["']$/g, '').trim();
+}
+
+/**
+ * Dispatch email via Resend HTTPS API (Works 100% on Vercel / serverless where TCP SMTP ports are blocked)
+ */
+async function sendViaResend({ apiKey, from, to, subject, html, text }) {
+  const endpoint = 'https://api.resend.com/emails';
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      from,
+      to: Array.isArray(to) ? to : [to],
+      subject,
+      html,
+      text
+    })
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(`Resend API Error (${response.status}): ${data.message || JSON.stringify(data)}`);
+  }
+  return { messageId: data.id || `resend-${Date.now()}` };
+}
+
+/**
+ * Dispatch email via Brevo / Sendinblue HTTPS API (Port-443 fallback)
+ */
+async function sendViaBrevo({ apiKey, from, to, subject, html, text }) {
+  const endpoint = 'https://api.brevo.com/v3/smtp/email';
+  const fromEmail = from.includes('<') ? from.match(/<([^>]+)>/)?.[1] || from : from;
+  const fromName = from.includes('<') ? from.split('<')[0].trim() : 'NamoGPT';
+  const toEmail = Array.isArray(to) ? to[0] : to;
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'api-key': apiKey,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    },
+    body: JSON.stringify({
+      sender: { name: fromName, email: fromEmail },
+      to: [{ email: toEmail }],
+      subject,
+      htmlContent: html,
+      textContent: text
+    })
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(`Brevo API Error (${response.status}): ${data.message || JSON.stringify(data)}`);
+  }
+  return { messageId: data.messageId || `brevo-${Date.now()}` };
+}
+
+/**
+ * Create a robust, hardened SMTP transporter with IPv4 preference, SSL/TLS timeouts, and auto-failover
+ */
+function createHardenedTransport({ host, port, secure, user, pass }) {
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure,
+    auth: { user, pass },
+    // CRITICAL FOR PRODUCTION: Force IPv4 so cloud hosts (Render, Railway, Fly, Vercel)
+    // never get stuck on dead IPv6 routing tables to Google/SMTP servers
+    family: 4,
+    connectionTimeout: 8000,
+    greetingTimeout: 8000,
+    socketTimeout: 10000,
+    tls: {
+      rejectUnauthorized: false,
+      minVersion: 'TLSv1.2'
+    }
+  });
+}
+
+/**
+ * Initialize or get active Nodemailer Transporter with production failover
  */
 export async function getTransporter() {
   if (transporter) return transporter;
   if (transporterInitPromise) return transporterInitPromise;
 
   transporterInitPromise = (async () => {
-    // 1. Check for custom SMTP or Gmail App Password
-    const gmailUser = (
-      process.env.GMAIL_USER ||
-      process.env.SMTP_USERNAME ||
-      process.env.SMTP_USER ||
-      'rohitjigarmaheshbhai@gmail.com'
-    ).trim().replace(/^["']|["']$/g, '');
-
-    const rawGmailPass = (
+    const rawGmailPass = cleanEnv(
       process.env.GMAIL_APP_PASSWORD ||
       process.env.SMTP_PASSWORD ||
       process.env.GMAIL_PASSWORD ||
-      process.env.SMTP_PASS ||
-      ''
-    ).trim().replace(/^["']|["']$/g, '');
-
+      process.env.SMTP_PASS
+    );
     const cleanGmailPass = rawGmailPass.replace(/\s+/g, '');
 
-    const smtpUser = (process.env.SMTP_USERNAME || process.env.SMTP_USER || process.env.GMAIL_USER || '').trim().replace(/^["']|["']$/g, '');
-    const smtpPass = (process.env.SMTP_PASSWORD || process.env.SMTP_PASS || cleanGmailPass).trim().replace(/^["']|["']$/g, '');
-    const smtpHost = process.env.SMTP_HOST;
-    const smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
-    const smtpService = process.env.SMTP_SERVICE;
+    const gmailUser = cleanEnv(
+      process.env.GMAIL_USER ||
+      process.env.SMTP_USERNAME ||
+      process.env.SMTP_USER,
+      'namogpt13@gmail.com'
+    );
 
+    const smtpHost = cleanEnv(process.env.SMTP_HOST);
+    const smtpPort = parseInt(cleanEnv(process.env.SMTP_PORT, '465'), 10);
+    const smtpSecure = cleanEnv(process.env.SMTP_SECURE, smtpPort === 465 ? 'true' : 'false') === 'true';
+    const resendApiKey = cleanEnv(process.env.RESEND_API_KEY);
+    const brevoApiKey = cleanEnv(process.env.BREVO_API_KEY);
+
+    // 1. Resend HTTPS API (Top recommendation for Serverless / Vercel cloud environments)
+    if (resendApiKey) {
+      console.log('[Mailer] ⚡ Initializing Resend HTTPS Mailer (Zero-port cloud delivery)');
+      activeProviderMode = 'resend';
+      transporter = {
+        sendMail: async (options) => {
+          return await sendViaResend({
+            apiKey: resendApiKey,
+            from: options.from,
+            to: options.to,
+            subject: options.subject,
+            html: options.html,
+            text: options.text
+          });
+        },
+        verify: async () => true
+      };
+      return transporter;
+    }
+
+    // 2. Brevo HTTPS API
+    if (brevoApiKey) {
+      console.log('[Mailer] ⚡ Initializing Brevo HTTPS Mailer (Zero-port cloud delivery)');
+      activeProviderMode = 'brevo';
+      transporter = {
+        sendMail: async (options) => {
+          return await sendViaBrevo({
+            apiKey: brevoApiKey,
+            from: options.from,
+            to: options.to,
+            subject: options.subject,
+            html: options.html,
+            text: options.text
+          });
+        },
+        verify: async () => true
+      };
+      return transporter;
+    }
+
+    // 3. Gmail App Password or Custom SMTP with Multi-Port Auto-Failover
     if (cleanGmailPass) {
-      console.log(`[Mailer] 📬 Initializing Gmail SMTP transporter for: ${gmailUser}`);
-      transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-          user: gmailUser,
-          pass: cleanGmailPass
-        }
-      });
-      return transporter;
-    }
+      const targetHost = smtpHost || 'smtp.gmail.com';
+      console.log(`[Mailer] 📬 Configuring hardened production SMTP for ${gmailUser} via ${targetHost}`);
 
-    if (smtpHost && smtpUser && smtpPass) {
-      console.log(`[Mailer] 📬 Initializing Custom SMTP transporter (${smtpHost}:${smtpPort}) for: ${smtpUser}`);
-      transporter = nodemailer.createTransport({
-        host: smtpHost,
+      // Strategy A: Port 465 (SSL Direct)
+      const primaryTransport = createHardenedTransport({
+        host: targetHost,
         port: smtpPort,
-        secure: process.env.SMTP_SECURE === 'true' || smtpPort === 465,
-        auth: {
-          user: smtpUser,
-          pass: smtpPass
-        }
+        secure: smtpSecure,
+        user: gmailUser,
+        pass: cleanGmailPass
       });
+
+      // Strategy B: Fallback Port (If 465 fails try 587 STARTTLS, and vice versa)
+      const fallbackPort = smtpPort === 465 ? 587 : 465;
+      const fallbackTransport = createHardenedTransport({
+        host: targetHost,
+        port: fallbackPort,
+        secure: fallbackPort === 465,
+        user: gmailUser,
+        pass: cleanGmailPass
+      });
+
+      activeProviderMode = `smtp-${targetHost}:${smtpPort}`;
+
+      // Wrap in resilient dual-port router that handles cloud host port-blocking
+      transporter = {
+        sendMail: async (mailOptions) => {
+          try {
+            return await primaryTransport.sendMail(mailOptions);
+          } catch (primaryErr) {
+            console.warn(`[Mailer Failover] Primary port ${smtpPort} failed (${primaryErr.message}). Attempting fallback port ${fallbackPort}...`);
+            try {
+              return await fallbackTransport.sendMail(mailOptions);
+            } catch (fallbackErr) {
+              console.error(`[Mailer Failover] Both port ${smtpPort} and fallback port ${fallbackPort} failed: ${fallbackErr.message}`);
+              throw fallbackErr;
+            }
+          }
+        },
+        verify: async () => {
+          try {
+            return await primaryTransport.verify();
+          } catch {
+            return await fallbackTransport.verify();
+          }
+        }
+      };
+
       return transporter;
     }
 
-    if (smtpService && smtpUser && smtpPass) {
-      console.log(`[Mailer] 📬 Initializing ${smtpService} service transporter for: ${smtpUser}`);
-      transporter = nodemailer.createTransport({
-        service: smtpService,
-        auth: {
-          user: smtpUser,
-          pass: smtpPass
-        }
-      });
-      return transporter;
-    }
-
-    // 2. If no SMTP configured, attempt Ethereal test account with 3s timeout
+    // 4. Ethereal sandbox test account with 3s timeout
     try {
       console.log('[Mailer] 🧪 No SMTP configured. Creating Ethereal sandbox test account...');
       const testAccountPromise = nodemailer.createTestAccount();
@@ -92,17 +234,20 @@ export async function getTransporter() {
         auth: {
           user: testAccount.user,
           pass: testAccount.pass
-        }
+        },
+        family: 4
       });
       isEthereal = true;
+      activeProviderMode = 'ethereal';
       console.log(`[Mailer] ✉️ Ethereal sandbox active (${testAccount.user}). Emails will produce preview URLs.`);
       return transporter;
     } catch (etherealErr) {
       console.warn(`[Mailer] ℹ️ Ethereal sandbox unavailable (${etherealErr.message}). Engaging resilient local email logger.`);
     }
 
-    // 3. Resilient fallback: JSON/Console logger transport (NEVER crashes)
+    // 5. Resilient fallback: JSON/Console logger transport (NEVER crashes)
     isLocalLogger = true;
+    activeProviderMode = 'local-logger';
     transporter = nodemailer.createTransport({
       jsonTransport: true
     });
@@ -111,6 +256,30 @@ export async function getTransporter() {
   })();
 
   return transporterInitPromise;
+}
+
+/**
+ * Diagnostic helper: verify mailer connection status
+ */
+export async function verifyMailer() {
+  const startTime = Date.now();
+  try {
+    const client = await getTransporter();
+    const verified = await client.verify();
+    return {
+      success: true,
+      mode: activeProviderMode,
+      verified: Boolean(verified),
+      latencyMs: Date.now() - startTime
+    };
+  } catch (err) {
+    return {
+      success: false,
+      mode: activeProviderMode,
+      error: err.message,
+      latencyMs: Date.now() - startTime
+    };
+  }
 }
 
 /**

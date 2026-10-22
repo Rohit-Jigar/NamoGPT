@@ -5,6 +5,19 @@ export default defineConfig({
   base: './',
   envDir: '../',
   plugins: [react()],
+  build: {
+    chunkSizeWarningLimit: 800,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-markdown': ['react-markdown', 'remark-gfm', 'remark-math', 'rehype-katex'],
+          'vendor-katex': ['katex'],
+          'vendor-icons': ['lucide-react']
+        }
+      }
+    }
+  },
   server: {
     port: 5173,
     proxy: {
