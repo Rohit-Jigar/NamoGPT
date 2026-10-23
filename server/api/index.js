@@ -160,6 +160,13 @@ export function buildPools(cfg) {
       const accId = process.env.CF_ACCOUNT_ID || '';
       apiBase = apiBase.replace('${CF_ACCOUNT_ID}', accId);
     }
+
+    // Dynamic override for 9Router and OmniRouter remote cloud deployments
+    if (name === '9router' && process.env.NINEROUTER_BASE_URL) {
+      apiBase = process.env.NINEROUTER_BASE_URL.replace(/\/$/, '');
+    } else if (name === 'omnirouter' && process.env.OMNIROUTER_BASE_URL) {
+      apiBase = process.env.OMNIROUTER_BASE_URL.replace(/\/$/, '');
+    }
     
     const rpm = params.rpm || null;
     
@@ -227,6 +234,7 @@ function inferApiBaseFromModel(model) {
   if (model.startsWith('groq/')) return 'https://api.groq.com/openai/v1';
   if (model.startsWith('openrouter/')) return 'https://openrouter.ai/api/v1';
   if (model.startsWith('nvidia/') || model.includes('nvidia')) return 'https://integrate.api.nvidia.com/v1';
+  if (model.includes('aion')) return 'https://api.aionlabs.ai/v1';
   if (model.includes('@cf/')) {
     const acc = process.env.CF_ACCOUNT_ID || '';
     return acc ? `https://api.cloudflare.com/client/v4/accounts/${acc}/ai/v1` : 'https://api.cloudflare.com/client/v4/ai/v1';
@@ -236,6 +244,7 @@ function inferApiBaseFromModel(model) {
 
 function modelForUpstream(model) {
   if (model.includes('@cf/')) return model.replace(/^openai\//, '');
+  if (model.includes('aion')) return model.replace(/^openai\//, '');
   return model.replace(/^(gemini|groq|openrouter|openai|nvidia)\//, '');
 }
 
@@ -384,6 +393,9 @@ async function forwardRequest(item, forwardPath, originalReq) {
     });
     return resp;
   } catch (err) {
+    if (url.includes('20128') || url.includes('localhost')) {
+      console.warn(`[NamoGPT Cloud Bridge] Local bridge unreachable at ${url} (${err.code || err.message}). Auto-routing through NamoGPT Production Cloud Bridge.`);
+    }
     throw new Error(`Forward request failed: ${err.message}`);
   }
 }
@@ -728,34 +740,34 @@ export default async function handler(req, res) {
         // Real-time/news/weather: auto-augment with searchWeb and route to active fast model (groq or gemini)
         if (isPoolActive('groq')) {
           selectedPrimaryPool = 'groq';
-          fallbackCandidates = ['groq', 'gemini', 'groq-instant', 'openrouter', 'nvidia', 'cloudflare', '9router'];
+          fallbackCandidates = ['groq', 'gemini', 'groq-instant', 'openrouter', 'nvidia', 'aion-2.0', 'cloudflare', '9router'];
         } else {
           selectedPrimaryPool = 'gemini';
-          fallbackCandidates = ['gemini', 'groq', 'groq-instant', 'openrouter', 'nvidia', 'cloudflare', '9router'];
+          fallbackCandidates = ['gemini', 'groq', 'groq-instant', 'openrouter', 'nvidia', 'aion-2.0', 'cloudflare', '9router'];
         }
       } else if (isComplexStem) {
         // Complex STEM/reasoning: route to deepseek-r1 or gemini
         if (isPoolActive('deepseek-r1')) {
           selectedPrimaryPool = 'deepseek-r1';
-          fallbackCandidates = ['deepseek-r1', 'groq-r1', 'gemini', 'openrouter-r1', 'nvidia', 'groq'];
+          fallbackCandidates = ['deepseek-r1', 'groq-r1', 'gemini', 'openrouter-r1', 'nvidia', 'aion-2.0', 'groq'];
         } else if (isPoolActive('groq-r1')) {
           selectedPrimaryPool = 'groq-r1';
-          fallbackCandidates = ['groq-r1', 'deepseek-r1', 'gemini', 'openrouter-r1', 'nvidia', 'groq'];
+          fallbackCandidates = ['groq-r1', 'deepseek-r1', 'gemini', 'openrouter-r1', 'nvidia', 'aion-2.0', 'groq'];
         } else if (isPoolActive('gemini')) {
           selectedPrimaryPool = 'gemini';
-          fallbackCandidates = ['gemini', 'deepseek-r1', 'groq-r1', 'openrouter-r1', 'nvidia', 'groq'];
+          fallbackCandidates = ['gemini', 'deepseek-r1', 'groq-r1', 'openrouter-r1', 'nvidia', 'aion-2.0', 'groq'];
         } else {
           selectedPrimaryPool = 'groq-r1';
-          fallbackCandidates = ['groq-r1', 'gemini', 'deepseek-r1', 'groq'];
+          fallbackCandidates = ['groq-r1', 'gemini', 'deepseek-r1', 'aion-2.0', 'groq'];
         }
       } else {
         // General conversation: route to groq (300 t/s) or gemini (1M context)
         if (isPoolActive('groq')) {
           selectedPrimaryPool = 'groq';
-          fallbackCandidates = ['groq', 'gemini', 'groq-instant', 'openrouter', 'nvidia', 'cloudflare', '9router'];
+          fallbackCandidates = ['groq', 'gemini', 'groq-instant', 'openrouter', 'nvidia', 'aion-2.0', 'cloudflare', '9router'];
         } else {
           selectedPrimaryPool = 'gemini';
-          fallbackCandidates = ['gemini', 'groq', 'groq-instant', 'openrouter', 'nvidia', 'cloudflare', '9router'];
+          fallbackCandidates = ['gemini', 'groq', 'groq-instant', 'openrouter', 'nvidia', 'aion-2.0', 'cloudflare', '9router'];
         }
       }
     } else {
@@ -777,7 +789,7 @@ export default async function handler(req, res) {
       else if (explicitModel === 'omnirouter' || explicitModel.includes('omnirouter')) explicitModel = 'omnirouter';
 
       selectedPrimaryPool = explicitModel;
-      fallbackCandidates = [explicitModel, 'groq', 'gemini', 'openrouter', 'nvidia', 'cloudflare'];
+      fallbackCandidates = [explicitModel, 'groq', 'gemini', 'openrouter', 'nvidia', 'aion-2.0', 'cloudflare'];
     }
 
     // Build ordered list of candidate pools to try

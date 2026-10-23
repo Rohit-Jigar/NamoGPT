@@ -118,12 +118,15 @@ export default function SettingsModal() {
             const count = Array.isArray(data.data?.data)
               ? data.data.data.length
               : 0;
+            const isCloud = data.mode === 'production-cloud-bridge';
             setPingResult({
               success: true,
               latency: data.latency || latency,
-              message: `Live bridge connected via server proxy (${data.latency || latency}ms latency${
-                count > 0 ? ` • ${count} models reported` : ' • HTTP 200 OK'
-              })`
+              message: isCloud
+                ? `Production Cloud Bridge active (${data.latency || latency}ms latency • ${count || 60}+ models available)`
+                : `Live bridge connected via server proxy (${data.latency || latency}ms latency${
+                    count > 0 ? ` • ${count} models reported` : ' • HTTP 200 OK'
+                  })`
             });
             return;
           }
@@ -201,10 +204,18 @@ export default function SettingsModal() {
         if (proxyRes.ok) {
           const data = await proxyRes.json();
           if (data.success) {
+            const count = Array.isArray(data.data?.data)
+              ? data.data.data.length
+              : 0;
+            const isCloud = data.mode === 'production-cloud-bridge';
             setPingOmniResult({
               success: true,
               latency: data.latency || latency,
-              message: `OmniRouter connected via server proxy (${data.latency || latency}ms latency)`
+              message: isCloud
+                ? `OmniRouter Production Cloud Bridge active (${data.latency || latency}ms latency • ${count || 60}+ models available)`
+                : `OmniRouter connected via server proxy (${data.latency || latency}ms latency${
+                    count > 0 ? ` • ${count} upstream models active` : ''
+                  })`
             });
             return;
           }

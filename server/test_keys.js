@@ -20,7 +20,7 @@ async function testGroq(key, index) {
         'Authorization': `Bearer ${key}`
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: 'openai/gpt-oss-120b',
         messages: [{ role: 'user', content: 'Say "OK"' }],
         max_tokens: 5
       })
@@ -68,7 +68,7 @@ async function testOpenRouter(key) {
         'Authorization': `Bearer ${key}`
       },
       body: JSON.stringify({
-        model: 'nvidia/nemotron-3-nano-30b-a3b:free',
+        model: 'qwen/qwen3.8-27b:free',
         messages: [{ role: 'user', content: 'Say "OK"' }],
         max_tokens: 5
       })
@@ -102,6 +102,38 @@ async function testNvidia(key) {
       return { status: 'WORKING', detail: data.choices?.[0]?.message?.content?.trim() };
     }
     return { status: 'FAILED', code: res.status, error: data.error?.message || 'HTTP ' + res.status };
+  } catch (err) {
+    return { status: 'ERROR', error: err.message };
+  }
+}
+
+async function testAion(key) {
+  try {
+    const res = await fetch('https://api.aionlabs.ai/v1/models', {
+      headers: { 'Authorization': `Bearer ${key}` }
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) {
+      const count = Array.isArray(data?.data) ? data.data.length : 1;
+      return { status: 'WORKING', detail: `${count} model(s) verified (aion-labs/aion-2.0)` };
+    }
+    return { status: 'FAILED', code: res.status, error: data.error?.message || 'HTTP ' + res.status };
+  } catch (err) {
+    return { status: 'ERROR', error: err.message };
+  }
+}
+
+async function testTavily(key) {
+  try {
+    const res = await fetch('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ api_key: key, query: 'ping' })
+    });
+    if (res.ok) {
+      return { status: 'WORKING', detail: 'Tavily Search Engine operational' };
+    }
+    return { status: 'FAILED', code: res.status, error: 'HTTP ' + res.status };
   } catch (err) {
     return { status: 'ERROR', error: err.message };
   }
@@ -154,12 +186,33 @@ async function runDiagnosis() {
     console.log('  Key 1: NOT CONFIGURED');
   }
 
-  // AION & Cloudflare
+  // AION Labs
   console.log('\n[AION LABS]');
-  console.log('  Keys 1-8: NOT CONFIGURED (Empty in .env)');
+  let aionFound = false;
+  for (let i = 1; i <= 8; i++) {
+    const key = process.env[`AION_API_KEY_${i}`];
+    if (key) {
+      aionFound = true;
+      const res = await testAion(key);
+      console.log(`  Key ${i} (${key.slice(0, 8)}...): ${res.status}`, res.status === 'WORKING' ? `-> "${res.detail}"` : `-> [${res.code}] ${res.error}`);
+    }
+  }
+  if (!aionFound) {
+    console.log('  Keys 1-8: NOT CONFIGURED');
+  }
+
+  // Tavily Real-Time Search
+  console.log('\n[TAVILY SEARCH]');
+  const tavilyKey = process.env.TAVILY_API_KEY;
+  if (tavilyKey) {
+    const res = await testTavily(tavilyKey);
+    console.log(`  Key (${tavilyKey.slice(0, 8)}...): ${res.status}`, res.status === 'WORKING' ? `-> "${res.detail}"` : `-> [${res.code}] ${res.error}`);
+  } else {
+    console.log('  Tavily Key: NOT CONFIGURED (Using DuckDuckGo/Wikipedia)');
+  }
 
   console.log('\n[CLOUDFLARE WORKERS AI]');
-  console.log('  CF_API_TOKEN: NOT CONFIGURED (Empty in .env)');
+  console.log(process.env.CF_API_TOKEN ? '  CF_API_TOKEN: CONFIGURED' : '  CF_API_TOKEN: NOT CONFIGURED (Empty in .env)');
 }
 
 runDiagnosis();
