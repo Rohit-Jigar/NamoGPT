@@ -34,6 +34,7 @@ const USAGE_FILE = path.join(DATA_DIR, 'usage.json');
 
 // Active Supabase Client
 let supabaseClient = null;
+let hasLoggedUsageSchemaNotice = false;
 
 function initSupabaseFromEnv() {
   const url = (
@@ -755,7 +756,14 @@ export async function saveUsageRecord(record) {
         return usageRec;
       }
       if (error) {
-        console.warn('[Database] Supabase saveUsageRecord error:', error.message);
+        if (String(error.message).includes('schema cache') || error.code === 'PGRST205') {
+          if (!hasLoggedUsageSchemaNotice) {
+            console.info('[Database] Supabase table "user_usage" pending migration. Telemetry falling back seamlessly to persistent local JSON.');
+            hasLoggedUsageSchemaNotice = true;
+          }
+        } else {
+          console.warn('[Database] Supabase saveUsageRecord error:', error.message);
+        }
       }
     } catch (err) {
       console.warn('[Database] Supabase saveUsageRecord error, falling back:', err.message);

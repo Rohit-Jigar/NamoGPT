@@ -566,9 +566,26 @@ export default async function handler(req, res) {
 
   const cleanPath = req.url ? req.url.split('?')[0] : '';
 
+  // Immediate 200 OK for root probes, health checks, or HEAD requests (e.g. Render / Cloudflare healthchecks)
+  if (cleanPath === '/' || cleanPath === '' || req.method === 'HEAD') {
+    if (req.method === 'HEAD') return res.status(200).end();
+    return res.status(200).json({ ok: true, name: 'NamoGPT LiteLLM Proxy', version: '1.0.0', status: 'operational' });
+  }
+
   // Public Health & Models Info
   if (cleanPath === '/health' || cleanPath === '/api/hello' || cleanPath === '/v1/api/hello') {
     return res.status(200).json({ ok: true, name: 'NamoGPT LiteLLM Proxy', version: '1.0.0', status: 'operational' });
+  }
+
+  // Reject POST requests missing messages array before attempting upstream forward
+  if (req.method === 'POST' && (!req.body || !req.body.messages || !Array.isArray(req.body.messages) || req.body.messages.length === 0)) {
+    return res.status(400).json({
+      error: {
+        message: 'Missing or invalid "messages" parameter. A non-empty messages array is required.',
+        type: 'invalid_request_error',
+        code: 'missing_messages'
+      }
+    });
   }
 
   if (cleanPath === '/api/models' || cleanPath === '/v1/models' || cleanPath === '/pools') {

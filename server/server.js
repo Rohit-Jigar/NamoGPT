@@ -882,6 +882,22 @@ if (activeWebDist) {
   });
 }
 
+// Quick 200 OK for Render / Cloudflare healthcheck probes
+app.head('*', (req, res, next) => {
+  if (req.path === '/' || req.path === '/health') {
+    return res.status(200).end();
+  }
+  next();
+});
+
+// Root route handler: Web UI or operational status
+app.get('/', (req, res, next) => {
+  if (activeWebDist && fs.existsSync(path.join(activeWebDist, 'index.html'))) {
+    return res.sendFile(path.join(activeWebDist, 'index.html'));
+  }
+  return res.status(200).json({ ok: true, name: 'NamoGPT Server', version: '1.0.0', status: 'operational' });
+});
+
 // All remaining requests routed to LiteLLM handler
 app.all('*', handler);
 
