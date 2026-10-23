@@ -627,7 +627,13 @@ app.post('/api/research', async (req, res) => {
 app.get('/api/keys/status', (_req, res) => {
   try {
     const status = getProviderKeysStatus();
-    return res.status(200).json(status);
+    const detectedKeyNames = Object.keys(process.env).filter(k =>
+      ['GEMINI', 'GROQ', 'OPENROUTER', 'OPEN_ROUTER', 'NVIDIA', 'AION', 'TAVILY', 'RESEND', 'CF_', 'CLOUDFLARE', 'SMTP'].some(p => k.toUpperCase().includes(p))
+    );
+    return res.status(200).json({
+      ...status,
+      _detectedKeyNames: detectedKeyNames
+    });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
