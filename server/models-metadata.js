@@ -42,6 +42,14 @@ export function checkProviderKey(keyEnvVar) {
     }
   }
 
+  // AION aliases (AION_API_KEY_1, AION_API_KEY, AION_KEY, AION_TOKEN, etc.)
+  if (keyEnvVar.includes('AION')) {
+    const aionMatch = Object.keys(process.env).find(k =>
+      k.toUpperCase().includes('AION') && Boolean(process.env[k]?.trim())
+    );
+    if (aionMatch) return true;
+  }
+
   return false;
 }
 

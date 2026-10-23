@@ -128,6 +128,10 @@ export function resolveApiKey(maybeEnv) {
     }
     // Check AION variations
     if (varName.includes('AION')) {
+      const aionMatch = Object.keys(process.env).find(k =>
+        k.toUpperCase().includes('AION') && Boolean(process.env[k]?.trim())
+      );
+      if (aionMatch) return process.env[aionMatch];
       if (process.env.AION_API_KEY) return process.env.AION_API_KEY;
     }
     // Check 9Router variations

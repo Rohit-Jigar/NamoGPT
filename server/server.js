@@ -357,7 +357,8 @@ app.get('/api/admin/status', requireAdmin, (req, res) => {
       openrouter: Object.keys(process.env).filter(k => (k.startsWith('OPEN_ROUTER_API_KEY') || k.startsWith('OPENROUTER_API_KEY')) && Boolean(process.env[k]?.trim())).map(k => maskKey(process.env[k])),
       nvidia: Object.keys(process.env).filter(k => (k.startsWith('NVIDIA_NIM_API_KEY') || k.startsWith('NVIDIA_API_KEY')) && Boolean(process.env[k]?.trim())).map(k => maskKey(process.env[k])),
       cloudflare: process.env.CF_API_TOKEN?.trim() ? [maskKey(process.env.CF_API_TOKEN)] : [],
-      aion: Object.keys(process.env).filter(k => k.startsWith('AION_API_KEY') && Boolean(process.env[k]?.trim())).map(k => maskKey(process.env[k])),
+      aion: Object.keys(process.env).filter(k => k.toUpperCase().includes('AION') && Boolean(process.env[k]?.trim())).map(k => maskKey(process.env[k])),
+      tavily: Object.keys(process.env).filter(k => k.toUpperCase().includes('TAVILY') && Boolean(process.env[k]?.trim())).map(k => maskKey(process.env[k])),
       ninerouter: process.env.NINEROUTER_API_KEY ? [maskKey(process.env.NINEROUTER_API_KEY)] : ['sk-9router-local (auto)']
     };
 
