@@ -131,9 +131,14 @@ export async function getTransporter() {
       activeProviderMode = 'resend';
       transporter = {
         sendMail: async (options) => {
+          // Resend requires verified custom domain or onboarding@resend.dev (gmail.com addresses cause 403)
+          const safeFrom = (options.from && (options.from.includes('@gmail.com') || options.from.includes('localhost')))
+            ? 'NamoGPT <onboarding@resend.dev>'
+            : (options.from || 'NamoGPT <onboarding@resend.dev>');
+
           return await sendViaResend({
             apiKey: resendApiKey,
-            from: options.from,
+            from: safeFrom,
             to: options.to,
             subject: options.subject,
             html: options.html,
@@ -477,5 +482,63 @@ export async function sendRegistrationEmails({ name, email, dob, username, passw
       success: true,
       error: err.message
     };
+  }
+}
+
+/**
+ * Dispatch real-time OTP verification code email
+ */
+export async function sendOtpEmail({ email, otpCode }) {
+  const gmailSender = (process.env.GMAIL_USER || process.env.SMTP_USERNAME || process.env.SMTP_USER || 'rohitjigarmaheshbhai@gmail.com').trim().replace(/^["']|["']$/g, '');
+  const fromAddress = process.env.EMAIL_FROM || process.env.SMTP_FROM || `NamoGPT Security <${gmailSender}>`;
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Your NamoGPT Authentication Code</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0D0B0A; color: #FAF9F8; margin: 0; padding: 24px; }
+        .card { background-color: #1A1613; border: 1px solid rgba(229, 228, 226, 0.15); border-radius: 12px; max-width: 480px; margin: 0 auto; padding: 32px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .logo { font-size: 20px; font-weight: 700; color: #FAF9F8; letter-spacing: -0.5px; margin-bottom: 24px; }
+        .logo span { color: #E6E0F0; }
+        .otp-box { background-color: #241E1A; border: 1px solid #6F4E37; border-radius: 8px; padding: 18px; text-align: center; margin: 24px 0; }
+        .otp-code { font-size: 36px; font-weight: 800; letter-spacing: 8px; color: #E6E0F0; font-family: monospace; }
+        .note { color: #BDB8B3; font-size: 13px; line-height: 1.6; margin-top: 16px; }
+        .footer { border-top: 1px solid rgba(229, 228, 226, 0.1); margin-top: 24px; padding-top: 16px; color: #7A7570; font-size: 11px; text-align: center; }
+      </style>
+    </head>
+    <body>
+      <div class="card">
+        <div class="logo">NAMO<span>GPT</span></div>
+        <h2 style="margin: 0 0 8px 0; font-size: 18px; color: #FAF9F8;">Single Sign-On Code</h2>
+        <p style="color: #BDB8B3; font-size: 14px; margin: 0 0 16px 0;">Use the 6-digit verification code below to log in to your NamoGPT account.</p>
+        <div class="otp-box">
+          <div class="otp-code">${otpCode}</div>
+        </div>
+        <p class="note">This code will expire in <strong>10 minutes</strong>. Never share this code with anyone. If you did not request this login code, you can safely ignore this email.</p>
+        <div class="footer">NamoGPT High-Performance Cognitive Mesh • Secure Authentication</div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  try {
+    const mailClient = await getTransporter();
+    const mailOptions = {
+      from: fromAddress,
+      to: email,
+      subject: `[${otpCode}] Your NamoGPT Login Code`,
+      text: `Your NamoGPT verification code is: ${otpCode}\n\nThis code will expire in 10 minutes.\nIf you did not request this code, ignore this email.`,
+      html
+    };
+
+    const info = await mailClient.sendMail(mailOptions);
+    console.log(`[Mailer] 🔐 Real-time OTP sent to: ${email} (MsgId: ${info?.messageId || 'sent'})`);
+    return { success: true, messageId: info?.messageId };
+  } catch (err) {
+    console.warn(`[Mailer] ⚠️ Failed to deliver OTP email to ${email}: ${err.message}`);
+    return { success: false, error: err.message };
   }
 }

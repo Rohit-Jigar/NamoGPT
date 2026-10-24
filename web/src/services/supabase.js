@@ -1,7 +1,7 @@
 /**
  * NamoGPT Frontend Supabase Service
  * 
- * Supports Supabase Auth (GitHub OAuth, Google, Apple), real-time database sync,
+ * Supports Supabase Auth (GitHub OAuth, Google, Apple, Real-time Email OTP), real-time database sync,
  * and session state management.
  */
 
@@ -128,6 +128,45 @@ export async function signInWithApple() {
 }
 
 /**
+ * Real-time Email OTP / Magic Link sign in via Supabase
+ */
+export async function signInWithOtp(email) {
+  if (!supabase) return { success: false, error: 'Supabase client not initialized.' };
+  try {
+    const { data, error } = await supabase.auth.signInWithOtp({
+      email: email.trim().toLowerCase(),
+      options: {
+        emailRedirectTo: window.location.origin
+      }
+    });
+    if (error) throw error;
+    return { success: true, data };
+  } catch (err) {
+    console.error('[Supabase Web] Email OTP Error:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Verify Real-time Email OTP code via Supabase
+ */
+export async function verifyOtp({ email, token, type = 'email' }) {
+  if (!supabase) return { success: false, error: 'Supabase client not initialized.' };
+  try {
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: email.trim().toLowerCase(),
+      token: String(token).trim(),
+      type
+    });
+    if (error) throw error;
+    return { success: true, session: data.session, user: data.user };
+  } catch (err) {
+    console.error('[Supabase Web] Verify OTP Error:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
  * Sign out from Supabase Auth
  */
 export async function signOutSupabase() {
@@ -161,6 +200,8 @@ export default {
   signInWithGitHub,
   signInWithGoogle,
   signInWithApple,
+  signInWithOtp,
+  verifyOtp,
   signOutSupabase,
   getSupabaseSession
 };

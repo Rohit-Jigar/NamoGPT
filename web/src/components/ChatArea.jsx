@@ -34,7 +34,9 @@ import {
   AlertCircle,
   Code2,
   GitFork,
-  History
+  History,
+  Layers,
+  Cpu
 } from 'lucide-react';
 import { executeCodeAPI } from '../services/api';
 
@@ -79,7 +81,7 @@ export default function ChatArea() {
 
   const messages = currentChat?.messages || [];
 
-  // Listen for upstream 504 timeouts to display 1-click retry toast
+  // Listen for upstream timeouts
   useEffect(() => {
     function handleTimeoutEvent() {
       const msgs = currentChat?.messages || [];
@@ -119,30 +121,30 @@ export default function ChatArea() {
     return () => clearInterval(interval);
   }, [isGenerating]);
 
-  // Auto-scroll on new message chunks
-  useEffect(() => {
-    if (!showScrollBottom) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages, isGenerating, showScrollBottom]);
+  // Scroll to bottom
+  const scrollToBottom = (smooth = true) => {
+    messagesEndRef.current?.scrollIntoView({
+      behavior: smooth ? 'smooth' : 'auto',
+      block: 'end'
+    });
+  };
 
-  // Monitor scroll position for floating scroll button
-  function handleScroll() {
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages.length, isGenerating]);
+
+  const handleScroll = () => {
     if (!scrollContainerRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
-    const isUp = scrollHeight - scrollTop - clientHeight > 160;
+    const isUp = scrollHeight - scrollTop - clientHeight > 180;
     setShowScrollBottom(isUp);
-  }
-
-  function scrollToBottom() {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    setShowScrollBottom(false);
-  }
+  };
 
   function copyToClipboard(text, id) {
+    if (!text) return;
     navigator.clipboard.writeText(text);
     setCopiedId(id);
-    showCopySuccess('Copied to clipboard!');
+    showCopySuccess('Turn copied to clipboard');
     setTimeout(() => setCopiedId(null), 2000);
   }
 
@@ -179,8 +181,8 @@ export default function ChatArea() {
     if (voteType === 'up') {
       try {
         confetti({
-          particleCount: 28,
-          spread: 45,
+          particleCount: 24,
+          spread: 40,
           origin: { y: 0.85 }
         });
       } catch {}
@@ -202,51 +204,51 @@ export default function ChatArea() {
     }
   }
 
-  // Google Stitch Bento Starter Cards
+  // Bespoke Engineering Starter Bento Cards
   const bentoCards = [
     {
-      title: 'High-Speed Coding',
-      category: 'Fullstack & Backend',
-      icon: Zap,
-      badgeColor: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
-      gradientBorder: 'group-hover:border-amber-500/40',
-      description: 'Build a REST API with FastAPI or React component',
-      prompt: 'Build a production-ready REST API with FastAPI featuring JWT authentication, Pydantic schemas, and clean async handlers.'
+      title: 'Distributed Systems & APIs',
+      category: 'Backend Architecture',
+      icon: Cpu,
+      badgeColor: 'text-[#E6E0F0] bg-[#6F4E37]/30 border-[#6F4E37]',
+      borderColor: 'hover:border-[#E6E0F0]/40',
+      description: 'Architect a low-latency microservice with FastAPI/Go, JWT auth, and async queues',
+      prompt: 'Design a production-grade, fault-tolerant distributed API service in Go or FastAPI with connection pooling, JWT auth, and OpenTelemetry instrumentation.'
     },
     {
-      title: 'Deep Reasoning (R1)',
-      category: 'Math & Algorithms',
+      title: 'Algorithmic Synthesis (R1)',
+      category: 'Deep Reasoning',
       icon: Brain,
-      badgeColor: 'text-violet-400 bg-violet-500/10 border-violet-500/20',
-      gradientBorder: 'group-hover:border-violet-500/40',
-      description: 'Analyze complex algorithmic or mathematical problem',
-      prompt: 'Analyze complex algorithmic or mathematical problem: Design an optimal distributed rate limiter with sliding window logs and low memory footprint.'
+      badgeColor: 'text-[#E6E0F0] bg-[#241E1A] border-[#E5E4E2]/20',
+      borderColor: 'hover:border-[#E6E0F0]/40',
+      description: 'Analyze time/space complexity and design an optimal high-concurrency rate limiter',
+      prompt: 'Analyze complex algorithmic trade-offs: Synthesize an optimal distributed sliding-window rate limiter with minimal Redis lock contention and memory footprint.'
     },
     {
-      title: 'Live Web Grounding',
-      category: 'Real-Time Web Intelligence',
+      title: 'Live Intelligence Grounding',
+      category: 'Web Grounding',
       icon: Globe,
-      badgeColor: 'text-sky-400 bg-sky-500/10 border-sky-500/20',
-      gradientBorder: 'group-hover:border-sky-500/40',
-      description: 'Search real-time breaking tech and industry developments',
-      prompt: 'Search real-time breaking tech and industry developments: Provide a factual briefing on the latest AI foundation model breakthroughs and benchmarks.'
+      badgeColor: 'text-[#E5E4E2] bg-[#241E1A] border-[#E5E4E2]/20',
+      borderColor: 'hover:border-[#E6E0F0]/40',
+      description: 'Real-time synthesis of latest AI model benchmarks, releases, and tech developments',
+      prompt: 'Search real-time tech developments: Provide a comprehensive, cited architectural breakdown of the latest foundation models, latency benchmarks, and pricing matrices.'
     },
     {
-      title: 'Multimodal Vision',
-      category: 'Visual & System Architecture',
+      title: 'System & Schema Diagnostics',
+      category: 'Fullstack Engineering',
       icon: Eye,
-      badgeColor: 'text-teal-400 bg-teal-500/10 border-teal-500/20',
-      gradientBorder: 'group-hover:border-teal-500/40',
-      description: 'Analyze an architecture diagram or screenshot',
-      prompt: 'Analyze an architecture diagram: Outline best practices for microservices telemetry, OpenTelemetry collectors, and distributed observability.'
+      badgeColor: 'text-[#E5E4E2] bg-[#6F4E37]/20 border-[#6F4E37]',
+      borderColor: 'hover:border-[#E6E0F0]/40',
+      description: 'Evaluate database schema migrations, RLS security policies, and performance bottlenecks',
+      prompt: 'Audit database performance: Outline idempotent PostgreSQL schema migrations with Row Level Security (RLS) policies, composite indexing, and query plan optimizations.'
     }
   ];
 
   return (
-    <div className="flex-1 flex flex-col relative overflow-hidden bg-[#09090b] text-zinc-100 select-text">
-      {/* Google Stitch Ambient Background Glow */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,rgba(56,189,248,0.07),rgba(255,255,255,0))] pointer-events-none" />
-      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-gradient-to-tr from-sky-500/5 via-violet-500/5 to-teal-500/5 blur-[120px] rounded-full pointer-events-none" />
+    <div className="flex-1 flex flex-col relative overflow-hidden bg-[#0D0B0A] text-[#FAF9F8] select-text">
+      {/* Luxury Ambient Radial Glow */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_75%_45%_at_50%_-10%,rgba(111,78,55,0.18),rgba(255,255,255,0))] pointer-events-none" />
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[650px] h-[300px] bg-gradient-to-tr from-[#6F4E37]/10 via-[#E6E0F0]/5 to-transparent blur-[140px] rounded-full pointer-events-none" />
 
       {/* Main Messages & Canvas Viewport */}
       <div
@@ -257,27 +259,27 @@ export default function ChatArea() {
         <div className="max-w-4xl mx-auto w-full space-y-7">
           {/* Hero Empty State Canvas */}
           {messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center min-h-[68vh] text-center px-4 py-8 animate-in fade-in duration-300">
-              {/* Stitch Pill Badge */}
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-zinc-900/90 border border-zinc-800/90 text-xs text-zinc-300 shadow-sm mb-6 backdrop-blur-md">
+            <div className="flex flex-col items-center justify-center min-h-[66vh] text-center px-4 py-8 animate-in fade-in duration-300">
+              {/* Engineering Pill Badge */}
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#1A1613] border border-[#E5E4E2]/15 text-xs text-[#E5E4E2] shadow-sm mb-6 backdrop-blur-md">
                 <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-500"></span>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#E6E0F0] opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[#6F4E37]"></span>
                 </span>
-                <span className="font-medium text-zinc-200">Google Stitch AI Canvas</span>
-                <span className="text-zinc-600">•</span>
-                <span className="text-sky-400 font-mono text-[11px]">Free SOTA LiteLLM Stack</span>
+                <span className="font-semibold text-[#FAF9F8] tracking-wide">NamoGPT Autonomous Matrix</span>
+                <span className="text-[#E5E4E2]/30">•</span>
+                <span className="text-[#E6E0F0] font-mono text-[11px]">Multi-Model LiteLLM Cluster</span>
               </div>
 
-              {/* Glowing Gradient Title */}
-              <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight mb-4 max-w-2xl leading-tight">
-                <span className="bg-gradient-to-r from-sky-400 via-teal-300 to-indigo-400 bg-clip-text text-transparent drop-shadow-[0_0_28px_rgba(56,189,248,0.22)]">
-                  What would you like to build or explore today?
+              {/* Title */}
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight mb-4 max-w-2xl leading-tight">
+                <span className="bg-gradient-to-r from-[#FAF9F8] via-[#E5E4E2] to-[#E6E0F0] bg-clip-text text-transparent">
+                  High-Performance Cognitive Workspace
                 </span>
               </h1>
 
-              <p className="text-zinc-400 text-sm sm:text-base max-w-xl mb-10 leading-relaxed font-normal">
-                Autonomous conversational intelligence with live web grounding, step-by-step reasoning, and sandboxed code execution on an interactive canvas.
+              <p className="text-[#BDB8B3] text-sm sm:text-base max-w-xl mb-10 leading-relaxed font-normal">
+                Enterprise-grade conversational intelligence with real-time web grounding, deterministic reasoning traces, and sandboxed code execution.
               </p>
 
               {/* 4 Bento Starter Cards */}
@@ -288,7 +290,7 @@ export default function ChatArea() {
                     <button
                       key={idx}
                       onClick={() => sendMessage(card.prompt)}
-                      className={`p-4 sm:p-5 rounded-2xl bg-zinc-900/60 hover:bg-zinc-800/70 border border-zinc-800/80 ${card.gradientBorder} transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-sky-500/5 group relative flex flex-col justify-between backdrop-blur-md`}
+                      className={`p-4 sm:p-5 rounded-2xl bg-[#13100E] hover:bg-[#1A1613] border border-[#E5E4E2]/10 ${card.borderColor} transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-[#6F4E37]/10 group relative flex flex-col justify-between backdrop-blur-md`}
                     >
                       <div>
                         <div className="flex items-center justify-between mb-2.5">
@@ -298,13 +300,13 @@ export default function ChatArea() {
                             <Icon className="w-3.5 h-3.5" />
                             {card.category}
                           </span>
-                          <ArrowUpRight className="w-4 h-4 text-zinc-500 group-hover:text-sky-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
+                          <ArrowUpRight className="w-4 h-4 text-[#BDB8B3] group-hover:text-[#E6E0F0] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
                         </div>
-                        <div className="font-semibold text-base text-zinc-100 group-hover:text-white transition-colors mb-1.5">
+                        <div className="font-semibold text-base text-[#FAF9F8] group-hover:text-[#FAF9F8] transition-colors mb-1.5">
                           {card.title}
                         </div>
                       </div>
-                      <div className="text-xs text-zinc-400 line-clamp-2 leading-relaxed mt-1 font-normal">
+                      <div className="text-xs text-[#BDB8B3] line-clamp-2 leading-relaxed mt-1 font-normal">
                         {card.description}
                       </div>
                     </button>
@@ -340,7 +342,6 @@ export default function ChatArea() {
                     }
                   }
                 } else {
-                  // Currently streaming the thought process
                   const partialMatch = finalContent.match(/<think>([\s\S]*)$/);
                   if (partialMatch) {
                     reasoningContent = partialMatch[1].trim();
@@ -367,10 +368,10 @@ export default function ChatArea() {
                       isUser ? 'justify-end' : 'justify-start'
                     }`}
                   >
-                    {/* Assistant Avatar with Stitch Glowing Gradient */}
+                    {/* Assistant Avatar */}
                     {!isUser && (
-                      <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-sky-500/20 via-indigo-500/10 to-teal-500/20 border border-sky-500/30 flex items-center justify-center shrink-0 mt-1 shadow-sm shadow-sky-950/20">
-                        <Sparkles className="w-4 h-4 text-sky-400" />
+                      <div className="w-8 h-8 rounded-xl bg-[#1A1613] border border-[#6F4E37]/50 flex items-center justify-center shrink-0 mt-1 shadow-md shadow-black/40">
+                        <Sparkles className="w-4 h-4 text-[#E6E0F0]" />
                       </div>
                     )}
 
@@ -382,17 +383,17 @@ export default function ChatArea() {
                     >
                       {/* User Edit Mode */}
                       {isEditing ? (
-                        <div className="bg-zinc-900 rounded-2xl p-3 border border-sky-500/50 space-y-2 shadow-xl backdrop-blur-md">
+                        <div className="bg-[#1A1613] rounded-2xl p-3 border border-[#6F4E37] space-y-2 shadow-xl backdrop-blur-md">
                           <textarea
                             value={editPrompt}
                             onChange={(e) => setEditPrompt(e.target.value)}
-                            className="w-full bg-transparent text-sm text-white outline-none resize-none font-sans"
+                            className="w-full bg-transparent text-sm text-[#FAF9F8] outline-none resize-none font-sans"
                             rows={3}
                           />
                           <div className="flex justify-end gap-2 text-xs">
                             <button
                               onClick={() => setEditingIndex(null)}
-                              className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors"
+                              className="px-3 py-1.5 rounded-lg bg-[#241E1A] hover:bg-[#2D2520] text-[#BDB8B3] transition-colors"
                             >
                               Cancel
                             </button>
@@ -401,7 +402,7 @@ export default function ChatArea() {
                                 editAndResend(index, editPrompt);
                                 setEditingIndex(null);
                               }}
-                              className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-medium shadow-sm transition-colors"
+                              className="px-3 py-1.5 rounded-lg bg-[#6F4E37] hover:bg-[#8C6549] text-[#FAF9F8] font-medium shadow-sm transition-colors"
                             >
                               Save & Submit
                             </button>
@@ -411,10 +412,10 @@ export default function ChatArea() {
                         <>
                           {/* Live Web Grounding Search Banner */}
                           {showSearchingBanner && (
-                            <div className="mb-3.5 flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl bg-sky-950/40 border border-sky-500/30 text-sky-300 text-xs shadow-md backdrop-blur-md animate-pulse">
+                            <div className="mb-3.5 flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl bg-[#1A1613] border border-[#6F4E37]/40 text-[#E6E0F0] text-xs shadow-md backdrop-blur-md animate-pulse">
                               <div className="relative flex h-3 w-3 shrink-0">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-3 w-3 bg-sky-500"></span>
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#E6E0F0] opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-3 w-3 bg-[#6F4E37]"></span>
                               </div>
                               <span className="font-medium tracking-wide">
                                 🔍 Grounding query on live web and synthesizing verified sources...
@@ -422,16 +423,16 @@ export default function ChatArea() {
                             </div>
                           )}
 
-                          {/* Web Search Citations - Google Stitch Citation Cards */}
+                          {/* Web Search Citations */}
                           {msg.sources && msg.sources.length > 0 && (
                             <div className="mb-4 space-y-2.5">
-                              <div className="flex items-center gap-2 text-xs font-semibold text-sky-400">
-                                <div className="p-1 rounded-lg bg-sky-500/10 border border-sky-500/20">
-                                  <Globe className="w-3.5 h-3.5 text-sky-400" />
+                              <div className="flex items-center gap-2 text-xs font-semibold text-[#E6E0F0]">
+                                <div className="p-1 rounded-lg bg-[#6F4E37]/20 border border-[#6F4E37]">
+                                  <Globe className="w-3.5 h-3.5 text-[#E6E0F0]" />
                                 </div>
-                                <span>Web Grounding Sources ({msg.sources.length})</span>
-                                <span className="text-[10px] text-zinc-500 font-mono ml-auto">
-                                  Verified Real-Time Grounding
+                                <span>Verified Web Sources ({msg.sources.length})</span>
+                                <span className="text-[10px] text-[#BDB8B3] font-mono ml-auto">
+                                  Real-Time Grounding
                                 </span>
                               </div>
                               <div className="flex items-stretch gap-2.5 overflow-x-auto py-1 no-scrollbar">
@@ -443,7 +444,7 @@ export default function ChatArea() {
                                       href={src.url || '#'}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="group/card flex flex-col justify-between p-3 rounded-2xl bg-zinc-900/80 hover:bg-zinc-800/90 border border-zinc-800/90 hover:border-sky-500/40 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-sky-500/5 text-left w-64 shrink-0"
+                                      className="group/card flex flex-col justify-between p-3 rounded-2xl bg-[#13100E] hover:bg-[#1A1613] border border-[#E5E4E2]/10 hover:border-[#E6E0F0]/40 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/40 text-left w-64 shrink-0"
                                     >
                                       <div className="space-y-1.5">
                                         <div className="flex items-center justify-between gap-2">
@@ -457,26 +458,26 @@ export default function ChatArea() {
                                               className="w-3.5 h-3.5 rounded-sm shrink-0"
                                             />
                                             {domain && (
-                                              <span className="px-1.5 py-0.5 rounded-md bg-sky-500/10 border border-sky-500/20 text-[10px] text-sky-300 font-mono truncate">
+                                              <span className="px-1.5 py-0.5 rounded-md bg-[#241E1A] border border-[#E5E4E2]/10 text-[10px] text-[#E6E0F0] font-mono truncate">
                                                 {domain}
                                               </span>
                                             )}
                                           </div>
-                                          <ExternalLink className="w-3.5 h-3.5 text-zinc-500 group-hover/card:text-sky-400 transition-colors shrink-0" />
+                                          <ExternalLink className="w-3.5 h-3.5 text-[#BDB8B3] group-hover/card:text-[#E6E0F0] transition-colors shrink-0" />
                                         </div>
-                                        <p className="text-xs font-semibold text-zinc-200 group-hover/card:text-white line-clamp-2 leading-snug">
+                                        <p className="text-xs font-semibold text-[#FAF9F8] group-hover/card:text-white line-clamp-2 leading-snug">
                                           {src.title || 'Referenced Document'}
                                         </p>
                                         {src.snippet && (
-                                          <p className="text-[11px] text-zinc-400 line-clamp-2 leading-relaxed font-sans">
+                                          <p className="text-[11px] text-[#BDB8B3] line-clamp-2 leading-relaxed font-sans">
                                             {src.snippet}
                                           </p>
                                         )}
                                       </div>
-                                      <div className="mt-2 pt-2 border-t border-zinc-800/60 flex items-center justify-between text-[10px] text-zinc-500">
+                                      <div className="mt-2 pt-2 border-t border-[#E5E4E2]/10 flex items-center justify-between text-[10px] text-[#BDB8B3]">
                                         <span className="font-mono">Citation [{srcIdx + 1}]</span>
-                                        <span className="text-sky-400/80 group-hover/card:text-sky-300 font-medium flex items-center gap-0.5">
-                                          Source <ArrowUpRight className="w-2.5 h-2.5" />
+                                        <span className="text-[#E6E0F0] group-hover/card:underline font-medium flex items-center gap-0.5">
+                                          Inspect Source <ArrowUpRight className="w-2.5 h-2.5" />
                                         </span>
                                       </div>
                                     </a>
@@ -490,38 +491,38 @@ export default function ChatArea() {
                           <div
                             className={`text-sm leading-relaxed ${
                               isUser
-                                ? 'bg-zinc-800/90 text-zinc-100 rounded-3xl rounded-tr-md px-5 py-3.5 border border-zinc-700/60 shadow-lg shadow-black/20 backdrop-blur-md ml-auto'
-                                : 'bg-transparent text-zinc-200 px-0'
+                                ? 'bg-[#241E1A] text-[#FAF9F8] rounded-2xl rounded-tr-sm px-5 py-3.5 border border-[#E5E4E2]/15 shadow-lg shadow-black/30 backdrop-blur-md ml-auto'
+                                : 'bg-transparent text-[#FAF9F8] px-0'
                             }`}
                           >
                             {/* Attachment Pill Chip */}
                             {msg.attachment && (
-                              <div className="mb-3 p-2.5 rounded-2xl bg-zinc-900/95 border border-zinc-700/60 flex items-center gap-2.5 max-w-xs shadow-md">
+                              <div className="mb-3 p-2.5 rounded-2xl bg-[#1A1613] border border-[#E5E4E2]/15 flex items-center gap-2.5 max-w-xs shadow-md">
                                 {msg.attachment.dataUrl?.startsWith('data:image') ? (
                                   <img
                                     src={msg.attachment.dataUrl}
                                     alt="attachment"
-                                    className="w-12 h-12 rounded-xl object-cover border border-zinc-700/50"
+                                    className="w-12 h-12 rounded-xl object-cover border border-[#E5E4E2]/15"
                                   />
                                 ) : (
-                                  <div className="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center shrink-0">
-                                    <FileText className="w-5 h-5 text-sky-400" />
+                                  <div className="w-10 h-10 rounded-xl bg-[#6F4E37]/20 border border-[#6F4E37] flex items-center justify-center shrink-0">
+                                    <FileText className="w-5 h-5 text-[#E6E0F0]" />
                                   </div>
                                 )}
                                 <div className="text-xs truncate">
-                                  <div className="font-medium text-white truncate max-w-[190px]">
+                                  <div className="font-medium text-[#FAF9F8] truncate max-w-[190px]">
                                     {msg.attachment.name}
                                   </div>
-                                  <div className="text-[10px] text-zinc-400 font-mono">
+                                  <div className="text-[10px] text-[#BDB8B3] font-mono">
                                     Attached Context
                                   </div>
                                 </div>
                               </div>
                             )}
 
-                            {/* Collapsible Chain-of-Thought (R1) Accordion with Glowing Violet Border */}
+                            {/* Collapsible Chain-of-Thought (R1) Accordion */}
                             {reasoningContent && (
-                              <div className="mb-4 rounded-2xl border border-violet-500/35 bg-gradient-to-r from-violet-950/20 via-zinc-950/40 to-violet-950/15 overflow-hidden shadow-md shadow-violet-950/20 transition-all">
+                              <div className="mb-4 rounded-2xl border border-[#6F4E37]/40 bg-[#13100E] overflow-hidden shadow-md shadow-black/40 transition-all">
                                 <button
                                   onClick={() =>
                                     setOpenReasoning((prev) => ({
@@ -532,28 +533,27 @@ export default function ChatArea() {
                                           : !prev[msg.id]
                                     }))
                                   }
-                                  className="w-full flex items-center justify-between px-4 py-3 text-xs font-medium text-violet-300 hover:bg-violet-900/20 transition-colors"
+                                  className="w-full flex items-center justify-between px-4 py-3 text-xs font-medium text-[#E6E0F0] hover:bg-[#1A1613] transition-colors"
                                 >
                                   <div className="flex items-center gap-2.5">
                                     <Brain
-                                      className={`w-4 h-4 text-violet-400 ${
+                                      className={`w-4 h-4 text-[#E6E0F0] ${
                                         isStillThinking ? 'animate-pulse' : ''
                                       }`}
                                     />
-                                    <span className="font-semibold text-violet-200">
+                                    <span className="font-semibold text-[#FAF9F8]">
                                       {isStillThinking
                                         ? 'Chain-of-Thought Reasoning in Progress'
-                                        : 'Chain-of-Thought Reasoning (DeepSeek R1)'}
+                                        : 'Verified Reasoning Trace (DeepSeek R1)'}
                                     </span>
-                                    {/* Live Duration Timer */}
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-500/20 border border-violet-500/30 text-[10px] font-mono text-violet-300">
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#6F4E37]/30 border border-[#6F4E37] text-[10px] font-mono text-[#E5E4E2]">
                                       <Clock className="w-3 h-3" />
                                       {isStillThinking
                                         ? `${msgTimer.toFixed(1)}s live`
-                                        : 'Verified Reasoning'}
+                                        : 'Deterministic Trace'}
                                     </span>
                                   </div>
-                                  <div className="flex items-center gap-1.5 text-violet-400">
+                                  <div className="flex items-center gap-1.5 text-[#E6E0F0]">
                                     <span className="text-[11px] font-mono">
                                       {openReasoning[msg.id] ?? isStillThinking
                                         ? 'Collapse'
@@ -567,7 +567,7 @@ export default function ChatArea() {
                                   </div>
                                 </button>
                                 {(openReasoning[msg.id] ?? isStillThinking) && (
-                                  <div className="p-4 text-xs text-zinc-300 font-mono bg-black/50 border-t border-violet-500/20 whitespace-pre-wrap leading-relaxed max-h-80 overflow-y-auto selection:bg-violet-500/30">
+                                  <div className="p-4 text-xs text-[#E5E4E2] font-mono bg-[#0D0B0A] border-t border-[#6F4E37]/30 whitespace-pre-wrap leading-relaxed max-h-80 overflow-y-auto selection:bg-[#6F4E37]/40">
                                     {reasoningContent}
                                   </div>
                                 )}
@@ -600,12 +600,12 @@ export default function ChatArea() {
                                       const lines = codeStr.split('\n');
 
                                       return (
-                                        <div className="my-4 rounded-2xl border border-zinc-800 bg-[#0d0d10] overflow-hidden shadow-xl">
+                                        <div className="my-4 rounded-xl border border-[#E5E4E2]/15 bg-[#13100E] overflow-hidden shadow-xl">
                                           {/* Code Block Header */}
-                                          <div className="flex items-center justify-between px-4 py-2.5 bg-[#141418] border-b border-zinc-800 text-[11px] font-mono text-zinc-400">
+                                          <div className="flex items-center justify-between px-4 py-2 bg-[#1A1613] border-b border-[#E5E4E2]/10 text-[11px] font-mono text-[#BDB8B3]">
                                             <div className="flex items-center gap-2">
-                                              <Code2 className="w-4 h-4 text-sky-400" />
-                                              <span className="font-semibold text-zinc-200 uppercase tracking-wide">
+                                              <Code2 className="w-4 h-4 text-[#E6E0F0]" />
+                                              <span className="font-semibold text-[#FAF9F8] uppercase tracking-wide">
                                                 {lang}
                                               </span>
                                             </div>
@@ -617,13 +617,13 @@ export default function ChatArea() {
                                                     handleRunCode(lang, codeStr, codeBlockId)
                                                   }
                                                   disabled={isExecuting}
-                                                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 hover:text-sky-300 border border-sky-500/20 transition-all font-semibold active:scale-95"
+                                                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#6F4E37]/30 hover:bg-[#6F4E37]/50 text-[#FAF9F8] border border-[#6F4E37] transition-all font-semibold active:scale-95"
                                                   title="Execute in sandboxed environment"
                                                 >
                                                   {isExecuting ? (
-                                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                    <Loader2 className="w-3.5 h-3.5 animate-spin text-[#E6E0F0]" />
                                                   ) : (
-                                                    <Play className="w-3.5 h-3.5 fill-current" />
+                                                    <Play className="w-3.5 h-3.5 fill-current text-[#E6E0F0]" />
                                                   )}
                                                   <span>
                                                     {isExecuting
@@ -632,12 +632,12 @@ export default function ChatArea() {
                                                   </span>
                                                 </button>
                                               )}
-                                              {/* 1-Click Copy Button */}
+                                              {/* Copy Button */}
                                               <button
                                                 onClick={() =>
                                                   copyToClipboard(codeStr, codeBlockId)
                                                 }
-                                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-800/80 hover:bg-zinc-700/80 text-zinc-300 hover:text-white transition-all font-medium border border-zinc-700/50"
+                                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#241E1A] hover:bg-[#2D2520] text-[#E5E4E2] hover:text-white transition-all font-medium border border-[#E5E4E2]/10"
                                               >
                                                 {copiedId === codeBlockId ? (
                                                   <>
@@ -656,30 +656,30 @@ export default function ChatArea() {
                                             </div>
                                           </div>
 
-                                          {/* Code Body with Gutter Line Numbers */}
-                                          <div className="flex font-mono text-xs overflow-x-auto bg-[#0a0a0d]">
-                                            <div className="select-none py-3.5 px-3 text-right text-zinc-600 bg-zinc-950/60 border-r border-zinc-800/60 font-mono text-xs leading-relaxed sticky left-0 z-10 shrink-0">
+                                          {/* Code Body with Gutter */}
+                                          <div className="flex font-mono text-xs overflow-x-auto bg-[#0D0B0A]">
+                                            <div className="select-none py-3.5 px-3 text-right text-[#7A7570] bg-[#13100E] border-r border-[#E5E4E2]/10 font-mono text-xs leading-relaxed sticky left-0 z-10 shrink-0">
                                               {lines.map((_, i) => (
                                                 <div key={i} className="leading-relaxed">
                                                   {i + 1}
                                                 </div>
                                               ))}
                                             </div>
-                                            <pre className="p-3.5 pl-4 overflow-x-auto font-mono text-xs text-sky-200/90 leading-relaxed flex-1">
+                                            <pre className="p-3.5 pl-4 overflow-x-auto font-mono text-xs text-[#FAF9F8] leading-relaxed flex-1">
                                               <code>{codeStr}</code>
                                             </pre>
                                           </div>
 
                                           {/* Expandable Sandbox Terminal Output */}
                                           {execOutput && (
-                                            <div className="border-t border-zinc-800 bg-[#050508] p-3.5 text-xs font-mono select-text">
-                                              <div className="flex items-center justify-between pb-2 mb-2 border-b border-zinc-800/80 text-[11px]">
-                                                <div className="flex items-center gap-2 text-zinc-400">
-                                                  <Terminal className="w-3.5 h-3.5 text-amber-400" />
-                                                  <span className="font-semibold text-zinc-200">
-                                                    Sandbox Terminal
+                                            <div className="border-t border-[#E5E4E2]/10 bg-[#0D0B0A] p-3.5 text-xs font-mono select-text">
+                                              <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#E5E4E2]/10 text-[11px]">
+                                                <div className="flex items-center gap-2 text-[#BDB8B3]">
+                                                  <Terminal className="w-3.5 h-3.5 text-[#E6E0F0]" />
+                                                  <span className="font-semibold text-[#FAF9F8]">
+                                                    Terminal Output
                                                   </span>
-                                                  <span className="text-zinc-600">•</span>
+                                                  <span className="text-[#7A7570]">•</span>
                                                   <span
                                                     className={
                                                       execOutput.success
@@ -697,7 +697,7 @@ export default function ChatArea() {
                                                       : 'Execution Failed'}
                                                   </span>
                                                   {execOutput.executionTimeMs !== undefined && (
-                                                    <span className="text-zinc-500 text-[10px]">
+                                                    <span className="text-[#7A7570] text-[10px]">
                                                       ({execOutput.executionTimeMs}ms)
                                                     </span>
                                                   )}
@@ -709,24 +709,24 @@ export default function ChatArea() {
                                                       [codeBlockId]: null
                                                     }))
                                                   }
-                                                  className="text-zinc-500 hover:text-zinc-300 text-[10px] px-2 py-0.5 rounded bg-zinc-800/60 hover:bg-zinc-800 transition-colors"
+                                                  className="text-[#BDB8B3] hover:text-[#FAF9F8] text-[10px] px-2 py-0.5 rounded bg-[#241E1A] transition-colors"
                                                 >
                                                   Clear
                                                 </button>
                                               </div>
                                               {execOutput.stdout && (
-                                                <pre className="text-zinc-200 whitespace-pre-wrap font-mono leading-relaxed bg-zinc-950/40 p-2.5 rounded-lg border border-zinc-800/60">
+                                                <pre className="text-[#FAF9F8] whitespace-pre-wrap font-mono leading-relaxed bg-[#13100E] p-2.5 rounded-lg border border-[#E5E4E2]/10">
                                                   {execOutput.stdout}
                                                 </pre>
                                               )}
                                               {execOutput.stderr && (
-                                                <pre className="text-rose-400 whitespace-pre-wrap font-mono leading-relaxed bg-rose-950/20 p-2.5 rounded-lg border border-rose-900/40 mt-1.5">
+                                                <pre className="text-rose-300 whitespace-pre-wrap font-mono leading-relaxed bg-rose-950/20 p-2.5 rounded-lg border border-rose-900/40 mt-1.5">
                                                   {execOutput.stderr}
                                                 </pre>
                                               )}
                                               {execOutput.result !== null &&
                                                 execOutput.result !== undefined && (
-                                                  <div className="text-emerald-400 font-mono mt-1.5 pt-1.5 border-t border-zinc-800/60 text-[11px]">
+                                                  <div className="text-emerald-400 font-mono mt-1.5 pt-1.5 border-t border-[#E5E4E2]/10 text-[11px]">
                                                     Return Value: {String(execOutput.result)}
                                                   </div>
                                                 )}
@@ -737,7 +737,7 @@ export default function ChatArea() {
                                     }
                                     return (
                                       <code
-                                        className="bg-zinc-800/80 text-sky-300 px-1.5 py-0.5 rounded text-[13px] font-mono border border-zinc-700/50"
+                                        className="bg-[#241E1A] text-[#E6E0F0] px-1.5 py-0.5 rounded text-[13px] font-mono border border-[#E5E4E2]/15"
                                         {...props}
                                       >
                                         {children}
@@ -756,7 +756,7 @@ export default function ChatArea() {
                       {/* Message Action Bar (Copy, Speak, Regenerate, Thumbs, Edit) */}
                       {!isEditing && (
                         <div
-                          className={`flex items-center gap-1.5 mt-2 text-zinc-500 text-xs transition-opacity ${
+                          className={`flex items-center gap-1.5 mt-2 text-[#BDB8B3] text-xs transition-opacity ${
                             isUser
                               ? 'justify-end opacity-0 group-hover:opacity-100'
                               : 'justify-start opacity-70 group-hover:opacity-100'
@@ -769,15 +769,15 @@ export default function ChatArea() {
                                   setEditingIndex(index);
                                   setEditPrompt(msg.content);
                                 }}
-                                className="p-1.5 hover:text-white rounded-lg hover:bg-zinc-800/60 transition-colors"
-                                title="Edit message turn"
+                                className="p-1.5 hover:text-[#FAF9F8] rounded-lg hover:bg-[#241E1A] transition-colors"
+                                title="Edit turn"
                               >
                                 <Edit2 className="w-3.5 h-3.5" />
                               </button>
                               <button
                                 onClick={() => copyToClipboard(msg.content, msg.id || index)}
-                                className="p-1.5 hover:text-white rounded-lg hover:bg-zinc-800/60 transition-colors"
-                                title="Copy message"
+                                className="p-1.5 hover:text-[#FAF9F8] rounded-lg hover:bg-[#241E1A] transition-colors"
+                                title="Copy prompt"
                               >
                                 {copiedId === (msg.id || index) ? (
                                   <Check className="w-3.5 h-3.5 text-emerald-400" />
@@ -790,7 +790,7 @@ export default function ChatArea() {
                             <>
                               <button
                                 onClick={() => copyToClipboard(msg.content, msg.id || index)}
-                                className="p-1.5 hover:text-white rounded-lg hover:bg-zinc-800/60 transition-colors"
+                                className="p-1.5 hover:text-[#FAF9F8] rounded-lg hover:bg-[#241E1A] transition-colors"
                                 title="Copy response"
                               >
                                 {copiedId === (msg.id || index) ? (
@@ -801,10 +801,10 @@ export default function ChatArea() {
                               </button>
                               <button
                                 onClick={() => handleSpeak(msg.content, msg.id || index)}
-                                className={`p-1.5 rounded-lg hover:bg-zinc-800/60 transition-colors ${
+                                className={`p-1.5 rounded-lg hover:bg-[#241E1A] transition-colors ${
                                   speakingId === (msg.id || index)
                                     ? 'text-rose-400'
-                                    : 'hover:text-white'
+                                    : 'hover:text-[#FAF9F8]'
                                 }`}
                                 title={
                                   speakingId === (msg.id || index) ? 'Stop reading' : 'Read aloud'
@@ -818,30 +818,30 @@ export default function ChatArea() {
                               </button>
                               <button
                                 onClick={() => regenerateMessage(index)}
-                                className="p-1.5 hover:text-white rounded-lg hover:bg-zinc-800/60 transition-colors"
+                                className="p-1.5 hover:text-[#FAF9F8] rounded-lg hover:bg-[#241E1A] transition-colors"
                                 title="Regenerate turn"
                               >
                                 <RotateCcw className="w-3.5 h-3.5" />
                               </button>
                               <button
                                 onClick={() => handleVote(msg.id || index, 'up')}
-                                className={`p-1.5 rounded-lg hover:bg-zinc-800/60 transition-colors ${
+                                className={`p-1.5 rounded-lg hover:bg-[#241E1A] transition-colors ${
                                   feedbackVotes[msg.id || index] === 'up'
                                     ? 'text-emerald-400 bg-emerald-500/10'
-                                    : 'hover:text-white'
+                                    : 'hover:text-[#FAF9F8]'
                                 }`}
-                                title="Helpful response"
+                                title="Helpful"
                               >
                                 <ThumbsUp className="w-3.5 h-3.5" />
                               </button>
                               <button
                                 onClick={() => handleVote(msg.id || index, 'down')}
-                                className={`p-1.5 rounded-lg hover:bg-zinc-800/60 transition-colors ${
+                                className={`p-1.5 rounded-lg hover:bg-[#241E1A] transition-colors ${
                                   feedbackVotes[msg.id || index] === 'down'
                                     ? 'text-rose-400 bg-rose-500/10'
-                                    : 'hover:text-white'
+                                    : 'hover:text-[#FAF9F8]'
                                 }`}
-                                title="Unhelpful response"
+                                title="Unhelpful"
                               >
                                 <ThumbsDown className="w-3.5 h-3.5" />
                               </button>
@@ -858,27 +858,15 @@ export default function ChatArea() {
 
           {/* Assistant Generation Streaming Indicator */}
           {isGenerating && (
-            <div className="flex items-center gap-2.5 text-zinc-400 text-xs py-2 px-1 animate-in fade-in">
+            <div className="flex items-center gap-2.5 text-[#BDB8B3] text-xs py-2 px-1 animate-in fade-in">
               <span className="relative flex h-2.5 w-2.5">
-                <span
-                  className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                    isSearchingWeb ? 'bg-sky-400' : 'bg-emerald-400'
-                  }`}
-                ></span>
-                <span
-                  className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
-                    isSearchingWeb ? 'bg-sky-500' : 'bg-emerald-500'
-                  }`}
-                ></span>
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#E6E0F0] opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#6F4E37]"></span>
               </span>
-              <span
-                className={`font-medium ${
-                  isSearchingWeb ? 'text-sky-300' : 'text-zinc-300'
-                }`}
-              >
+              <span className="font-medium text-[#E5E4E2]">
                 {isSearchingWeb
                   ? '🔍 Grounding live web sources and synthesizing findings...'
-                  : 'NamoGPT Canvas streaming response...'}
+                  : 'NamoGPT streaming response...'}
               </span>
             </div>
           )}
@@ -891,10 +879,10 @@ export default function ChatArea() {
       {showScrollBottom && (
         <button
           onClick={scrollToBottom}
-          className="absolute bottom-5 right-6 sm:right-8 flex items-center gap-1.5 px-3 py-2 rounded-full bg-zinc-900/90 border border-zinc-700/80 text-zinc-300 hover:text-white shadow-2xl hover:scale-105 active:scale-95 transition-all z-20 backdrop-blur-xl group"
+          className="absolute bottom-5 right-6 sm:right-8 flex items-center gap-1.5 px-3 py-2 rounded-full bg-[#1A1613] border border-[#E5E4E2]/20 text-[#FAF9F8] hover:border-[#E6E0F0]/50 shadow-2xl hover:scale-105 active:scale-95 transition-all z-20 backdrop-blur-xl group"
           title="Scroll to latest turn"
         >
-          <ArrowDown className="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform" />
+          <ArrowDown className="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform text-[#E6E0F0]" />
           <span className="text-xs font-medium">Latest</span>
         </button>
       )}

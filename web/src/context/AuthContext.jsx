@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import {
   loginApi,
   registerApi,
+  sendOtpApi,
+  verifyOtpApi,
   fetchCurrentUser,
   fetchSuperAdminCredentials,
   DEFAULT_SERVER_URL
@@ -11,6 +13,8 @@ import {
   signInWithGitHub,
   signInWithGoogle,
   signInWithApple,
+  signInWithOtp as supaSignInWithOtp,
+  verifyOtp as supaVerifyOtp,
   signOutSupabase,
   isSupabaseClientAvailable
 } from '../services/supabase';
@@ -122,11 +126,12 @@ export function AuthProvider({ children }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
         const supaUser = session.user;
+        const provider = supaUser.app_metadata?.provider || 'oauth';
         const mappedUser = {
           id: supaUser.id,
-          name: supaUser.user_metadata?.full_name || supaUser.user_metadata?.name || supaUser.user_metadata?.user_name || supaUser.email?.split('@')[0] || 'GitHub User',
-          email: supaUser.email || `${supaUser.id}@github.supabase`,
-          username: supaUser.user_metadata?.user_name || supaUser.user_metadata?.preferred_username || supaUser.email?.split('@')[0] || 'github_user',
+          name: supaUser.user_metadata?.full_name || supaUser.user_metadata?.name || supaUser.user_metadata?.user_name || supaUser.email?.split('@')[0] || `${provider} User`,
+          email: supaUser.email || `${supaUser.id}@${provider}.supabase`,
+          username: supaUser.user_metadata?.user_name || supaUser.user_metadata?.preferred_username || supaUser.email?.split('@')[0] || `${provider}_user`,
           role: 'superadmin'
         };
         setUser(mappedUser);
@@ -236,7 +241,6 @@ export function AuthProvider({ children }) {
         setToken(res.token);
       }
       if (res?.user) {
-        // Guarantee isSuperAdmin for all logged-in users (all features unlocked for everyone!)
         setUser({ ...res.user, role: 'superadmin' });
       }
 
@@ -244,6 +248,71 @@ export function AuthProvider({ children }) {
         ...res,
         credentials: credentialPayload
       };
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  // Request real-time Email OTP
+  async function sendEmailOtp(email) {
+    setIsLoading(true);
+    try {
+      // 1. First attempt backend OTP via hardened SMTP / Resend
+      try {
+        const backendRes = await sendOtpApi(serverUrl, email);
+        return { success: true, ...backendRes };
+      } catch (backendErr) {
+        // 2. If backend OTP failed and Supabase is configured, fallback to Supabase OTP
+        if (isSupabaseClientAvailable()) {
+          const supaRes = await supaSignInWithOtp(email);
+          if (supaRes.success) {
+            return {
+              success: true,
+              message: `Verification code sent to ${email} via Supabase Auth.`
+            };
+          }
+        }
+        throw backendErr;
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  // Verify real-time Email OTP and issue session
+  async function verifyEmailOtp(email, code) {
+    setIsLoading(true);
+    try {
+      // 1. First verify with backend
+      try {
+        const res = await verifyOtpApi(serverUrl, { email, code });
+        if (res.token && res.user) {
+          setToken(res.token);
+          setUser({ ...res.user, role: 'superadmin' });
+          setIsAuthModalOpen(false);
+          return res;
+        }
+      } catch (backendErr) {
+        // 2. If backend failed, check Supabase OTP
+        if (isSupabaseClientAvailable()) {
+          const supaRes = await supaVerifyOtp({ email, token: code, type: 'email' });
+          if (supaRes.success && supaRes.session) {
+            const supaUser = supaRes.user;
+            const mappedUser = {
+              id: supaUser.id,
+              name: supaUser.user_metadata?.full_name || supaUser.email.split('@')[0],
+              email: supaUser.email,
+              username: supaUser.email.split('@')[0],
+              role: 'superadmin'
+            };
+            setToken(supaRes.session.access_token);
+            setUser(mappedUser);
+            setIsAuthModalOpen(false);
+            return { success: true, user: mappedUser, token: supaRes.session.access_token };
+          }
+        }
+        throw backendErr;
+      }
     } finally {
       setIsLoading(false);
     }
@@ -286,6 +355,8 @@ export function AuthProvider({ children }) {
         setLastGeneratedCredentials,
         login,
         register,
+        sendEmailOtp,
+        verifyEmailOtp,
         demoAdminLogin,
         logout,
         signInWithGitHub,

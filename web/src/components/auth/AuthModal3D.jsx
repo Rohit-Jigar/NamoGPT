@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import {
   Sparkles,
-  Crown,
   Lock,
   Mail,
   User,
@@ -19,7 +18,7 @@ import {
   KeyRound,
   ExternalLink,
   ChevronRight,
-  Info
+  RotateCcw
 } from 'lucide-react';
 
 export default function AuthModal3D() {
@@ -28,42 +27,46 @@ export default function AuthModal3D() {
     setIsAuthModalOpen,
     login,
     register,
+    sendEmailOtp,
+    verifyEmailOtp,
     demoAdminLogin,
     isLoading,
     superAdminInfo,
-    lastGeneratedCredentials,
-    setLastGeneratedCredentials,
     signInWithGitHub,
     signInWithGoogle,
     signInWithApple,
     isSupabaseAvailable
   } = useAuth();
 
-  // Tab mode: 'login' | 'register'
-  const [mode, setMode] = useState('login');
+  // Mode: 'otp' | 'login' | 'register'
+  const [mode, setMode] = useState('otp');
 
-  // Form states
+  // OTP flow states
+  const [otpEmail, setOtpEmail] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpTimer, setOtpTimer] = useState(0);
+
+  // Form states for password login / register
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [dob, setDob] = useState('');
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
 
-  // Status banners & feedback
+  // Status feedback
   const [errorMsg, setErrorMsg] = useState('');
   const [toastMsg, setToastMsg] = useState('');
   const [revealedCredentials, setRevealedCredentials] = useState(null);
   const [copiedField, setCopiedField] = useState(null);
-  const [socialLoading, setSocialLoading] = useState(null); // 'google' | 'apple'
+  const [socialLoading, setSocialLoading] = useState(null); // 'google' | 'github' | 'apple'
 
-  // 3D Tilt calculation
+  // 3D Card tilt
   const cardRef = useRef(null);
   const [tilt, setTilt] = useState({ rx: 0, ry: 0, shineX: 50, shineY: 50 });
-  const [isHovered, setIsHovered] = useState(false);
 
-  // Reset or initialize on open
+  // Reset state on open
   useEffect(() => {
     if (isAuthModalOpen) {
       setErrorMsg('');
@@ -72,40 +75,84 @@ export default function AuthModal3D() {
     }
   }, [isAuthModalOpen]);
 
+  // Countdown timer for OTP resend
+  useEffect(() => {
+    let interval = null;
+    if (otpTimer > 0) {
+      interval = setInterval(() => {
+        setOtpTimer((prev) => (prev > 0 ? prev - 1 : 0));
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [otpTimer]);
+
   if (!isAuthModalOpen) return null;
 
-  // Handle 3D Mouse Movement
+  // 3D Mouse Movement
   const handleMouseMove = (e) => {
     if (!cardRef.current) return;
     const rect = cardRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    const centerX = rect.width / 2;
-    const centerY = rect.height / 2;
-
-    const rx = ((y - centerY) / centerY) * -6.5; // max tilt +/- 6.5deg
-    const ry = ((x - centerX) / centerX) * 6.5;
+    const rx = ((y - rect.height / 2) / (rect.height / 2)) * -5;
+    const ry = ((x - rect.width / 2) / (rect.width / 2)) * 5;
     const shineX = (x / rect.width) * 100;
     const shineY = (y / rect.height) * 100;
-
     setTilt({ rx, ry, shineX, shineY });
   };
 
-  const handleMouseEnter = () => setIsHovered(true);
   const handleMouseLeave = () => {
-    setIsHovered(false);
     setTilt({ rx: 0, ry: 0, shineX: 50, shineY: 50 });
   };
 
-  // Copy helper
   const handleCopy = (text, fieldKey) => {
     if (!text) return;
     navigator.clipboard.writeText(text);
     setCopiedField(fieldKey);
-    setTimeout(() => setCopiedField(null), 2200);
+    setTimeout(() => setCopiedField(null), 2000);
   };
 
-  // Login handler
+  // Real-time Email OTP: Send Code
+  const handleSendOtp = async (e) => {
+    e?.preventDefault();
+    setErrorMsg('');
+    setToastMsg('');
+
+    if (!otpEmail.trim() || !otpEmail.includes('@')) {
+      setErrorMsg('Please enter a valid email address.');
+      return;
+    }
+
+    try {
+      const res = await sendEmailOtp(otpEmail.trim());
+      setOtpSent(true);
+      setOtpTimer(60);
+      setToastMsg(res.message || `Verification code sent to ${otpEmail.trim()}`);
+    } catch (err) {
+      setErrorMsg(err.message || 'Failed to dispatch verification code.');
+    }
+  };
+
+  // Real-time Email OTP: Verify Code
+  const handleVerifyOtp = async (e) => {
+    e?.preventDefault();
+    setErrorMsg('');
+    setToastMsg('');
+
+    if (!otpCode.trim() || otpCode.trim().length < 4) {
+      setErrorMsg('Please enter the 6-digit code received in your email.');
+      return;
+    }
+
+    try {
+      await verifyEmailOtp(otpEmail.trim(), otpCode.trim());
+      setToastMsg('Authentication successful! Welcome to NamoGPT.');
+    } catch (err) {
+      setErrorMsg(err.message || 'Invalid or expired code. Please try again.');
+    }
+  };
+
+  // Traditional Password Login
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
@@ -133,7 +180,7 @@ export default function AuthModal3D() {
     }
   };
 
-  // Registration handler
+  // Account Registration
   const handleRegisterSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
@@ -166,660 +213,479 @@ export default function AuthModal3D() {
       };
 
       setRevealedCredentials(creds);
-      setToastMsg('Account created successfully! Your credentials have been generated and dispatched.');
+      setToastMsg('Account created! Your credentials have been generated and dispatched.');
     } catch (err) {
       setErrorMsg(err.message || 'Registration failed. Please try again.');
     }
   };
 
-  // Proceed to log in from reveal card
-  const handleProceedToLogin = () => {
-    if (revealedCredentials) {
-      setIdentifier(revealedCredentials.username || revealedCredentials.email);
-      setPassword(revealedCredentials.password);
-    }
-    setRevealedCredentials(null);
-    setMode('login');
-    setErrorMsg('');
-    setToastMsg('Credentials auto-populated. Click "Sign In" or press Enter.');
-  };
-
-  // Demo Super Admin 1-Click
-  const handleDemoAdmin = async () => {
-    setErrorMsg('');
-    setToastMsg('');
-    try {
-      await demoAdminLogin();
-      setIsAuthModalOpen(false);
-    } catch (err) {
-      setErrorMsg(err.message || 'Super Admin demo login failed.');
-    }
-  };
-
-  // Social Auth (GitHub / Google / Apple via Supabase & fallback)
-  const handleSocialAuth = async (provider) => {
+  // Real-time OAuth (Google, GitHub, Apple)
+  const handleOAuthLogin = async (provider) => {
     setErrorMsg('');
     setSocialLoading(provider);
 
-    // If Supabase OAuth is configured on frontend, trigger real provider flow
-    if (provider === 'github' && isSupabaseAvailable && signInWithGitHub) {
-      setToastMsg('Initiating GitHub OAuth via connected Supabase...');
-      const res = await signInWithGitHub();
-      if (!res.success) {
-        setErrorMsg(res.error || 'Failed to initialize GitHub login with Supabase.');
-        setSocialLoading(null);
+    try {
+      if (provider === 'google') {
+        const res = await signInWithGoogle();
+        if (!res.success) throw new Error(res.error || 'Google OAuth failed.');
+        return;
       }
-      return;
+      if (provider === 'github') {
+        const res = await signInWithGitHub();
+        if (!res.success) throw new Error(res.error || 'GitHub OAuth failed.');
+        return;
+      }
+      if (provider === 'apple') {
+        const res = await signInWithApple();
+        if (!res.success) throw new Error(res.error || 'Apple OAuth failed.');
+        return;
+      }
+    } catch (err) {
+      console.warn(`[AuthModal] ${provider} OAuth error:`, err.message);
+      // If Supabase OAuth is not yet configured with client secrets in Supabase dashboard,
+      // notify user clearly and provide quick-access fallback
+      setErrorMsg(
+        `${provider.toUpperCase()} Single Sign-On requires configuring OAuth credentials in the Supabase Dashboard. ` +
+        `See AUTH_CREDENTIALS_SETUP.md for 1-click setup.`
+      );
+      setSocialLoading(null);
     }
-
-    if (provider === 'google' && isSupabaseAvailable && signInWithGoogle) {
-      setToastMsg('Initiating Google OAuth via connected Supabase...');
-      const res = await signInWithGoogle();
-      if (!res.success) {
-        setErrorMsg(res.error || 'Failed to initialize Google login with Supabase.');
-        setSocialLoading(null);
-      }
-      return;
-    }
-
-    // Resilient instant onboarding fallback
-    const providerName = provider === 'github' ? 'GitHub' : (provider === 'google' ? 'Google' : 'Apple');
-    setToastMsg(`Connecting via ${providerName} Single Sign-On...`);
-
-    setTimeout(async () => {
-      try {
-        const demoEmail = provider === 'github' ? 'github.developer@namogpt.ai' : (provider === 'google' ? 'google.user@namogpt.ai' : 'apple.user@namogpt.ai');
-        const demoName = provider === 'github' ? 'GitHub Developer' : (provider === 'google' ? 'Google Cloud User' : 'Apple Silicon User');
-
-        await register({
-          name: demoName,
-          email: demoEmail,
-          dob: '2000-01-01',
-          password: `Social@NamoAuth2026!`,
-          username: `${provider}_user_${Math.floor(100 + Math.random() * 900)}`
-        });
-
-        setToastMsg(`Successfully authenticated via ${providerName}! All features unlocked.`);
-        setTimeout(() => {
-          setIsAuthModalOpen(false);
-          setSocialLoading(null);
-        }, 800);
-      } catch (err) {
-        setSocialLoading(null);
-        setErrorMsg(`Authentication via ${providerName} failed: ` + err.message);
-      }
-    }, 1100);
-  };
-
-  // Forgot password notice
-  const handleForgotPassword = () => {
-    setErrorMsg('');
-    setToastMsg(
-      'Password recovery instructions and security token have been routed to administrator rohitjigarmaheshbhai@gmail.com and your registered email.'
-    );
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-xl select-none overflow-y-auto"
-      style={{ perspective: '1200px' }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) setIsAuthModalOpen(false);
-      }}
-    >
-      {/* Ambient background glowing orbs */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-emerald-500/15 rounded-full blur-[120px] animate-pulse" />
-        <div className="absolute bottom-1/4 right-1/4 w-[28rem] h-[28rem] bg-indigo-500/15 rounded-full blur-[140px] animate-pulse" style={{ animationDuration: '4s' }} />
-        <div className="absolute top-1/2 right-1/3 w-80 h-80 bg-cyan-500/10 rounded-full blur-[100px]" />
-      </div>
-
-      {/* 3D Glassmorphism Modal Card */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fade-in">
       <div
         ref={cardRef}
         onMouseMove={handleMouseMove}
-        onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         style={{
-          transform: `rotateX(${tilt.rx}deg) rotateY(${tilt.ry}deg)`,
-          transition: isHovered ? 'transform 0.1s cubic-bezier(0.2, 0, 0, 1)' : 'transform 0.6s ease-out',
-          transformStyle: 'preserve-3d'
+          transform: `perspective(1000px) rotateX(${tilt.rx}deg) rotateY(${tilt.ry}deg)`,
+          transition: 'transform 0.15s ease-out'
         }}
-        className="relative z-10 w-full max-w-lg my-auto rounded-3xl backdrop-blur-2xl bg-zinc-950/80 border border-white/10 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)] overflow-hidden transition-shadow duration-300"
+        className="relative w-full max-w-lg rounded-2xl bg-[#13100E] border border-[#E5E4E2]/15 shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-hidden"
       >
-        {/* Dynamic Specular Light Glare Overlay */}
+        {/* Ambient Top Light Beam */}
         <div
-          className="absolute inset-0 pointer-events-none opacity-40 transition-opacity duration-300 rounded-3xl"
+          className="absolute inset-0 pointer-events-none opacity-25"
           style={{
-            background: `radial-gradient(circle 350px at ${tilt.shineX}% ${tilt.shineY}%, rgba(255, 255, 255, 0.12), transparent 70%)`
+            background: `radial-gradient(circle at ${tilt.shineX}% ${tilt.shineY}%, rgba(230, 224, 240, 0.18), transparent 60%)`
           }}
         />
 
-        {/* Top Gradient Accent Bar */}
-        <div className="h-1.5 w-full bg-gradient-to-r from-emerald-500 via-cyan-400 to-indigo-500" />
-
-        {/* Close Button */}
-        <button
-          onClick={() => setIsAuthModalOpen(false)}
-          className="absolute top-4 right-4 p-2 rounded-full text-zinc-400 hover:text-white hover:bg-white/10 transition-all z-20 group"
-          title="Close modal"
-        >
-          <X className="w-5 h-5 transition-transform group-hover:rotate-90" />
-        </button>
-
-        {/* Modal Header */}
-        <div className="p-6 pb-4 text-center relative border-b border-white/5 bg-gradient-to-b from-white/[0.03] to-transparent">
-          <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/10 border border-emerald-500/30 shadow-lg shadow-emerald-500/10 mb-3 group">
-            <Sparkles className="w-7 h-7 text-emerald-400 transition-transform group-hover:scale-110 duration-200" />
+        {/* Header */}
+        <div className="relative px-7 pt-7 pb-4 border-b border-[#E5E4E2]/10 flex items-center justify-between">
+          <div>
+            <div className="flex items-center space-x-2">
+              <span className="text-xl font-bold tracking-tight text-[#FAF9F8]">NAMO</span>
+              <span className="text-xl font-bold tracking-tight text-[#E6E0F0]">GPT</span>
+              <span className="text-[10px] uppercase font-mono tracking-wider px-2 py-0.5 rounded bg-[#6F4E37]/30 text-[#E5E4E2] border border-[#6F4E37]">
+                Identity Mesh
+              </span>
+            </div>
+            <p className="text-xs text-[#BDB8B3] mt-1 font-normal">
+              High-performance inference platform & cognitive workspace
+            </p>
           </div>
-
-          <h2 className="text-2xl font-extrabold tracking-tight text-white flex items-center justify-center gap-2">
-            <span>NamoGPT</span>
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-mono tracking-normal">
-              3D Glass
-            </span>
-          </h2>
-          <p className="text-xs text-zinc-400 mt-1.5 max-w-sm mx-auto">
-            {revealedCredentials
-              ? 'Registration complete! Your personal credentials are ready below.'
-              : mode === 'login'
-              ? 'Log in with your credentials or 1-Click Super Admin demo evaluation.'
-              : 'Register your account to receive auto-generated credentials.'}
-          </p>
+          <button
+            onClick={() => setIsAuthModalOpen(false)}
+            className="p-1.5 rounded-lg text-[#BDB8B3] hover:text-[#FAF9F8] hover:bg-[#241E1A] transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
-        {/* Tab Switcher (if not in reveal state) */}
-        {!revealedCredentials && (
-          <div className="px-6 pt-4">
-            <div className="grid grid-cols-2 p-1.5 bg-black/40 rounded-2xl border border-white/10 backdrop-blur-md shadow-inner">
+        {/* Content Body */}
+        <div className="p-7 space-y-6">
+          {/* Notification / Error / Toast */}
+          {errorMsg && (
+            <div className="p-3.5 rounded-xl bg-red-950/40 border border-red-500/30 text-red-200 text-xs flex items-start space-x-2.5">
+              <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+              <div className="leading-relaxed">{errorMsg}</div>
+            </div>
+          )}
+          {toastMsg && (
+            <div className="p-3.5 rounded-xl bg-[#6F4E37]/20 border border-[#6F4E37]/40 text-[#FAF9F8] text-xs flex items-start space-x-2.5">
+              <CheckCircle2 className="w-4 h-4 text-[#E6E0F0] shrink-0 mt-0.5" />
+              <div className="leading-relaxed">{toastMsg}</div>
+            </div>
+          )}
+
+          {/* Social Single Sign-On (Real Real-Time SSO) */}
+          <div className="space-y-3">
+            <div className="text-[11px] font-mono uppercase tracking-wider text-[#BDB8B3]">
+              Direct Single Sign-On
+            </div>
+            <div className="grid grid-cols-3 gap-2.5">
+              {/* Google */}
               <button
                 type="button"
-                onClick={() => {
-                  setMode('login');
-                  setErrorMsg('');
-                  setToastMsg('');
-                }}
-                className={`flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-xl transition-all duration-200 ${
-                  mode === 'login'
-                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-950/60 border border-emerald-400/30'
-                    : 'text-zinc-400 hover:text-white hover:bg-white/5'
-                }`}
+                onClick={() => handleOAuthLogin('google')}
+                disabled={Boolean(socialLoading)}
+                className="flex items-center justify-center space-x-2 py-2.5 px-3 rounded-xl bg-[#1A1613] hover:bg-[#241E1A] border border-[#E5E4E2]/15 hover:border-[#E6E0F0]/40 text-[#FAF9F8] text-xs font-medium transition-all group shadow-sm disabled:opacity-50"
               >
-                <KeyRound className="w-3.5 h-3.5" />
-                <span>Log In</span>
+                <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                  <path
+                    fill="#EA4335"
+                    d="M12 5c1.56 0 2.97.55 4.09 1.6l3.07-3.07C17.3 1.76 14.84 1 12 1 7.42 1 3.51 3.6 1.62 7.37l3.69 2.87C6.18 7.3 8.84 5 12 5z"
+                  />
+                  <path
+                    fill="#4285F4"
+                    d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47c-.29 1.48-1.14 2.73-2.4 3.58l3.69 2.86c2.16-1.99 3.73-4.94 3.73-8.68z"
+                  />
+                  <path
+                    fill="#FBBC05"
+                    d="M5.31 14.76A7.04 7.04 0 014.93 12c0-.97.16-1.9.44-2.76L1.62 6.37C.59 8.44 0 10.16 0 12c0 1.84.59 3.56 1.62 5.63l3.69-2.87z"
+                  />
+                  <path
+                    fill="#34A853"
+                    d="M12 23c3.24 0 5.95-1.08 7.93-2.91l-3.69-2.86c-1.07.72-2.45 1.16-4.24 1.16-3.16 0-5.82-2.3-6.69-5.24L1.62 16.02C3.51 19.79 7.42 22.4 12 22.4z"
+                  />
+                </svg>
+                <span>Google</span>
               </button>
 
+              {/* GitHub */}
               <button
                 type="button"
-                onClick={() => {
-                  setMode('register');
-                  setErrorMsg('');
-                  setToastMsg('');
-                }}
-                className={`flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-xl transition-all duration-200 ${
-                  mode === 'register'
-                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-950/60 border border-emerald-400/30'
-                    : 'text-zinc-400 hover:text-white hover:bg-white/5'
-                }`}
+                onClick={() => handleOAuthLogin('github')}
+                disabled={Boolean(socialLoading)}
+                className="flex items-center justify-center space-x-2 py-2.5 px-3 rounded-xl bg-[#1A1613] hover:bg-[#241E1A] border border-[#E5E4E2]/15 hover:border-[#E6E0F0]/40 text-[#FAF9F8] text-xs font-medium transition-all group shadow-sm disabled:opacity-50"
               >
-                <User className="w-3.5 h-3.5" />
-                <span>Create Account</span>
+                <svg className="w-4 h-4 fill-current text-[#FAF9F8]" viewBox="0 0 24 24">
+                  <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+                </svg>
+                <span>GitHub</span>
+              </button>
+
+              {/* Apple */}
+              <button
+                type="button"
+                onClick={() => handleOAuthLogin('apple')}
+                disabled={Boolean(socialLoading)}
+                className="flex items-center justify-center space-x-2 py-2.5 px-3 rounded-xl bg-[#1A1613] hover:bg-[#241E1A] border border-[#E5E4E2]/15 hover:border-[#E6E0F0]/40 text-[#FAF9F8] text-xs font-medium transition-all group shadow-sm disabled:opacity-50"
+              >
+                <svg className="w-4 h-4 fill-current text-[#FAF9F8]" viewBox="0 0 24 24">
+                  <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.42c.62-.75 1.04-1.8 0.92-2.85-.9.04-2 0.6-2.65 1.35-.58.66-1.09 1.73-.95 2.76 1.01.08 2.06-.52 2.68-1.26z" />
+                </svg>
+                <span>Apple</span>
               </button>
             </div>
           </div>
-        )}
 
-        {/* Notifications / Toast / Error Banners */}
-        {errorMsg && (
-          <div className="mx-6 mt-3 p-3 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-200 text-xs flex items-start gap-2.5 shadow-sm animate-in fade-in slide-in-from-top-1">
-            <AlertCircle className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" />
-            <div className="flex-1 leading-relaxed">{errorMsg}</div>
+          {/* Divider */}
+          <div className="relative flex items-center justify-center">
+            <div className="border-t border-[#E5E4E2]/10 w-full" />
+            <span className="bg-[#13100E] px-3 text-[11px] uppercase font-mono text-[#BDB8B3]/60 tracking-wider">
+              Or Authenticate Via
+            </span>
+            <div className="border-t border-[#E5E4E2]/10 w-full" />
           </div>
-        )}
 
-        {toastMsg && (
-          <div className="mx-6 mt-3 p-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-200 text-xs flex items-start gap-2.5 shadow-sm animate-in fade-in slide-in-from-top-1">
-            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400 mt-0.5" />
-            <div className="flex-1 leading-relaxed">{toastMsg}</div>
+          {/* Mode Switch Tabs */}
+          <div className="grid grid-cols-3 p-1 rounded-xl bg-[#1A1613] border border-[#E5E4E2]/10 text-xs">
+            <button
+              type="button"
+              onClick={() => {
+                setMode('otp');
+                setErrorMsg('');
+              }}
+              className={`py-2 rounded-lg font-medium transition-all ${
+                mode === 'otp'
+                  ? 'bg-[#6F4E37] text-[#FAF9F8] shadow-sm'
+                  : 'text-[#BDB8B3] hover:text-[#FAF9F8]'
+              }`}
+            >
+              Email OTP
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode('login');
+                setErrorMsg('');
+              }}
+              className={`py-2 rounded-lg font-medium transition-all ${
+                mode === 'login'
+                  ? 'bg-[#6F4E37] text-[#FAF9F8] shadow-sm'
+                  : 'text-[#BDB8B3] hover:text-[#FAF9F8]'
+              }`}
+            >
+              Password
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode('register');
+                setErrorMsg('');
+              }}
+              className={`py-2 rounded-lg font-medium transition-all ${
+                mode === 'register'
+                  ? 'bg-[#6F4E37] text-[#FAF9F8] shadow-sm'
+                  : 'text-[#BDB8B3] hover:text-[#FAF9F8]'
+              }`}
+            >
+              Register
+            </button>
           </div>
-        )}
 
-        {/* Modal Content Sections */}
-        <div className="p-6 pt-3 space-y-4">
-          {/* ============================================================ */}
-          {/* POST-REGISTRATION CREDENTIAL REVEAL CARD                    */}
-          {/* ============================================================ */}
-          {revealedCredentials ? (
-            <div className="space-y-4 animate-in zoom-in-95 duration-200">
-              <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-950/40 via-zinc-900/60 to-black/60 border border-emerald-500/30 space-y-3.5 shadow-xl">
-                <div className="flex items-center justify-between pb-2 border-b border-emerald-500/20">
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck className="w-5 h-5 text-emerald-400" />
-                    <span className="text-xs font-bold text-white uppercase tracking-wider">
-                      Generated Account Credentials
-                    </span>
+          {/* TAB 1: Real-time Email OTP Login */}
+          {mode === 'otp' && (
+            <div className="space-y-4">
+              {!otpSent ? (
+                <form onSubmit={handleSendOtp} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-mono uppercase text-[#BDB8B3] mb-1.5 tracking-wider">
+                      Work or Personal Email
+                    </label>
+                    <div className="relative">
+                      <Mail className="w-4 h-4 text-[#BDB8B3] absolute left-3.5 top-3" />
+                      <input
+                        type="email"
+                        required
+                        value={otpEmail}
+                        onChange={(e) => setOtpEmail(e.target.value)}
+                        placeholder="you@company.com"
+                        className="w-full bg-[#1A1613] border border-[#E5E4E2]/15 focus:border-[#E6E0F0] text-[#FAF9F8] placeholder-[#7A7570] text-sm rounded-xl pl-10 pr-4 py-2.5 outline-none transition-all"
+                      />
+                    </div>
                   </div>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold">
-                    SuperAdmin Unlocked
-                  </span>
-                </div>
 
-                {/* Username Box */}
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
-                    Generated Username
-                  </label>
-                  <div className="flex items-center justify-between bg-black/60 border border-white/10 rounded-xl px-3 py-2 font-mono text-xs text-white">
-                    <span className="font-semibold text-emerald-300 select-all">
-                      {revealedCredentials.username}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleCopy(revealedCredentials.username, 'username')}
-                      className="p-1.5 rounded-lg hover:bg-white/10 text-zinc-400 hover:text-white transition-colors flex items-center gap-1 text-[11px]"
-                      title="Copy username"
-                    >
-                      {copiedField === 'username' ? (
-                        <>
-                          <Check className="w-3.5 h-3.5 text-emerald-400" />
-                          <span className="text-emerald-400 font-sans font-bold">Copied</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-3.5 h-3.5" />
-                          <span className="font-sans">Copy</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Password Box */}
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
-                    Generated Secure Password
-                  </label>
-                  <div className="flex items-center justify-between bg-black/60 border border-white/10 rounded-xl px-3 py-2 font-mono text-xs text-white">
-                    <span className="font-semibold text-amber-300 select-all tracking-wider">
-                      {revealedCredentials.password}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleCopy(revealedCredentials.password, 'password')}
-                      className="p-1.5 rounded-lg hover:bg-white/10 text-zinc-400 hover:text-white transition-colors flex items-center gap-1 text-[11px]"
-                      title="Copy password"
-                    >
-                      {copiedField === 'password' ? (
-                        <>
-                          <Check className="w-3.5 h-3.5 text-emerald-400" />
-                          <span className="text-emerald-400 font-sans font-bold">Copied</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-3.5 h-3.5" />
-                          <span className="font-sans">Copy</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Dispatch Confirmation Notice */}
-                <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 text-[11px] text-zinc-300 leading-relaxed space-y-1">
-                  <div className="flex items-start gap-2">
-                    <Info className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
-                    <p>
-                      Your credentials have been securely emailed to{' '}
-                      <span className="text-emerald-400 font-semibold">{revealedCredentials.email}</span>{' '}
-                      and administrator{' '}
-                      <span className="text-cyan-300 font-mono text-[10px]">rohitjigarmaheshbhai@gmail.com</span>.
-                      You can now log in immediately!
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Proceed Button */}
-              <button
-                type="button"
-                onClick={handleProceedToLogin}
-                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-500 text-black font-bold text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
-              >
-                <span>Proceed to Log In</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </div>
-          ) : mode === 'register' ? (
-            /* ============================================================ */
-            /* REGISTRATION VIEW                                            */
-            /* ============================================================ */
-            <form onSubmit={handleRegisterSubmit} className="space-y-3.5">
-              {/* Full Name */}
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
-                  <User className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Full Name</span>
-                </label>
-                <div className="relative">
-                  <User className="w-4 h-4 text-zinc-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Alex Turing"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full bg-black/40 text-xs text-white placeholder-zinc-500 pl-10 pr-3 py-2.5 rounded-xl border border-white/10 focus:border-emerald-500 focus:bg-black/60 outline-none transition-all shadow-inner"
-                  />
-                </div>
-              </div>
-
-              {/* Email Address */}
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
-                  <Mail className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Email Address</span>
-                </label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 text-zinc-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="email"
-                    required
-                    placeholder="you@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-black/40 text-xs text-white placeholder-zinc-500 pl-10 pr-3 py-2.5 rounded-xl border border-white/10 focus:border-emerald-500 focus:bg-black/60 outline-none transition-all shadow-inner"
-                  />
-                </div>
-              </div>
-
-              {/* Date of Birth */}
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Date of Birth</span>
-                </label>
-                <div className="relative">
-                  <Calendar className="w-4 h-4 text-zinc-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  <input
-                    type="date"
-                    required
-                    value={dob}
-                    onChange={(e) => setDob(e.target.value)}
-                    className="w-full bg-black/40 text-xs text-white placeholder-zinc-500 pl-10 pr-3 py-2.5 rounded-xl border border-white/10 focus:border-emerald-500 focus:bg-black/60 outline-none transition-all shadow-inner [color-scheme:dark]"
-                  />
-                </div>
-              </div>
-
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full mt-2 flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-950/50 border border-emerald-400/30 transition-all hover:scale-[1.01] active:scale-[0.98]"
-              >
-                <span>{isLoading ? 'Generating & Dispatching...' : 'Generate Account & Send Credentials'}</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-
-              {/* Social Login Options */}
-              <div className="pt-2">
-                <div className="relative flex py-1 items-center">
-                  <div className="flex-grow border-t border-white/10"></div>
-                  <span className="flex-shrink mx-3 text-[10px] uppercase font-semibold text-zinc-500 tracking-wider">
-                    Or instant onboarding
-                  </span>
-                  <div className="flex-grow border-t border-white/10"></div>
-                </div>
-
-                <div className="space-y-2 mt-2">
-                  {/* GitHub (Supabase Auth) Button */}
                   <button
-                    type="button"
-                    disabled={Boolean(socialLoading)}
-                    onClick={() => handleSocialAuth('github')}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/15 hover:border-emerald-500/40 text-xs text-white font-medium transition-all active:scale-95 shadow-sm"
+                    type="submit"
+                    disabled={isLoading}
+                    className="w-full py-3 px-4 rounded-xl bg-[#6F4E37] hover:bg-[#8C6549] text-[#FAF9F8] font-semibold text-sm transition-all flex items-center justify-center space-x-2 shadow-md hover:shadow-lg disabled:opacity-50"
                   >
-                    <svg className="w-4 h-4 shrink-0 fill-current" viewBox="0 0 24 24">
-                      <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
-                    </svg>
-                    <span className="truncate">Continue with GitHub</span>
-                    <span className="ml-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Supabase</span>
+                    <span>{isLoading ? 'Dispatching...' : 'Send 6-Digit Login Code'}</span>
+                    <ArrowRight className="w-4 h-4" />
                   </button>
+                </form>
+              ) : (
+                <form onSubmit={handleVerifyOtp} className="space-y-4">
+                  <div>
+                    <div className="flex justify-between items-center mb-1.5">
+                      <label className="text-xs font-mono uppercase text-[#BDB8B3] tracking-wider">
+                        Verification Code for {otpEmail}
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setOtpSent(false)}
+                        className="text-[11px] text-[#E6E0F0] hover:underline"
+                      >
+                        Change Email
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      maxLength={6}
+                      autoFocus
+                      required
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
+                      placeholder="• • • • • •"
+                      className="w-full bg-[#1A1613] border border-[#6F4E37] focus:border-[#E6E0F0] text-[#FAF9F8] text-center text-2xl font-mono tracking-[0.5em] rounded-xl py-3 outline-none transition-all"
+                    />
+                  </div>
 
-                  <div className="grid grid-cols-2 gap-2">
-                    {/* Google Button */}
+                  <div className="flex items-center justify-between text-xs text-[#BDB8B3]">
+                    <span>Code expires in 10 minutes</span>
                     <button
                       type="button"
-                      disabled={Boolean(socialLoading)}
-                      onClick={() => handleSocialAuth('google')}
-                      className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-white/20 text-xs text-zinc-200 transition-all active:scale-95"
+                      disabled={otpTimer > 0 || isLoading}
+                      onClick={handleSendOtp}
+                      className="text-[#E6E0F0] hover:underline disabled:text-[#7A7570]"
                     >
-                      <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
-                        <path
-                          fill="#4285F4"
-                          d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                        />
-                        <path
-                          fill="#34A853"
-                          d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                        />
-                        <path
-                          fill="#FBBC05"
-                          d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                        />
-                        <path
-                          fill="#EA4335"
-                          d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                        />
-                      </svg>
-                      <span className="truncate">Google</span>
-                    </button>
-
-                    {/* Apple Button */}
-                    <button
-                      type="button"
-                      disabled={Boolean(socialLoading)}
-                      onClick={() => handleSocialAuth('apple')}
-                      className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-white/20 text-xs text-zinc-200 transition-all active:scale-95"
-                    >
-                      <svg className="w-4 h-4 shrink-0 fill-current text-white" viewBox="0 0 170 170">
-                        <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.74 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.16-1.9-14.42-6.08-3.69-3.04-7.69-7.85-12-14.43-5.64-8.54-10.15-18.42-13.52-29.65-3.37-11.22-5.06-22.13-5.06-32.72 0-14.73 3.65-27.12 10.96-37.15 7.3-10.04 16.64-15.19 28.01-15.46 4.7 0 10.05 1.25 16.06 3.75 6.01 2.5 10.15 3.79 12.43 3.86 1.83 0 6.06-1.33 12.69-4 6.63-2.66 12.28-3.87 16.96-3.63 13.25.7 23.73 5.48 31.44 14.34-11.58 7.02-17.24 16.82-16.98 29.41.26 9.87 4.09 18.06 11.5 24.57 7.41 6.51 16.33 10.23 26.77 11.16-2.58 8.01-5.71 15.96-9.4 23.87zM119.22 33.15c0-7.39 2.65-14.43 7.95-21.12 5.3-6.69 11.95-10.98 19.95-12.87.57 3.92.57 7.75 0 11.49-1.29 8.06-5.14 15.19-11.56 21.39-6.42 6.2-13.3 9.77-20.65 10.72-.45-3.13-.67-6.33-.67-9.61z" />
-                      </svg>
-                      <span className="truncate">Apple ID</span>
+                      {otpTimer > 0 ? `Resend code in ${otpTimer}s` : 'Resend Code'}
                     </button>
                   </div>
-                </div>
-              </div>
-            </form>
-          ) : (
-            /* ============================================================ */
-            /* LOGIN VIEW                                                   */
-            /* ============================================================ */
-            <form onSubmit={handleLoginSubmit} className="space-y-3.5">
-              {/* Quick Super Admin Demo 1-Click Banner */}
-              <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <Crown className="w-4 h-4 text-amber-400 shrink-0" />
-                    <span className="text-xs font-bold text-amber-300">
-                      1-Click Super Admin Demo
-                    </span>
-                  </div>
-                  <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
-                    Unlocked
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-[11px] font-mono text-zinc-300 bg-black/40 px-3 py-1.5 rounded-xl border border-zinc-800">
-                  <span className="truncate">{superAdminInfo.email}</span>
-                  <span className="text-zinc-600 font-sans">•</span>
-                  <span className="truncate text-zinc-400">{superAdminInfo.password}</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleDemoAdmin}
-                  disabled={isLoading}
-                  className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-bold text-xs shadow-md transition-all active:scale-95"
-                >
-                  <Crown className="w-3.5 h-3.5 fill-current" />
-                  <span>{isLoading ? 'Authorizing...' : 'Instant 1-Click Login (Full Admin)'}</span>
-                </button>
-              </div>
 
-              {/* Username or Email */}
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
-                  <User className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Username or Email</span>
+                  <button
+                    type="submit"
+                    disabled={isLoading || otpCode.length < 4}
+                    className="w-full py-3 px-4 rounded-xl bg-[#6F4E37] hover:bg-[#8C6549] text-[#FAF9F8] font-semibold text-sm transition-all flex items-center justify-center space-x-2 shadow-md disabled:opacity-50"
+                  >
+                    <span>{isLoading ? 'Verifying...' : 'Verify & Enter Workspace'}</span>
+                    <CheckCircle2 className="w-4 h-4" />
+                  </button>
+                </form>
+              )}
+            </div>
+          )}
+
+          {/* TAB 2: Traditional Password Login */}
+          {mode === 'login' && (
+            <form onSubmit={handleLoginSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-mono uppercase text-[#BDB8B3] mb-1.5 tracking-wider">
+                  Email or Username
                 </label>
                 <div className="relative">
-                  <User className="w-4 h-4 text-zinc-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <User className="w-4 h-4 text-[#BDB8B3] absolute left-3.5 top-3" />
                   <input
                     type="text"
                     required
-                    placeholder="Username or your email address"
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
-                    className="w-full bg-black/40 text-xs text-white placeholder-zinc-500 pl-10 pr-3 py-2.5 rounded-xl border border-white/10 focus:border-emerald-500 focus:bg-black/60 outline-none transition-all shadow-inner"
+                    placeholder="admin@namogpt.com"
+                    className="w-full bg-[#1A1613] border border-[#E5E4E2]/15 focus:border-[#E6E0F0] text-[#FAF9F8] placeholder-[#7A7570] text-sm rounded-xl pl-10 pr-4 py-2.5 outline-none transition-all"
                   />
                 </div>
               </div>
 
-              {/* Password */}
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
-                    <Lock className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Password</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={handleForgotPassword}
-                    className="text-[11px] text-emerald-400 hover:text-emerald-300 hover:underline transition-colors"
-                  >
-                    Forgot Password?
-                  </button>
-                </div>
+              <div>
+                <label className="block text-xs font-mono uppercase text-[#BDB8B3] mb-1.5 tracking-wider">
+                  Password
+                </label>
                 <div className="relative">
-                  <Lock className="w-4 h-4 text-zinc-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <Lock className="w-4 h-4 text-[#BDB8B3] absolute left-3.5 top-3" />
                   <input
                     type={showPassword ? 'text' : 'password'}
                     required
-                    placeholder="Enter your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-black/40 text-xs text-white placeholder-zinc-500 pl-10 pr-10 py-2.5 rounded-xl border border-white/10 focus:border-emerald-500 focus:bg-black/60 outline-none transition-all shadow-inner"
+                    placeholder="••••••••••••"
+                    className="w-full bg-[#1A1613] border border-[#E5E4E2]/15 focus:border-[#E6E0F0] text-[#FAF9F8] placeholder-[#7A7570] text-sm rounded-xl pl-10 pr-10 py-2.5 outline-none transition-all"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-200 transition-colors p-1"
-                    title={showPassword ? 'Hide password' : 'Show password'}
+                    className="absolute right-3.5 top-3 text-[#BDB8B3] hover:text-[#FAF9F8]"
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
 
-              {/* Remember Me Checkbox */}
-              <div className="flex items-center justify-between pt-0.5">
-                <label className="flex items-center gap-2 cursor-pointer text-xs text-zinc-400 hover:text-zinc-200">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="w-3.5 h-3.5 rounded bg-zinc-900 border-zinc-700 text-emerald-500 focus:ring-0 focus:ring-offset-0 cursor-pointer"
-                  />
-                  <span>Remember me on this browser</span>
-                </label>
-              </div>
-
-              {/* Submit Button */}
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full mt-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-950/50 border border-emerald-400/30 transition-all hover:scale-[1.01] active:scale-[0.98]"
+                className="w-full py-3 px-4 rounded-xl bg-[#6F4E37] hover:bg-[#8C6549] text-[#FAF9F8] font-semibold text-sm transition-all flex items-center justify-center space-x-2 shadow-md disabled:opacity-50"
               >
-                <span>{isLoading ? 'Verifying Session...' : 'Sign In to NamoGPT'}</span>
+                <span>{isLoading ? 'Authenticating...' : 'Sign In'}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
+            </form>
+          )}
 
-              {/* Social Login Options */}
-              <div className="pt-2">
-                <div className="relative flex py-1 items-center">
-                  <div className="flex-grow border-t border-white/10"></div>
-                  <span className="flex-shrink mx-3 text-[10px] uppercase font-semibold text-zinc-500 tracking-wider">
-                    Or sign in with
-                  </span>
-                  <div className="flex-grow border-t border-white/10"></div>
+          {/* TAB 3: Register */}
+          {mode === 'register' && !revealedCredentials && (
+            <form onSubmit={handleRegisterSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-mono uppercase text-[#BDB8B3] mb-1.5 tracking-wider">
+                  Full Name
+                </label>
+                <div className="relative">
+                  <User className="w-4 h-4 text-[#BDB8B3] absolute left-3.5 top-3" />
+                  <input
+                    type="text"
+                    required
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Alex Mercer"
+                    className="w-full bg-[#1A1613] border border-[#E5E4E2]/15 focus:border-[#E6E0F0] text-[#FAF9F8] placeholder-[#7A7570] text-sm rounded-xl pl-10 pr-4 py-2.5 outline-none transition-all"
+                  />
                 </div>
+              </div>
 
-                <div className="space-y-2 mt-2">
-                  {/* GitHub (Supabase Auth) Button */}
-                  <button
-                    type="button"
-                    disabled={Boolean(socialLoading)}
-                    onClick={() => handleSocialAuth('github')}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/15 hover:border-emerald-500/40 text-xs text-white font-medium transition-all active:scale-95 shadow-sm"
-                  >
-                    <svg className="w-4 h-4 shrink-0 fill-current" viewBox="0 0 24 24">
-                      <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
-                    </svg>
-                    <span className="truncate">Continue with GitHub</span>
-                    <span className="ml-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Supabase</span>
-                  </button>
+              <div>
+                <label className="block text-xs font-mono uppercase text-[#BDB8B3] mb-1.5 tracking-wider">
+                  Email Address
+                </label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-[#BDB8B3] absolute left-3.5 top-3" />
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="alex@company.com"
+                    className="w-full bg-[#1A1613] border border-[#E5E4E2]/15 focus:border-[#E6E0F0] text-[#FAF9F8] placeholder-[#7A7570] text-sm rounded-xl pl-10 pr-4 py-2.5 outline-none transition-all"
+                  />
+                </div>
+              </div>
 
-                  <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-xs font-mono uppercase text-[#BDB8B3] mb-1.5 tracking-wider">
+                  Date of Birth
+                </label>
+                <div className="relative">
+                  <Calendar className="w-4 h-4 text-[#BDB8B3] absolute left-3.5 top-3" />
+                  <input
+                    type="date"
+                    required
+                    value={dob}
+                    onChange={(e) => setDob(e.target.value)}
+                    className="w-full bg-[#1A1613] border border-[#E5E4E2]/15 focus:border-[#E6E0F0] text-[#FAF9F8] text-sm rounded-xl pl-10 pr-4 py-2.5 outline-none transition-all"
+                  />
+                </div>
+              </div>
+
+              <p className="text-[11px] text-[#BDB8B3] leading-relaxed">
+                A hardened, unique password and username will be cryptographically generated and dispatched directly to your inbox.
+              </p>
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-3 px-4 rounded-xl bg-[#6F4E37] hover:bg-[#8C6549] text-[#FAF9F8] font-semibold text-sm transition-all flex items-center justify-center space-x-2 shadow-md disabled:opacity-50"
+              >
+                <span>{isLoading ? 'Creating Account...' : 'Generate Account & Access'}</span>
+                <Sparkles className="w-4 h-4 text-[#E6E0F0]" />
+              </button>
+            </form>
+          )}
+
+          {/* Credentials Revealed View */}
+          {revealedCredentials && (
+            <div className="p-4 rounded-xl bg-[#1A1613] border border-[#6F4E37] space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-[#E6E0F0] flex items-center space-x-1.5">
+                  <ShieldCheck className="w-4 h-4 text-[#E6E0F0]" />
+                  <span>Provisioned Account Credentials</span>
+                </span>
+              </div>
+              <div className="space-y-2 text-xs">
+                <div className="flex items-center justify-between p-2 rounded bg-[#241E1A]">
+                  <span className="text-[#BDB8B3]">Username:</span>
+                  <span className="font-mono text-[#FAF9F8] font-semibold">@{revealedCredentials.username}</span>
+                </div>
+                <div className="flex items-center justify-between p-2 rounded bg-[#241E1A]">
+                  <span className="text-[#BDB8B3]">Password:</span>
+                  <div className="flex items-center space-x-2">
+                    <span className="font-mono text-[#FAF9F8] font-semibold">{revealedCredentials.password}</span>
                     <button
                       type="button"
-                      disabled={Boolean(socialLoading)}
-                      onClick={() => handleSocialAuth('google')}
-                      className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-white/20 text-xs text-zinc-200 transition-all active:scale-95"
+                      onClick={() => handleCopy(revealedCredentials.password, 'pass')}
+                      className="p-1 hover:text-[#E6E0F0]"
                     >
-                      <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
-                        <path
-                          fill="#4285F4"
-                          d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                        />
-                        <path
-                          fill="#34A853"
-                          d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                        />
-                        <path
-                          fill="#FBBC05"
-                          d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                        />
-                        <path
-                          fill="#EA4335"
-                          d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                        />
-                      </svg>
-                      <span className="truncate">Google</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      disabled={Boolean(socialLoading)}
-                      onClick={() => handleSocialAuth('apple')}
-                      className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-white/20 text-xs text-zinc-200 transition-all active:scale-95"
-                    >
-                      <svg className="w-4 h-4 shrink-0 fill-current text-white" viewBox="0 0 170 170">
-                        <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.74 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.16-1.9-14.42-6.08-3.69-3.04-7.69-7.85-12-14.43-5.64-8.54-10.15-18.42-13.52-29.65-3.37-11.22-5.06-22.13-5.06-32.72 0-14.73 3.65-27.12 10.96-37.15 7.3-10.04 16.64-15.19 28.01-15.46 4.7 0 10.05 1.25 16.06 3.75 6.01 2.5 10.15 3.79 12.43 3.86 1.83 0 6.06-1.33 12.69-4 6.63-2.66 12.28-3.87 16.96-3.63 13.25.7 23.73 5.48 31.44 14.34-11.58 7.02-17.24 16.82-16.98 29.41.26 9.87 4.09 18.06 11.5 24.57 7.41 6.51 16.33 10.23 26.77 11.16-2.58 8.01-5.71 15.96-9.4 23.87zM119.22 33.15c0-7.39 2.65-14.43 7.95-21.12 5.3-6.69 11.95-10.98 19.95-12.87.57 3.92.57 7.75 0 11.49-1.29 8.06-5.14 15.19-11.56 21.39-6.42 6.2-13.3 9.77-20.65 10.72-.45-3.13-.67-6.33-.67-9.61z" />
-                      </svg>
-                      <span className="truncate">Apple ID</span>
+                      {copiedField === 'pass' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
                   </div>
                 </div>
               </div>
-            </form>
+              <button
+                type="button"
+                onClick={() => {
+                  setIdentifier(revealedCredentials.username);
+                  setPassword(revealedCredentials.password);
+                  setRevealedCredentials(null);
+                  setMode('login');
+                }}
+                className="w-full py-2 rounded-lg bg-[#6F4E37] text-[#FAF9F8] text-xs font-semibold hover:bg-[#8C6549] transition-all"
+              >
+                Auto-Fill & Proceed to Sign In
+              </button>
+            </div>
           )}
 
-          {/* Guest Dismissal */}
-          <div className="text-center pt-1 border-t border-white/5">
+          {/* 1-Click Super Admin Access Button */}
+          <div className="pt-2 border-t border-[#E5E4E2]/10 flex items-center justify-between">
+            <span className="text-[11px] text-[#BDB8B3]">Developer or Enterprise Auditor?</span>
             <button
               type="button"
-              onClick={() => setIsAuthModalOpen(false)}
-              className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors underline underline-offset-4"
+              onClick={demoAdminLogin}
+              className="text-[11px] font-mono text-[#E6E0F0] hover:text-[#FAF9F8] hover:underline flex items-center space-x-1"
             >
-              Continue as Guest (No login required)
+              <span>1-Click Super Admin Access</span>
+              <ChevronRight className="w-3 h-3" />
             </button>
           </div>
         </div>

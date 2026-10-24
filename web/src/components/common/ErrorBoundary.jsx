@@ -84,7 +84,7 @@ export default class ErrorBoundary extends Component {
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[550px] h-[550px] bg-rose-500/10 rounded-full blur-[120px] pointer-events-none" />
           <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] h-[350px] bg-amber-500/5 rounded-full blur-[90px] pointer-events-none" />
 
-          {/* Stitch Glass Card */}
+          {/* Cognitive Obsidian Card */}
           <div className="relative z-10 max-w-xl w-full rounded-3xl bg-zinc-950/85 border border-zinc-800/80 backdrop-blur-2xl shadow-2xl p-6 sm:p-8 space-y-6">
             {/* Header Icon & Brand */}
             <div className="flex items-center gap-3.5">

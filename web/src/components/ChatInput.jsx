@@ -53,7 +53,7 @@ export default function ChatInput() {
     }
   }, [prompt]);
 
-  // Web Speech Recognition for voice dictation with edge-case error handling
+  // Web Speech Recognition for voice dictation
   useEffect(() => {
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -98,108 +98,103 @@ export default function ChatInput() {
         setIsListening(true);
       } catch (err) {
         console.warn('Speech start error:', err);
-        showMicError('not-allowed');
-        setIsListening(false);
       }
     }
   }
 
-  // File select with size validation (>20MB) and format whitelist verification
-  const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB strict limit
-
-  function handleFileSelect(e) {
-    setFileError(null);
+  // Handle multi-format attachments
+  const handleFileSelect = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Check size (>20MB rejection)
-    if (file.size > MAX_FILE_SIZE) {
-      const sizeMb = file.size / (1024 * 1024);
-      const errMsg = `File exceeds 20MB limit (${sizeMb.toFixed(1)}MB).`;
+    setFileError(null);
+
+    // Max 15MB file upload limit
+    if (file.size > 15 * 1024 * 1024) {
+      const errMsg = `File size (${(file.size / (1024 * 1024)).toFixed(1)}MB) exceeds 15MB limit.`;
       setFileError(errMsg);
-      showFileUploadError(file.name, 'size', sizeMb);
-      e.target.value = '';
+      showFileUploadError('file-too-large', file.name);
       return;
     }
 
-    // Supported file validation
-    const allowedExtensions = /\.(png|jpe?g|webp|gif|svg|bmp|pdf|txt|md|csv|json|js|jsx|ts|tsx|html|css|py|java|c|cpp|h|hpp|rs|go|sh|yml|yaml|xml|sql|docx|rtf)$/i;
     const isImage = file.type.startsWith('image/');
-    const isSupportedDoc =
-      file.type.startsWith('text/') ||
-      file.type === 'application/pdf' ||
-      file.type === 'application/json' ||
-      file.type.includes('spreadsheet') ||
-      file.type.includes('document') ||
+    const isDoc =
+      file.type.includes('pdf') ||
+      file.type.includes('text') ||
+      file.type.includes('json') ||
       file.type.includes('csv') ||
-      allowedExtensions.test(file.name);
+      file.name.endsWith('.py') ||
+      file.name.endsWith('.js') ||
+      file.name.endsWith('.md');
 
-    if (!isImage && !isSupportedDoc) {
-      const errMsg = `Unsupported file format: ${file.name}`;
+    if (!isImage && !isDoc) {
+      const errMsg = `File type not supported. Please upload an image, PDF, CSV, TXT, or code file.`;
       setFileError(errMsg);
-      showFileUploadError(file.name, 'type');
-      e.target.value = '';
+      showFileUploadError('invalid-type', file.name);
       return;
     }
+
+    const reader = new FileReader();
 
     if (isImage) {
-      const reader = new FileReader();
-      reader.onload = (uploadEvent) => {
+      reader.onload = () => {
         setAttachment({
+          type: 'image',
           name: file.name,
-          type: file.type,
           size: file.size,
-          dataUrl: uploadEvent.target?.result
+          dataUrl: reader.result
         });
       };
       reader.readAsDataURL(file);
     } else {
-      const reader = new FileReader();
-      reader.onload = (uploadEvent) => {
-        const text = uploadEvent.target?.result || '';
+      reader.onload = () => {
         setAttachment({
+          type: 'document',
           name: file.name,
-          type: file.type || 'text/plain',
           size: file.size,
-          textContent: text,
+          textContent: reader.result,
           isDocument: true
         });
       };
       reader.readAsText(file);
     }
     e.target.value = '';
-  }
+  };
 
-  function handleKeyDown(e) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit();
-    }
-  }
-
-  function handleSubmit() {
+  const handleSubmit = (e) => {
+    e?.preventDefault();
     if (isGenerating) {
       stopGeneration();
       return;
     }
-    if (!prompt.trim() && !attachment) return;
 
-    sendMessage(prompt, attachment);
+    const trimmed = prompt.trim();
+    if (!trimmed && !attachment) return;
+
+    sendMessage(trimmed, attachment);
     setPrompt('');
     setAttachment(null);
     setFileError(null);
+
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
-  }
+  };
 
-  // Token estimate: ~4 chars per token rule of thumb
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
+    }
+  };
+
+  // Estimate token consumption (~4 characters per token heuristic)
   const estimatedTokens = useMemo(() => {
-    return Math.ceil((prompt.length || 0) / 4);
+    return Math.max(1, Math.round(prompt.length / 4));
   }, [prompt]);
 
   return (
-    <div className="p-3 sm:p-4 bg-gradient-to-t from-[#09090b] via-[#09090b]/95 to-transparent shrink-0 select-none z-20">
+    <div className="p-3 sm:p-4 bg-gradient-to-t from-[#0D0B0A] via-[#0D0B0A]/95 to-transparent shrink-0 select-none z-20">
       <div className="max-w-4xl mx-auto w-full space-y-2">
         {/* File Size Error Alert */}
         {fileError && (
@@ -219,23 +214,23 @@ export default function ChatInput() {
 
         {/* Attachment Preview Chips */}
         {attachment && (
-          <div className="flex items-center gap-2.5 p-2 rounded-2xl bg-zinc-900/95 border border-zinc-800 w-fit max-w-sm animate-in fade-in duration-150 shadow-xl backdrop-blur-md">
+          <div className="flex items-center gap-2.5 p-2 rounded-2xl bg-[#1A1613] border border-[#E5E4E2]/15 w-fit max-w-sm animate-in fade-in duration-150 shadow-xl backdrop-blur-md">
             {attachment.dataUrl?.startsWith('data:image') ? (
               <img
                 src={attachment.dataUrl}
                 alt="preview"
-                className="w-10 h-10 rounded-xl object-cover border border-zinc-700/60 shadow-sm"
+                className="w-10 h-10 rounded-xl object-cover border border-[#E5E4E2]/15 shadow-sm"
               />
             ) : (
-              <div className="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center shrink-0">
-                <FileText className="w-5 h-5 text-sky-400" />
+              <div className="w-10 h-10 rounded-xl bg-[#6F4E37]/20 border border-[#6F4E37] flex items-center justify-center shrink-0">
+                <FileText className="w-5 h-5 text-[#E6E0F0]" />
               </div>
             )}
             <div className="text-xs truncate">
-              <div className="font-semibold text-zinc-100 truncate max-w-[190px]">
+              <div className="font-semibold text-[#FAF9F8] truncate max-w-[190px]">
                 {attachment.name}
               </div>
-              <div className="text-[10px] text-zinc-400 font-mono">
+              <div className="text-[10px] text-[#BDB8B3] font-mono">
                 {attachment.isDocument
                   ? `${Math.round((attachment.textContent?.length || 0) / 100) / 10}k chars • Document RAG`
                   : attachment.size
@@ -245,7 +240,7 @@ export default function ChatInput() {
             </div>
             <button
               onClick={() => setAttachment(null)}
-              className="p-1.5 hover:text-rose-400 text-zinc-400 rounded-full hover:bg-zinc-800 ml-1.5 transition-colors"
+              className="p-1.5 hover:text-rose-400 text-[#BDB8B3] rounded-full hover:bg-[#241E1A] ml-1.5 transition-colors"
               title="Remove attachment"
             >
               <X className="w-3.5 h-3.5" />
@@ -253,8 +248,8 @@ export default function ChatInput() {
           </div>
         )}
 
-        {/* Google Stitch Floating Capsule Bar with Glowing Border on Focus */}
-        <div className="relative flex flex-col rounded-3xl border border-zinc-800/90 bg-[#121215]/95 focus-within:border-sky-500/60 focus-within:ring-2 focus-within:ring-sky-500/50 focus-within:shadow-[0_0_26px_rgba(56,189,248,0.18)] shadow-2xl transition-all duration-200 backdrop-blur-2xl">
+        {/* Tactile Capsule Input Bar */}
+        <div className="relative flex flex-col rounded-2xl border border-[#E5E4E2]/15 bg-[#13100E] focus-within:border-[#6F4E37] focus-within:ring-1 focus-within:ring-[#E6E0F0]/30 focus-within:shadow-[0_0_24px_rgba(111,78,55,0.22)] shadow-2xl transition-all duration-200 backdrop-blur-2xl">
           <textarea
             ref={textareaRef}
             rows={1}
@@ -264,9 +259,9 @@ export default function ChatInput() {
             placeholder={
               isListening
                 ? '🎙️ Listening... Speak naturally into your microphone'
-                : 'Ask NamoGPT anything, build a component, or explore ideas...'
+                : 'Send instruction, synthesize code, or explore an architectural query...'
             }
-            className="w-full bg-transparent text-sm text-zinc-100 placeholder-zinc-500 px-4 pt-3.5 pb-2 outline-none resize-none max-h-52 leading-relaxed font-sans"
+            className="w-full bg-transparent text-sm text-[#FAF9F8] placeholder-[#7A7570] px-4 pt-3.5 pb-2 outline-none resize-none max-h-52 leading-relaxed font-sans"
           />
 
           {/* Action Row & Feature Toggles */}
@@ -284,25 +279,25 @@ export default function ChatInput() {
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="p-2 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/80 transition-colors"
+                className="p-2 rounded-xl text-[#BDB8B3] hover:text-[#FAF9F8] hover:bg-[#241E1A] transition-colors"
                 title="Attach image for Multimodal Vision or PDF/CSV/TXT for RAG context (Max 15MB)"
               >
                 <Paperclip className="w-4 h-4" />
               </button>
 
-              {/* Voice Dictation Toggle with Active Pulse Animation */}
+              {/* Voice Dictation Toggle */}
               <button
                 type="button"
                 onClick={toggleSpeech}
                 className={`p-2 rounded-xl transition-all ${
                   isListening
                     ? 'text-rose-300 bg-rose-500/25 border border-rose-500/50 ring-2 ring-rose-500/30 animate-pulse shadow-md shadow-rose-950/40'
-                    : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/80 border border-transparent'
+                    : 'text-[#BDB8B3] hover:text-[#FAF9F8] hover:bg-[#241E1A] border border-transparent'
                 }`}
                 title={
                   isListening
                     ? 'Listening... Click to stop voice dictation'
-                    : 'Voice input (Web Speech Recognition)'
+                    : 'Voice input'
                 }
               >
                 {isListening ? (
@@ -318,20 +313,14 @@ export default function ChatInput() {
                 onClick={() => setIsWebSearchEnabled(!isWebSearchEnabled)}
                 className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-medium transition-all ${
                   isWebSearchEnabled
-                    ? 'bg-sky-500/20 text-sky-300 border border-sky-400/50 shadow-md shadow-sky-500/25 ring-1 ring-sky-500/30'
-                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/70 border border-transparent'
+                    ? 'bg-[#6F4E37]/40 text-[#FAF9F8] border border-[#6F4E37] shadow-sm'
+                    : 'text-[#BDB8B3] hover:text-[#FAF9F8] hover:bg-[#241E1A] border border-transparent'
                 }`}
-                title={
-                  isWebSearchEnabled
-                    ? 'Live Web Search: Active (Click to disable) • Grounding with verified real-time sources'
-                    : 'Live Web Search: Off (Click to enable) • Automatically searches live web'
-                }
+                title="Toggle live web grounding"
               >
                 <Globe
                   className={`w-3.5 h-3.5 transition-all ${
-                    isWebSearchEnabled
-                      ? 'text-sky-300 drop-shadow-[0_0_6px_rgba(56,189,248,0.7)]'
-                      : ''
+                    isWebSearchEnabled ? 'text-[#E6E0F0]' : ''
                   }`}
                 />
                 <span className="text-[11px] font-medium">Search</span>
@@ -343,20 +332,14 @@ export default function ChatInput() {
                 onClick={() => setIsThinkingModeEnabled(!isThinkingModeEnabled)}
                 className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-medium transition-all ${
                   isThinkingModeEnabled
-                    ? 'bg-violet-500/20 text-violet-300 border border-violet-400/50 shadow-md shadow-violet-500/25 ring-1 ring-violet-500/30'
-                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/70 border border-transparent'
+                    ? 'bg-[#241E1A] text-[#E6E0F0] border border-[#E6E0F0]/50 shadow-sm'
+                    : 'text-[#BDB8B3] hover:text-[#FAF9F8] hover:bg-[#241E1A] border border-transparent'
                 }`}
-                title={
-                  isThinkingModeEnabled
-                    ? 'Chain-of-Thought Reasoning Active (DeepSeek R1)'
-                    : 'Enable Thinking Mode (Step-by-step reasoning)'
-                }
+                title="Toggle Chain-of-Thought reasoning (DeepSeek R1)"
               >
                 <Brain
                   className={`w-3.5 h-3.5 transition-all ${
-                    isThinkingModeEnabled
-                      ? 'text-violet-300 drop-shadow-[0_0_6px_rgba(167,139,250,0.7)]'
-                      : ''
+                    isThinkingModeEnabled ? 'text-[#E6E0F0]' : ''
                   }`}
                 />
                 <span className="text-[11px] font-medium">Think (R1)</span>
@@ -366,10 +349,10 @@ export default function ChatInput() {
               <button
                 type="button"
                 onClick={() => setIsDeepResearchOpen(true)}
-                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-medium text-zinc-400 hover:text-indigo-300 hover:bg-indigo-500/10 transition-all border border-transparent hover:border-indigo-500/30"
-                title="Autonomous Deep Research Mode (Multi-source query synthesis)"
+                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-medium text-[#BDB8B3] hover:text-[#FAF9F8] hover:bg-[#241E1A] transition-all border border-transparent"
+                title="Autonomous Deep Research Mode"
               >
-                <Compass className="w-3.5 h-3.5 text-indigo-400" />
+                <Compass className="w-3.5 h-3.5 text-[#E5E4E2]" />
                 <span className="text-[11px]">Research</span>
               </button>
 
@@ -377,12 +360,10 @@ export default function ChatInput() {
               <button
                 type="button"
                 onClick={() => setIsPersonaOpen(true)}
-                className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-medium text-zinc-400 hover:text-teal-300 hover:bg-teal-500/10 transition-all border border-transparent hover:border-teal-500/30"
-                title={`AI Persona: ${
-                  currentPersona?.name || 'Standard'
-                } (Specialized prompt intelligence)`}
+                className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-medium text-[#BDB8B3] hover:text-[#FAF9F8] hover:bg-[#241E1A] transition-all border border-transparent"
+                title={`AI Persona: ${currentPersona?.name || 'Standard'}`}
               >
-                <Bot className="w-3.5 h-3.5 text-teal-400" />
+                <Bot className="w-3.5 h-3.5 text-[#E6E0F0]" />
                 <span className="text-[11px] truncate max-w-[85px]">
                   {currentPersona?.name || 'Persona'}
                 </span>
@@ -391,31 +372,26 @@ export default function ChatInput() {
 
             {/* Right: Character / Token Estimate & Send Button */}
             <div className="flex items-center gap-2 shrink-0">
-              {/* Token & Character Estimate Indicator */}
               {prompt.length > 0 && (
-                <div className="hidden xs:flex items-center gap-1 text-[10px] text-zinc-500 font-mono select-none pr-1">
+                <div className="hidden xs:flex items-center gap-1 text-[10px] text-[#7A7570] font-mono select-none pr-1">
                   <span>~{estimatedTokens} tok</span>
                   <span>•</span>
                   <span>{prompt.length}c</span>
                 </div>
               )}
 
-              {/* Send or Stop Button with Smooth Animated States */}
+              {/* Send or Stop Button */}
               <button
                 onClick={handleSubmit}
                 disabled={!isGenerating && !prompt.trim() && !attachment}
-                className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-all duration-200 ${
+                className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-all duration-200 ${
                   isGenerating
-                    ? 'bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 border border-rose-500/40 shadow-md shadow-rose-950/40 active:scale-95'
+                    ? 'bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 border border-rose-500/40 shadow-md active:scale-95'
                     : prompt.trim() || attachment
-                    ? 'bg-gradient-to-tr from-sky-500 to-emerald-500 hover:from-sky-400 hover:to-emerald-400 text-white shadow-lg shadow-sky-500/30 hover:scale-105 active:scale-95'
-                    : 'bg-zinc-800 text-zinc-600 border border-zinc-700/40 cursor-not-allowed'
+                    ? 'bg-[#6F4E37] hover:bg-[#8C6549] text-[#FAF9F8] shadow-md hover:scale-105 active:scale-95'
+                    : 'bg-[#1A1613] text-[#7A7570] border border-[#E5E4E2]/10 cursor-not-allowed'
                 }`}
-                title={
-                  isGenerating
-                    ? 'Stop generating response'
-                    : 'Send prompt (Enter) • Auto-routed with smart failover'
-                }
+                title={isGenerating ? 'Stop generating' : 'Send turn (Enter)'}
               >
                 {isGenerating ? (
                   <Square className="w-3.5 h-3.5 fill-current" />
@@ -427,9 +403,9 @@ export default function ChatInput() {
           </div>
         </div>
 
-        {/* Google Stitch Canvas Footer Disclaimer */}
-        <p className="text-center text-[10px] text-zinc-500 select-none tracking-tight">
-          NamoGPT Google Stitch AI Canvas • LiteLLM Smart Router & Live Grounding Engine
+        {/* Footer Disclaimer */}
+        <p className="text-center text-[10px] text-[#7A7570] select-none tracking-tight">
+          NamoGPT High-Performance Cognitive Mesh • LiteLLM Smart Router & Live Grounding Engine
         </p>
       </div>
     </div>

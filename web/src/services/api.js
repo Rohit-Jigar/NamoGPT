@@ -358,6 +358,28 @@ export async function registerApi(serverUrl, { name, email, dob, password, usern
   return data;
 }
 
+export async function sendOtpApi(serverUrl, email) {
+  const res = await fetch(`${serverUrl}/api/auth/send-otp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email.trim().toLowerCase() })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to dispatch verification code.');
+  return data;
+}
+
+export async function verifyOtpApi(serverUrl, { email, code }) {
+  const res = await fetch(`${serverUrl}/api/auth/verify-otp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email.trim().toLowerCase(), code: String(code).trim() })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to verify authentication code.');
+  return data;
+}
+
 export async function fetchCurrentUser(serverUrl, token) {
   if (!token) return null;
   const res = await fetch(`${serverUrl}/api/auth/me`, {

@@ -155,7 +155,7 @@ function SpeedometerGauge({ currentSpeed, isGenerating, lastModel }) {
 }
 
 /**
- * Production-grade Google Stitch-inspired Model Usage & Telemetry Meter Dialog
+ * Production-Grade Model Usage & Telemetry Meter Console
  */
 export default function ModelUsageMeter({ isOpen, onClose }) {
   const {
@@ -342,19 +342,19 @@ export default function ModelUsageMeter({ isOpen, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-[#121217] border border-zinc-800/90 rounded-3xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden text-zinc-100">
+      <div className="bg-[#13100E] border border-zinc-800/90 rounded-3xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden text-zinc-100">
         
         {/* Modal Header */}
         <div className="px-5 py-4 border-b border-zinc-800/80 flex items-center justify-between bg-zinc-900/50">
           <div className="flex items-center space-x-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-black flex items-center justify-center shadow-md shadow-emerald-500/20">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#6F4E37] to-[#8C6549] text-black flex items-center justify-center shadow-md shadow-emerald-500/20">
               <Gauge className="w-5 h-5 stroke-[2.2]" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-bold text-white tracking-tight">Model Usage & Telemetry Meter</h2>
                 <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                  Google Stitch
+                  Enterprise Mesh
                 </span>
               </div>
               <p className="text-xs text-zinc-400">
@@ -398,7 +398,7 @@ export default function ModelUsageMeter({ isOpen, onClose }) {
                   onClick={() => setActiveTab(tab.id)}
                   className={`flex items-center space-x-1.5 px-3 py-2 text-xs font-semibold rounded-t-xl transition-all border-b-2 ${
                     isSelected
-                      ? 'border-emerald-500 text-emerald-400 bg-zinc-800/50'
+                      ? 'border-[#6F4E37] text-[#E6E0F0] bg-zinc-800/50'
                       : 'border-transparent text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/20'
                   }`}
                 >

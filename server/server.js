@@ -9,6 +9,8 @@ import openapi from './openapi.js';
 import {
   registerUser,
   loginUser,
+  requestOtp,
+  verifyOtpCode,
   getUserById,
   getAllUsers,
   authMiddleware,
@@ -115,6 +117,32 @@ app.post('/api/auth/login', async (req, res) => {
     });
   } catch (err) {
     return res.status(401).json({ success: false, error: err.message });
+  }
+});
+
+// 2b. Request Real-time Email OTP Code
+app.post('/api/auth/send-otp', async (req, res) => {
+  try {
+    const { email } = req.body || {};
+    const result = await requestOtp(email);
+    return res.status(200).json(result);
+  } catch (err) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+// 2c. Verify Real-time Email OTP Code & Issue Session
+app.post('/api/auth/verify-otp', async (req, res) => {
+  try {
+    const { email, code } = req.body || {};
+    const result = await verifyOtpCode(email, code);
+    return res.status(200).json({
+      success: true,
+      message: 'Authenticated successfully via Email OTP.',
+      ...result
+    });
+  } catch (err) {
+    return res.status(400).json({ success: false, error: err.message });
   }
 });
 

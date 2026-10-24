@@ -4,73 +4,75 @@
 
 @layer base {
   :root {
-    --background: #0a0d14;
-    --foreground: #f8fafc;
-    --card: #121622;
-    --card-foreground: #f8fafc;
-    --popover: #121622;
-    --popover-foreground: #f8fafc;
-    --primary: #f8fafc;
-    --primary-foreground: #0a0d14;
-    --secondary: #171c2b;
-    --secondary-foreground: #f8fafc;
-    --muted: #171c2b;
-    --muted-foreground: #94a3b8;
-    --accent: #1e2638;
-    --accent-foreground: #f8fafc;
+    /* Macha Brown (#6F4E37), Platinum Silver (#E5E4E2), Pale Lavender (#E6E0F0) */
+    --background: #0D0B0A;
+    --foreground: #F5F4F2;
+    --card: #1A1613;
+    --card-foreground: #F5F4F2;
+    --popover: #1A1613;
+    --popover-foreground: #F5F4F2;
+    --primary: #6F4E37;
+    --primary-foreground: #FAF9F8;
+    --secondary: #241E1A;
+    --secondary-foreground: #E5E4E2;
+    --muted: #241E1A;
+    --muted-foreground: #BDB8B3;
+    --accent: #2D2520;
+    --accent-foreground: #E6E0F0;
     --destructive: #ef4444;
-    --destructive-foreground: #f8fafc;
-    --border: rgba(255, 255, 255, 0.08);
-    --input: #171c2b;
-    --ring: #38bdf8;
+    --destructive-foreground: #FAF9F8;
+    --border: rgba(229, 228, 226, 0.12);
+    --input: #241E1A;
+    --ring: rgba(230, 224, 240, 0.4);
     --radius: 0.85rem;
 
-    --bg-main: #0a0d14;
-    --bg-sidebar: #0e121c;
-    --bg-surface: #121622;
-    --bg-surface-elevated: #171c2b;
-    --bg-hover: #1c2336;
-    --border-color: rgba(255, 255, 255, 0.08);
-    --text-primary: #f8fafc;
-    --text-secondary: #94a3b8;
+    --bg-main: #0D0B0A;
+    --bg-sidebar: #13100E;
+    --bg-surface: #1A1613;
+    --bg-surface-elevated: #241E1A;
+    --bg-hover: #2D2520;
+    --border-color: rgba(229, 228, 226, 0.12);
+    --text-primary: #F5F4F2;
+    --text-secondary: #BDB8B3;
 
-    /* Stitch Accents */
-    --stitch-violet: #818cf8;
-    --stitch-cyan: #38bdf8;
-    --stitch-emerald: #10b981;
+    /* Theme Tokens */
+    --macha-brown: #6F4E37;
+    --macha-hover: #8C6549;
+    --platinum-silver: #E5E4E2;
+    --pale-lavender: #E6E0F0;
   }
 
   body {
-    background-color: #0a0d14;
+    background-color: #0D0B0A;
     background-image: 
-      radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.04), transparent 75%),
-      radial-gradient(circle at 85% 15%, rgba(129, 140, 248, 0.03), transparent 60%);
+      radial-gradient(circle at 50% 0%, rgba(111, 78, 55, 0.14), transparent 70%),
+      radial-gradient(circle at 85% 15%, rgba(230, 224, 240, 0.05), transparent 60%);
     background-attachment: fixed;
     color: var(--text-primary);
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    letter-spacing: -0.011em;
+    font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    letter-spacing: -0.012em;
     min-height: 100vh;
   }
 }
 
-/* Custom Sleek Scrollbar (Google Stitch Style) */
+/* Custom Minimalist Platinum-Silver Scrollbar */
 ::-webkit-scrollbar {
   width: 5px;
   height: 5px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: rgba(13, 11, 10, 0.5);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(229, 228, 226, 0.18);
   border-radius: 9999px;
   transition: background 0.2s ease;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: rgba(230, 224, 240, 0.4);
 }
 
 /* Hide scrollbar utility */
@@ -82,42 +84,57 @@
   scrollbar-width: none;
 }
 
-/* Google Stitch Glass & Surface Tokens */
-.glass-nav {
-  background: rgba(10, 13, 20, 0.82);
+/* Luxury Glass & Surface Tokens */
+.glass-nav, .luxury-nav {
+  background: rgba(19, 16, 14, 0.85);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  border-bottom: 1px solid rgba(229, 228, 226, 0.10);
 }
 
-.glass-card {
-  background: rgba(18, 22, 34, 0.75);
+.glass-card, .luxury-card {
+  background: rgba(26, 22, 19, 0.82);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(229, 228, 226, 0.12);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.glass-input {
-  background: rgba(18, 22, 34, 0.85);
+.glass-card:hover, .luxury-card:hover {
+  border-color: rgba(230, 224, 240, 0.28);
+}
+
+.glass-input, .luxury-input {
+  background: rgba(36, 30, 26, 0.85);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(229, 228, 226, 0.14);
+  color: #F5F4F2;
 }
 
-.stitch-surface {
-  background-color: #121622;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+.glass-input:focus, .luxury-input:focus {
+  border-color: rgba(230, 224, 240, 0.45);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(111, 78, 55, 0.25);
 }
 
-.stitch-surface-elevated {
-  background-color: #171c2b;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+/* Surfaces */
+.luxury-surface, .stitch-surface {
+  background-color: #1A1613;
+  border: 1px solid rgba(229, 228, 226, 0.12);
 }
 
-/* Stitch Pill Badges */
-.stitch-pill {
+.luxury-surface-elevated, .stitch-surface-elevated {
+  background-color: #241E1A;
+  border: 1px solid rgba(229, 228, 226, 0.16);
+}
+
+/* Pill Badges */
+.lavender-pill, .stitch-pill {
   border-radius: 9999px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(230, 224, 240, 0.20);
+  background: rgba(230, 224, 240, 0.08);
+  color: #E6E0F0;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   display: inline-flex;
@@ -125,29 +142,30 @@
   transition: all 0.2s ease;
 }
 
-.stitch-pill-interactive:hover {
-  border-color: rgba(255, 255, 255, 0.18);
-  background-color: rgba(255, 255, 255, 0.04);
+.lavender-pill-interactive:hover, .stitch-pill-interactive:hover {
+  border-color: rgba(230, 224, 240, 0.40);
+  background-color: rgba(230, 224, 240, 0.14);
 }
 
-/* Stitch Glowing Gradient Accent */
-.stitch-glow-btn {
-  background: linear-gradient(135deg, rgba(129, 140, 248, 0.2) 0%, rgba(56, 189, 248, 0.15) 100%);
-  border: 1px solid rgba(129, 140, 248, 0.35);
-  box-shadow: 0 0 16px -3px rgba(129, 140, 248, 0.25);
+/* Macha Brown Luxury Action Buttons */
+.macha-glow-btn, .stitch-glow-btn {
+  background: linear-gradient(135deg, #6F4E37 0%, #8C6549 100%);
+  border: 1px solid rgba(229, 228, 226, 0.25);
+  color: #FAF9F8;
+  box-shadow: 0 4px 18px -2px rgba(111, 78, 55, 0.35);
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.stitch-glow-btn:hover {
-  background: linear-gradient(135deg, rgba(129, 140, 248, 0.3) 0%, rgba(56, 189, 248, 0.25) 100%);
-  border-color: rgba(56, 189, 248, 0.6);
-  box-shadow: 0 0 24px -2px rgba(56, 189, 248, 0.4);
+.macha-glow-btn:hover, .stitch-glow-btn:hover {
+  background: linear-gradient(135deg, #8C6549 0%, #A57B5D 100%);
+  border-color: rgba(230, 224, 240, 0.45);
+  box-shadow: 0 6px 24px -1px rgba(111, 78, 55, 0.50);
   transform: translateY(-1px);
 }
 
-/* Markdown prose overrides for modern shadcn AI look */
+/* Markdown prose overrides for luxury high-end typography */
 .prose-namo {
-  color: #f4f4f5;
+  color: #F5F4F2;
   line-height: 1.75;
   font-size: 0.9375rem;
 }
@@ -157,7 +175,7 @@
 }
 
 .prose-namo h1, .prose-namo h2, .prose-namo h3, .prose-namo h4 {
-  color: #ffffff;
+  color: #E5E4E2;
   font-weight: 600;
   letter-spacing: -0.02em;
   margin-top: 1.5rem;
@@ -184,15 +202,17 @@
   margin: 1rem 0;
   border-radius: 0.75rem;
   overflow-x: auto;
+  border: 1px solid rgba(229, 228, 226, 0.12);
+  background: #15110E;
 }
 
 .prose-namo blockquote {
-  border-left: 3px solid #10b981;
+  border-left: 3px solid #6F4E37;
   padding-left: 1rem;
   margin: 1rem 0;
-  color: #a1a1aa;
+  color: #BDB8B3;
   font-style: italic;
-  background: rgba(16, 185, 129, 0.05);
+  background: rgba(111, 78, 55, 0.08);
   padding-top: 0.5rem;
   padding-bottom: 0.5rem;
   border-radius: 0 0.5rem 0.5rem 0;
@@ -204,35 +224,35 @@
   margin: 1.25rem 0;
   border-radius: 0.5rem;
   overflow: hidden;
-  border: 1px solid #27272a;
+  border: 1px solid rgba(229, 228, 226, 0.12);
 }
 
 .prose-namo th, .prose-namo td {
-  border: 1px solid #27272a;
+  border: 1px solid rgba(229, 228, 226, 0.12);
   padding: 0.6rem 0.85rem;
   text-align: left;
 }
 
 .prose-namo th {
-  background-color: #18181b;
+  background-color: #241E1A;
   font-weight: 600;
-  color: #e4e4e7;
+  color: #E5E4E2;
   font-size: 0.8125rem;
 }
 
 .prose-namo tr:nth-child(even) {
-  background-color: rgba(24, 24, 27, 0.4);
+  background-color: rgba(36, 30, 26, 0.4);
 }
 
 .prose-namo a {
-  color: #38bdf8;
+  color: #E6E0F0;
   text-decoration: underline;
   text-underline-offset: 3px;
   transition: color 0.15s ease;
 }
 
 .prose-namo a:hover {
-  color: #7dd3fc;
+  color: #FAF9F8;
 }
 
 /* Thinking block animation */

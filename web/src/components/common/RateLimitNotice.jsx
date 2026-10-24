@@ -106,7 +106,7 @@ export default function RateLimitNotice() {
 
         {/* Failover Badge & Action Buttons Row */}
         <div className="mt-3.5 pt-3 border-t border-zinc-800/80 flex flex-wrap items-center justify-between gap-2.5">
-          {/* Stitch Auto-Failover Badge */}
+          {/* Enterprise Dynamic Failover Badge */}
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-medium shadow-sm">
             <Zap className="w-3.5 h-3.5 text-emerald-400 fill-emerald-400/20" />
             <span>Switched to {failoverModelName} for zero downtime</span>

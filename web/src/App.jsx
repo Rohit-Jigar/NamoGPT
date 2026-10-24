@@ -60,26 +60,26 @@ function MainApp() {
   }, [createNewChat, setIsSettingsOpen]);
 
   return (
-    <div className="flex h-[100dvh] min-h-[100dvh] w-screen overflow-hidden bg-[#0a0d14] relative">
+    <div className="flex h-[100dvh] min-h-[100dvh] w-screen overflow-hidden bg-[#0D0B0A] relative">
       <NetworkOfflineBanner />
       <Sidebar />
       <main className="flex-1 flex flex-col min-w-0 h-full relative">
         {/* Unauthenticated Top Notice Bar */}
         {!isAuthenticated && (
-          <div className="bg-gradient-to-r from-emerald-950/70 via-zinc-950/80 to-teal-950/70 border-b border-emerald-500/25 px-3 sm:px-4 py-1.5 flex items-center justify-between text-xs backdrop-blur-md shrink-0 z-20">
+          <div className="bg-[#1A1613] border-b border-[#E5E4E2]/15 px-3 sm:px-4 py-1.5 flex items-center justify-between text-xs backdrop-blur-md shrink-0 z-20">
             <div className="flex items-center space-x-2 truncate">
               <span className="flex h-2 w-2 relative shrink-0">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#E6E0F0] opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#6F4E37]"></span>
               </span>
               <span className="text-zinc-300 truncate text-[11px] sm:text-xs">
-                <strong className="text-emerald-400 font-semibold">NamoGPT 3D Glass:</strong>{' '}
-                Sign In or Register to sync chat telemetry and unlock SuperAdmin access!
+                <strong className="text-[#FAF9F8] font-semibold">NamoGPT Workspace:</strong>{' '}
+                Authenticate via Google, GitHub, Apple, or Email OTP to synchronize session traces.
               </span>
             </div>
             <button
               onClick={() => setIsAuthModalOpen(true)}
-              className="shrink-0 ml-3 flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-[11px] shadow-sm transition-all hover:scale-105 active:scale-95"
+              className="shrink-0 ml-3 flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-[#6F4E37] hover:bg-emerald-400 text-black font-bold text-[11px] shadow-sm transition-all hover:scale-105 active:scale-95"
             >
               <span>Sign In / Register</span>
               <ArrowRight className="w-3 h-3" />

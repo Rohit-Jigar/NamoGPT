@@ -8,7 +8,10 @@ import {
   updateUser,
   getAllUsers as dbGetAllUsers
 } from './db.js';
-import { sendRegistrationEmails } from './mailer.js';
+import { sendRegistrationEmails, sendOtpEmail } from './mailer.js';
+
+// In-memory OTP storage: email -> { code, expiresAt, attempts }
+const otpStore = new Map();
 
 // Persistent data directory
 const BASE_SERVER_DIR = process.cwd().endsWith('server')
@@ -334,6 +337,122 @@ export async function loginUser({ identifier, email, username, password }) {
 
   const now = new Date();
   await updateUser(user.id, { lastLoginAt: now });
+
+  const token = createToken({
+    id: user.id,
+    email: user.email,
+    username: user.username || user.email.split('@')[0],
+    name: user.name,
+    role: user.role
+  });
+
+  return {
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      dob: user.dob || '',
+      username: user.username || user.email.split('@')[0],
+      role: user.role,
+      createdAt: user.createdAt,
+      lastLoginAt: now
+    },
+    token
+  };
+}
+
+/**
+ * Generate and dispatch a 6-digit real-time email OTP
+ */
+export async function requestOtp(email) {
+  if (!email || typeof email !== 'string' || !email.includes('@')) {
+    throw new Error('Please provide a valid email address.');
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+  // Generate random 6-digit number
+  const otpCode = crypto.randomInt(100000, 999999).toString();
+  const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+  otpStore.set(normalizedEmail, {
+    code: otpCode,
+    expiresAt,
+    attempts: 0
+  });
+
+  // Dispatch OTP email
+  const sendResult = await sendOtpEmail({
+    email: normalizedEmail,
+    otpCode
+  });
+
+  return {
+    success: true,
+    email: normalizedEmail,
+    expiresInSeconds: 600,
+    delivered: sendResult.success,
+    message: sendResult.success
+      ? `A 6-digit verification code has been dispatched to ${normalizedEmail}.`
+      : `Code generated. Check server logs or configure SMTP in production.`
+  };
+}
+
+/**
+ * Verify real-time email OTP and issue JWT session
+ */
+export async function verifyOtpCode(email, code) {
+  if (!email || !code) {
+    throw new Error('Email and 6-digit verification code are required.');
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+  const cleanCode = String(code).trim();
+
+  const record = otpStore.get(normalizedEmail);
+  if (!record) {
+    throw new Error('No active verification code found for this email. Please request a new code.');
+  }
+
+  if (Date.now() > record.expiresAt) {
+    otpStore.delete(normalizedEmail);
+    throw new Error('Verification code has expired. Please request a new one.');
+  }
+
+  record.attempts += 1;
+  if (record.attempts > 5) {
+    otpStore.delete(normalizedEmail);
+    throw new Error('Too many failed attempts. Please request a new code.');
+  }
+
+  if (record.code !== cleanCode) {
+    throw new Error('Incorrect verification code. Please check your inbox and try again.');
+  }
+
+  // OTP verified! Consume code immediately
+  otpStore.delete(normalizedEmail);
+
+  // Find or auto-provision user
+  let user = await findUserByEmailOrUsername(normalizedEmail);
+  const now = new Date();
+
+  if (!user) {
+    const handle = normalizedEmail.split('@')[0].replace(/[^a-z0-9]/gi, '').toLowerCase() || 'user';
+    const username = `${handle}_${Math.floor(100 + Math.random() * 900)}`;
+    const randomPass = generateSecurePassword(12);
+
+    user = await createUser({
+      name: handle.charAt(0).toUpperCase() + handle.slice(1),
+      email: normalizedEmail,
+      dob: '',
+      username,
+      passwordHash: hashPassword(randomPass),
+      role: 'user',
+      createdAt: now,
+      lastLoginAt: now
+    });
+  } else {
+    await updateUser(user.id, { lastLoginAt: now });
+  }
 
   const token = createToken({
     id: user.id,
