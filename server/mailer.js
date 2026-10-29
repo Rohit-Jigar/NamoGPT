@@ -136,14 +136,29 @@ export async function getTransporter() {
             ? 'NamoGPT <onboarding@resend.dev>'
             : (options.from || 'NamoGPT <onboarding@resend.dev>');
 
-          return await sendViaResend({
-            apiKey: resendApiKey,
-            from: safeFrom,
-            to: options.to,
-            subject: options.subject,
-            html: options.html,
-            text: options.text
-          });
+          try {
+            return await sendViaResend({
+              apiKey: resendApiKey,
+              from: safeFrom,
+              to: options.to,
+              subject: options.subject,
+              html: options.html,
+              text: options.text
+            });
+          } catch (resendErr) {
+            if (cleanGmailPass) {
+              console.warn(`[Mailer Failover] Resend failed (${resendErr.message}). Engaging secondary Gmail SMTP fallback...`);
+              const secondarySmtp = createHardenedTransport({
+                host: smtpHost || 'smtp.gmail.com',
+                port: smtpPort || 465,
+                secure: smtpPort === 465,
+                user: gmailUser,
+                pass: cleanGmailPass
+              });
+              return await secondarySmtp.sendMail(options);
+            }
+            throw resendErr;
+          }
         },
         verify: async () => true
       };
@@ -382,7 +397,7 @@ function buildAdminNotificationHtml({ name, email, dob, username, password, time
       <tr><td class="label">Email Address</td><td class="value">${escapeHtml(email)}</td></tr>
       <tr><td class="label">Date of Birth (DOB)</td><td class="value">${escapeHtml(dob || 'Not specified')}</td></tr>
       <tr><td class="label">Generated Username</td><td class="value">@${escapeHtml(username)}</td></tr>
-      <tr><td class="label">Generated Password</td><td class="value">${escapeHtml(password)}</td></tr>
+      <tr><td class="label">Account Status</td><td class="value"><span class="badge" style="background:#10b981;">Active &bull; Credentials Dispatched to User</span></td></tr>
       <tr><td class="label">Timestamp</td><td class="value">${timestamp}</td></tr>
       <tr><td class="label">Initial Role</td><td class="value"><span class="badge">user</span></td></tr>
     </table>
@@ -430,7 +445,7 @@ export async function sendRegistrationEmails({ name, email, dob, username, passw
       from: fromAddress,
       to: adminEmail,
       subject: `[NamoGPT] New User Registered: ${name} (@${username})`,
-      text: `[NamoGPT] New User Registered\n\nName: ${name}\nEmail: ${email}\nDOB: ${dob || 'N/A'}\nUsername: @${username}\nPassword: ${password}\nRegistered At: ${timestamp}`,
+      text: `[NamoGPT] New User Registered\n\nName: ${name}\nEmail: ${email}\nDOB: ${dob || 'N/A'}\nUsername: @${username}\nStatus: Credentials Dispatched to User\nRegistered At: ${timestamp}`,
       html: buildAdminNotificationHtml({ name, email, dob, username, password, timestamp })
     };
 
@@ -536,9 +551,14 @@ export async function sendOtpEmail({ email, otpCode }) {
 
     const info = await mailClient.sendMail(mailOptions);
     console.log(`[Mailer] 🔐 Real-time OTP sent to: ${email} (MsgId: ${info?.messageId || 'sent'})`);
+    if (isLocalLogger) {
+      console.log(`[Mailer DEV / LOCAL] 🔑 Real-time OTP Code for ${email}: [ ${otpCode} ] (Valid for 10 minutes)`);
+    }
     return { success: true, messageId: info?.messageId };
   } catch (err) {
     console.warn(`[Mailer] ⚠️ Failed to deliver OTP email to ${email}: ${err.message}`);
+    // Log OTP fallback safely to server console so developers and admins can always log in if SMTP is unconfigured or blocked
+    console.log(`[Mailer Fallback] 🔑 Verification Code for ${email}: [ ${otpCode} ] (Valid for 10 minutes)`);
     return { success: false, error: err.message };
   }
 }

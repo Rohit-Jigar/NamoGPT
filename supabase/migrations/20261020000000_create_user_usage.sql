@@ -7,7 +7,7 @@
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS public.user_usage (
   id TEXT PRIMARY KEY,
-  user_id TEXT REFERENCES public.users(id) ON DELETE CASCADE,
+  user_id TEXT,
   model TEXT NOT NULL,
   prompt_tokens BIGINT NOT NULL DEFAULT 0,
   completion_tokens BIGINT NOT NULL DEFAULT 0,
@@ -29,7 +29,7 @@ ALTER TABLE public.user_usage ENABLE ROW LEVEL SECURITY;
 -- RLS Policies for user_usage table
 DO $$
 BEGIN
-  -- SELECT Policy: Users can inspect their own records; Superadmins and public fallback
+  -- SELECT Policy: Users can inspect their own records; Superadmins and guest fallback (strict isolation, no OR true)
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies WHERE tablename = 'user_usage' AND policyname = 'user_usage_select_policy'
   ) THEN
@@ -38,8 +38,7 @@ BEGIN
       USING (
         auth.uid()::text = user_id 
         OR (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid()::text AND role = 'superadmin'))
-        OR user_id IS NULL
-        OR true
+        OR (auth.uid() IS NULL AND (user_id IS NULL OR user_id = 'anonymous' OR user_id LIKE 'guest%'))
       );
   END IF;
 
@@ -52,12 +51,11 @@ BEGIN
       WITH CHECK (
         auth.uid()::text = user_id 
         OR (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid()::text AND role = 'superadmin'))
-        OR user_id IS NULL
-        OR true
+        OR (auth.uid() IS NULL AND (user_id IS NULL OR user_id = 'anonymous' OR user_id LIKE 'guest%'))
       );
   END IF;
 
-  -- DELETE Policy: Users can delete their own records or Superadmins can purge
+  -- DELETE Policy: Users can delete only their own records; Superadmins can purge
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies WHERE tablename = 'user_usage' AND policyname = 'user_usage_delete_policy'
   ) THEN
@@ -66,7 +64,6 @@ BEGIN
       USING (
         auth.uid()::text = user_id 
         OR (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid()::text AND role = 'superadmin'))
-        OR true
       );
   END IF;
 END $$;

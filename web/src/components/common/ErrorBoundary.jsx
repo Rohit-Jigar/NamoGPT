@@ -79,33 +79,33 @@ export default class ErrorBoundary extends Component {
       const { error, errorInfo, showDetails, copied } = this.state;
 
       return (
-        <div className="min-h-screen w-screen bg-[#09090b] text-zinc-100 flex items-center justify-center p-4 relative overflow-hidden select-none">
+        <div className="min-h-screen w-screen bg-[#0D0B0A] text-[#FAF9F8] flex items-center justify-center p-4 relative overflow-hidden select-none">
           {/* Subtle Ambient Radial Glow */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[550px] h-[550px] bg-rose-500/10 rounded-full blur-[120px] pointer-events-none" />
-          <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] h-[350px] bg-amber-500/5 rounded-full blur-[90px] pointer-events-none" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[550px] h-[550px] bg-[#6F4E37]/15 rounded-full blur-[120px] pointer-events-none" />
+          <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] h-[350px] bg-[#E6E0F0]/5 rounded-full blur-[90px] pointer-events-none" />
 
           {/* Cognitive Obsidian Card */}
-          <div className="relative z-10 max-w-xl w-full rounded-3xl bg-zinc-950/85 border border-zinc-800/80 backdrop-blur-2xl shadow-2xl p-6 sm:p-8 space-y-6">
+          <div className="relative z-10 max-w-xl w-full rounded-3xl bg-[#13100E] border border-[#E5E4E2]/15 backdrop-blur-2xl shadow-2xl p-6 sm:p-8 space-y-6">
             {/* Header Icon & Brand */}
             <div className="flex items-center gap-3.5">
-              <div className="p-3 rounded-2xl bg-rose-500/15 text-rose-400 border border-rose-500/30 shadow-lg shadow-rose-500/10 shrink-0">
-                <ShieldAlert className="w-7 h-7" />
+              <div className="p-3 rounded-2xl bg-[#6F4E37]/25 text-[#FAF9F8] border border-[#6F4E37] shadow-lg shadow-black/40 shrink-0">
+                <ShieldAlert className="w-7 h-7 text-[#E6E0F0]" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-bold tracking-wider uppercase text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/20">
+                  <span className="text-[11px] font-bold tracking-wider uppercase text-[#E6E0F0] bg-[#241E1A] px-2 py-0.5 rounded-full border border-[#E5E4E2]/15">
                     Resilience Guard
                   </span>
-                  <span className="text-xs text-zinc-300 font-medium">NamoGPT Core</span>
+                  <span className="text-xs text-[#BDB8B3] font-medium">NamoGPT Core</span>
                 </div>
-                <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight mt-1">
+                <h1 className="text-xl sm:text-2xl font-bold text-[#FAF9F8] tracking-tight mt-1">
                   Application Exception Recovered
                 </h1>
               </div>
             </div>
 
             {/* Explanation */}
-            <p className="text-sm text-zinc-300 leading-relaxed">
+            <p className="text-sm text-[#BDB8B3] leading-relaxed">
               An unexpected user interface exception was caught by NamoGPT's system error boundary. Your session has been safely paused to prevent further data loss.
             </p>
 
@@ -113,15 +113,15 @@ export default class ErrorBoundary extends Component {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
               <button
                 onClick={this.handleReload}
-                className="flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-sm transition-all shadow-lg shadow-emerald-500/20 active:scale-95 hover:scale-[1.02]"
+                className="flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-[#6F4E37] hover:bg-[#8C6549] text-[#FAF9F8] font-semibold text-sm transition-all shadow-lg border border-[#6F4E37] active:scale-95 hover:scale-[1.02]"
               >
-                <RotateCcw className="w-4 h-4 text-black" />
+                <RotateCcw className="w-4 h-4 text-[#FAF9F8]" />
                 <span>Reload Session</span>
               </button>
 
               <button
                 onClick={this.handleClearCache}
-                className="flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-zinc-900 hover:bg-zinc-800 text-rose-300 hover:text-rose-200 border border-rose-500/30 hover:border-rose-500/50 font-semibold text-sm transition-all active:scale-95"
+                className="flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-[#241E1A] hover:bg-[#2D2520] text-rose-300 hover:text-rose-200 border border-rose-500/30 hover:border-rose-500/50 font-semibold text-sm transition-all active:scale-95"
               >
                 <Trash2 className="w-4 h-4 text-rose-400" />
                 <span>Clear Local Cache</span>
@@ -132,31 +132,31 @@ export default class ErrorBoundary extends Component {
             <div className="text-center pt-1">
               <button
                 onClick={this.handleResetActiveChat}
-                className="text-xs text-zinc-400 hover:text-zinc-200 underline transition-colors"
+                className="text-xs text-[#BDB8B3] hover:text-[#FAF9F8] underline transition-colors"
               >
                 Reset active conversation turn only (keep other chats)
               </button>
             </div>
 
             {/* Technical Diagnostics Collapsible */}
-            <div className="pt-2 border-t border-zinc-800/80">
+            <div className="pt-2 border-t border-[#E5E4E2]/10">
               <button
                 onClick={() => this.setState({ showDetails: !showDetails })}
-                className="flex items-center justify-between w-full text-xs text-zinc-300 hover:text-zinc-200 py-1 transition-colors"
+                className="flex items-center justify-between w-full text-xs text-[#BDB8B3] hover:text-[#FAF9F8] py-1 transition-colors"
               >
                 <span className="font-medium flex items-center gap-1.5">
                   {showDetails ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
                   Technical Diagnostic Details
                 </span>
-                <span className="text-[11px] font-mono text-zinc-400">{error ? error.name : 'Exception'}</span>
+                <span className="text-[11px] font-mono text-[#7A7570]">{error ? error.name : 'Exception'}</span>
               </button>
 
               {showDetails && (
                 <div className="mt-3 space-y-2 animate-in fade-in duration-200">
-                  <div className="relative rounded-2xl bg-zinc-900/90 border border-zinc-800 p-3.5 font-mono text-xs text-rose-300 max-h-52 overflow-y-auto leading-relaxed">
+                  <div className="relative rounded-2xl bg-[#0D0B0A] border border-[#E5E4E2]/15 p-3.5 font-mono text-xs text-rose-300 max-h-52 overflow-y-auto leading-relaxed">
                     <p className="font-semibold text-rose-400">{error?.toString()}</p>
                     {errorInfo?.componentStack && (
-                      <pre className="mt-2 text-[11px] text-zinc-400 whitespace-pre-wrap font-mono">
+                      <pre className="mt-2 text-[11px] text-[#BDB8B3] whitespace-pre-wrap font-mono">
                         {errorInfo.componentStack}
                       </pre>
                     )}
@@ -164,9 +164,9 @@ export default class ErrorBoundary extends Component {
                   <div className="flex justify-end">
                     <button
                       onClick={this.handleCopyDetails}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium transition-colors"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#241E1A] hover:bg-[#2D2520] text-[#E5E4E2] hover:text-white text-xs font-medium transition-colors border border-[#E5E4E2]/15"
                     >
-                      {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      {copied ? <Check className="w-3.5 h-3.5 text-[#E6E0F0]" /> : <Copy className="w-3.5 h-3.5" />}
                       <span>{copied ? 'Copied to Clipboard' : 'Copy Error Details'}</span>
                     </button>
                   </div>

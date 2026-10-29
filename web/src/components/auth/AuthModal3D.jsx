@@ -66,12 +66,17 @@ export default function AuthModal3D() {
   const cardRef = useRef(null);
   const [tilt, setTilt] = useState({ rx: 0, ry: 0, shineX: 50, shineY: 50 });
 
-  // Reset state on open
+  // Reset state on open and detect OAuth provider cancellation
   useEffect(() => {
     if (isAuthModalOpen) {
       setErrorMsg('');
       setToastMsg('');
       setSocialLoading(null);
+
+      // Detect if user returned after cancelling an OAuth prompt
+      if (window.location.hash.includes('error=') || window.location.search.includes('error=')) {
+        setErrorMsg('Sign-in prompt was cancelled or denied by the authentication provider.');
+      }
     }
   }, [isAuthModalOpen]);
 
@@ -88,14 +93,17 @@ export default function AuthModal3D() {
 
   if (!isAuthModalOpen) return null;
 
-  // 3D Mouse Movement
+  // 3D Mouse Movement with mobile detection to eliminate jitter
   const handleMouseMove = (e) => {
     if (!cardRef.current) return;
+    if (typeof window !== 'undefined' && (!window.matchMedia('(hover: hover)').matches || window.innerWidth < 768)) {
+      return;
+    }
     const rect = cardRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    const rx = ((y - rect.height / 2) / (rect.height / 2)) * -5;
-    const ry = ((x - rect.width / 2) / (rect.width / 2)) * 5;
+    const rx = ((y - rect.height / 2) / (rect.height / 2)) * -4;
+    const ry = ((x - rect.width / 2) / (rect.width / 2)) * 4;
     const shineX = (x / rect.width) * 100;
     const shineY = (y / rect.height) * 100;
     setTilt({ rx, ry, shineX, shineY });
@@ -224,31 +232,36 @@ export default function AuthModal3D() {
     setErrorMsg('');
     setSocialLoading(provider);
 
+    // Safety timeout: prevent UI freeze if OAuth redirect is cancelled or popup is blocked
+    const safetyTimer = setTimeout(() => {
+      setSocialLoading(null);
+    }, 8000);
+
     try {
+      let res;
       if (provider === 'google') {
-        const res = await signInWithGoogle();
-        if (!res.success) throw new Error(res.error || 'Google OAuth failed.');
-        return;
+        res = await signInWithGoogle();
+      } else if (provider === 'github') {
+        res = await signInWithGitHub();
+      } else if (provider === 'apple') {
+        res = await signInWithApple();
       }
-      if (provider === 'github') {
-        const res = await signInWithGitHub();
-        if (!res.success) throw new Error(res.error || 'GitHub OAuth failed.');
-        return;
-      }
-      if (provider === 'apple') {
-        const res = await signInWithApple();
-        if (!res.success) throw new Error(res.error || 'Apple OAuth failed.');
-        return;
+
+      if (!res?.success) {
+        clearTimeout(safetyTimer);
+        setSocialLoading(null);
+        throw new Error(res?.error || `${provider.toUpperCase()} OAuth failed.`);
       }
     } catch (err) {
-      console.warn(`[AuthModal] ${provider} OAuth error:`, err.message);
-      // If Supabase OAuth is not yet configured with client secrets in Supabase dashboard,
-      // notify user clearly and provide quick-access fallback
-      setErrorMsg(
-        `${provider.toUpperCase()} Single Sign-On requires configuring OAuth credentials in the Supabase Dashboard. ` +
-        `See AUTH_CREDENTIALS_SETUP.md for 1-click setup.`
-      );
+      clearTimeout(safetyTimer);
       setSocialLoading(null);
+      console.warn(`[AuthModal] ${provider} OAuth error:`, err.message);
+      const isConfigIssue = err.message?.includes('not configured') || err.message?.includes('Anon Key') || err.message?.includes('provider');
+      setErrorMsg(
+        isConfigIssue
+          ? `${provider.toUpperCase()} Single Sign-On requires configuring OAuth credentials in the Supabase Dashboard. See AUTH_CREDENTIALS_SETUP.md for setup.`
+          : err.message || `${provider.toUpperCase()} authentication failed.`
+      );
     }
   };
 
@@ -260,7 +273,7 @@ export default function AuthModal3D() {
         onMouseLeave={handleMouseLeave}
         style={{
           transform: `perspective(1000px) rotateX(${tilt.rx}deg) rotateY(${tilt.ry}deg)`,
-          transition: 'transform 0.15s ease-out'
+          transition: 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
         }}
         className="relative w-full max-w-lg rounded-2xl bg-[#13100E] border border-[#E5E4E2]/15 shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-hidden"
       >
@@ -656,7 +669,7 @@ export default function AuthModal3D() {
                       onClick={() => handleCopy(revealedCredentials.password, 'pass')}
                       className="p-1 hover:text-[#E6E0F0]"
                     >
-                      {copiedField === 'pass' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      {copiedField === 'pass' ? <Check className="w-3.5 h-3.5 text-[#E6E0F0]" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
                   </div>
                 </div>

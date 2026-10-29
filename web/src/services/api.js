@@ -678,13 +678,17 @@ export const INITIAL_USAGE_STATS = {
     'auto': { name: 'Smart Router (Dynamic)', promptTokens: 0, completionTokens: 0, totalTokens: 0, requests: 0, lastTps: 0 }
   },
   quotas: {
-    gemini: { name: 'Google Gemini', used: 0, limit: 15, unit: 'RPM', window: '60s' },
+    gemini: { name: 'Google Gemini (RPM)', used: 0, limit: 15, unit: 'RPM', window: '60s' },
+    geminiTpm: { name: 'Google Gemini (TPM)', used: 0, limit: 1000000, unit: 'TPM', window: '60s' },
     groq: { name: 'Groq Cloud', used: 0, limit: 14400, unit: 'RPD', window: 'Daily' },
-    openrouter: { name: 'OpenRouter Free', used: 0, limit: 200, unit: 'RPD', window: 'Daily' }
+    openrouter: { name: 'OpenRouter Free', used: 0, limit: 200, unit: 'RPD', window: 'Daily' },
+    nvidiaNim: { name: 'NVIDIA NIM', used: 0, limit: 1000, unit: 'Credits', window: 'Total' }
   },
   costSavings: {
     commercialCostEstimated: 0.0,
-    savedAmount: 0.0
+    savedAmount: 0.0,
+    gpt4oSavingsUSD: 0.0,
+    claudeSonnetSavingsUSD: 0.0
   }
 };
 
@@ -717,17 +721,17 @@ export function saveLocalUsageStats(stats) {
 
 export function updateLocalUsage(data = {}) {
   const current = getLocalUsageStats();
-  const promptTokens = Number(data.promptTokens || 0);
-  const completionTokens = Number(data.completionTokens || 0);
-  const totalTokens = Number(data.totalTokens || (promptTokens + completionTokens));
-  const tps = Number(data.tps || 0);
+  const promptTokens = Math.max(0, Number(data.promptTokens || 0));
+  const completionTokens = Math.max(0, Number(data.completionTokens || 0));
+  const totalTokens = Math.max(0, Number(data.totalTokens || (promptTokens + completionTokens)));
+  const tps = Math.max(0, Number(data.tps || 0));
   const modelKey = data.model || 'auto';
 
   // Cost calculation benchmark:
   // OpenAI GPT-4o: $2.50 / 1M prompt, $10.00 / 1M completion
   // Claude 3.5 Sonnet: $3.00 / 1M prompt, $15.00 / 1M completion
-  // Avg: $2.75 / 1M prompt ($0.00000275), $12.50 / 1M completion ($0.0000125)
-  const incrementalSavings = (promptTokens * 0.00000275) + (completionTokens * 0.0000125);
+  const incrementalSavingsGpt4o = ((promptTokens / 1e6) * 2.50) + ((completionTokens / 1e6) * 10.00);
+  const incrementalSavingsClaude = ((promptTokens / 1e6) * 3.00) + ((completionTokens / 1e6) * 15.00);
 
   const prevModelObj = current.models[modelKey] || {
     name: modelKey,
@@ -751,16 +755,19 @@ export function updateLocalUsage(data = {}) {
   };
 
   const updatedQuotas = { ...current.quotas };
-  if (modelKey === 'gemini') {
+  if (modelKey.includes('gemini')) {
     updatedQuotas.gemini = { ...updatedQuotas.gemini, used: (updatedQuotas.gemini?.used || 0) + 1 };
-  } else if (modelKey === 'groq' || modelKey === 'groq-vision') {
+    updatedQuotas.geminiTpm = { ...updatedQuotas.geminiTpm, used: (updatedQuotas.geminiTpm?.used || 0) + totalTokens };
+  } else if (modelKey.includes('groq') || modelKey.includes('llama') || modelKey.includes('gpt-oss')) {
     updatedQuotas.groq = { ...updatedQuotas.groq, used: (updatedQuotas.groq?.used || 0) + 1 };
-  } else if (modelKey === 'openrouter' || modelKey === 'deepseek-r1') {
+  } else if (modelKey.includes('openrouter') || modelKey.includes('deepseek-r1')) {
     updatedQuotas.openrouter = { ...updatedQuotas.openrouter, used: (updatedQuotas.openrouter?.used || 0) + 1 };
+  } else if (modelKey.includes('nvidia') || modelKey.includes('nim')) {
+    updatedQuotas.nvidiaNim = { ...updatedQuotas.nvidiaNim, used: (updatedQuotas.nvidiaNim?.used || 0) + 1 };
   }
 
   const prevSavings = current.costSavings?.savedAmount || 0;
-  const newSavings = Number((prevSavings + incrementalSavings).toFixed(4));
+  const newSavings = Number((prevSavings + incrementalSavingsGpt4o).toFixed(4));
 
   const updated = {
     ...current,

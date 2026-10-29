@@ -72,14 +72,14 @@ function MainApp() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#E6E0F0] opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-[#6F4E37]"></span>
               </span>
-              <span className="text-zinc-300 truncate text-[11px] sm:text-xs">
+              <span className="text-[#BDB8B3] truncate text-[11px] sm:text-xs">
                 <strong className="text-[#FAF9F8] font-semibold">NamoGPT Workspace:</strong>{' '}
                 Authenticate via Google, GitHub, Apple, or Email OTP to synchronize session traces.
               </span>
             </div>
             <button
               onClick={() => setIsAuthModalOpen(true)}
-              className="shrink-0 ml-3 flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-[#6F4E37] hover:bg-emerald-400 text-black font-bold text-[11px] shadow-sm transition-all hover:scale-105 active:scale-95"
+              className="shrink-0 ml-3 flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-[#6F4E37] hover:bg-[#8C6549] text-[#FAF9F8] font-semibold text-[11px] shadow-sm transition-all hover:scale-105 active:scale-95 border border-[#6F4E37]"
             >
               <span>Sign In / Register</span>
               <ArrowRight className="w-3 h-3" />

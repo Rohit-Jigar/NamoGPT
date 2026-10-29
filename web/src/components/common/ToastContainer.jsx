@@ -24,10 +24,10 @@ export default function ToastContainer() {
         const isWarning = toast.type === 'warning';
         const isSuccess = toast.type === 'success';
 
-        let borderClass = 'border-cyan-500/30';
-        let iconBg = 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20';
-        let glowClass = 'shadow-cyan-500/5';
-        let barClass = 'bg-cyan-500/40';
+        let borderClass = 'border-[#E6E0F0]/30';
+        let iconBg = 'bg-[#E6E0F0]/15 text-[#E6E0F0] border-[#E6E0F0]/25';
+        let glowClass = 'shadow-[#E6E0F0]/5';
+        let barClass = 'bg-[#E6E0F0]/50';
         let IconComponent = Info;
 
         if (isError) {
@@ -37,16 +37,16 @@ export default function ToastContainer() {
           barClass = 'bg-rose-500/50';
           IconComponent = AlertOctagon;
         } else if (isWarning) {
-          borderClass = 'border-amber-500/40';
-          iconBg = 'bg-amber-500/15 text-amber-400 border-amber-500/30';
-          glowClass = 'shadow-amber-500/10';
-          barClass = 'bg-amber-500/50';
+          borderClass = 'border-[#AF8E73]/40';
+          iconBg = 'bg-[#6F4E37]/20 text-[#FAF9F8] border-[#6F4E37]/40';
+          glowClass = 'shadow-[#6F4E37]/10';
+          barClass = 'bg-[#AF8E73]/50';
           IconComponent = AlertTriangle;
         } else if (isSuccess) {
-          borderClass = 'border-emerald-500/40';
-          iconBg = 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30';
-          glowClass = 'shadow-emerald-500/10';
-          barClass = 'bg-emerald-500/50';
+          borderClass = 'border-[#6F4E37]/40';
+          iconBg = 'bg-[#6F4E37]/25 text-[#E6E0F0] border-[#6F4E37]/50';
+          glowClass = 'shadow-[#6F4E37]/10';
+          barClass = 'bg-[#6F4E37]/60';
           IconComponent = CheckCircle2;
         }
 
@@ -54,7 +54,7 @@ export default function ToastContainer() {
           <div
             key={toast.id}
             role="status"
-            className={`pointer-events-auto relative overflow-hidden rounded-2xl bg-zinc-950/95 backdrop-blur-2xl border ${borderClass} shadow-2xl ${glowClass} p-3.5 transition-all duration-300 animate-in fade-in slide-in-from-bottom-3`}
+            className={`pointer-events-auto relative overflow-hidden rounded-2xl bg-[#13100E] backdrop-blur-2xl border ${borderClass} shadow-2xl ${glowClass} p-3.5 transition-all duration-300 animate-in fade-in slide-in-from-bottom-3`}
           >
             <div className="flex items-start gap-3">
               {/* Type Badge Icon */}
@@ -65,17 +65,17 @@ export default function ToastContainer() {
               {/* Toast Content */}
               <div className="flex-1 min-w-0 pr-1">
                 {toast.title && (
-                  <h4 className="text-xs font-semibold text-zinc-100 mb-0.5 tracking-tight flex items-center gap-1.5">
+                  <h4 className="text-xs font-semibold text-[#FAF9F8] mb-0.5 tracking-tight flex items-center gap-1.5">
                     {toast.title}
                   </h4>
                 )}
-                <p className="text-[12px] leading-relaxed text-zinc-300 whitespace-pre-wrap break-words">
+                <p className="text-[12px] leading-relaxed text-[#BDB8B3] whitespace-pre-wrap break-words">
                   {toast.message}
                 </p>
 
                 {/* 1-Click Action Button (e.g. Retry for 504 Gateway Timeout) */}
                 {toast.action && (
-                  <div className="mt-2.5 pt-2 border-t border-zinc-800/80 flex items-center justify-start">
+                  <div className="mt-2.5 pt-2 border-t border-[#E5E4E2]/10 flex items-center justify-start">
                     <button
                       onClick={() => {
                         try {
@@ -85,9 +85,9 @@ export default function ToastContainer() {
                         }
                         removeToast(toast.id);
                       }}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-100 hover:text-white text-[11px] font-medium transition-colors shadow-sm border border-zinc-700/60 active:scale-95"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#241E1A] hover:bg-[#2D2520] text-[#FAF9F8] text-[11px] font-medium transition-colors shadow-sm border border-[#E5E4E2]/15 active:scale-95"
                     >
-                      <RotateCcw className="w-3 h-3 text-amber-400" />
+                      <RotateCcw className="w-3 h-3 text-[#E6E0F0]" />
                       <span>{toast.action.label || 'Retry'}</span>
                     </button>
                   </div>
@@ -98,7 +98,7 @@ export default function ToastContainer() {
               {toast.dismissible && (
                 <button
                   onClick={() => removeToast(toast.id)}
-                  className="p-1 text-zinc-500 hover:text-zinc-200 rounded-lg hover:bg-zinc-800/60 transition-colors shrink-0 -mr-1 -mt-1"
+                  className="p-1 text-[#7A7570] hover:text-[#FAF9F8] rounded-lg hover:bg-[#241E1A] transition-colors shrink-0 -mr-1 -mt-1"
                   aria-label="Dismiss notification"
                 >
                   <X className="w-3.5 h-3.5" />

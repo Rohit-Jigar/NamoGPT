@@ -19,12 +19,28 @@
 import { searchWeb } from './search.js';
 
 /**
+ * Formats a URL safely for markdown links, escaping parentheses and enforcing http/https.
+ * @param {string} url 
+ * @returns {string}
+ */
+export function formatSafeMarkdownUrl(url) {
+  if (!url || typeof url !== 'string') return '#';
+  const clean = url.trim();
+  if (!clean.startsWith('http://') && !clean.startsWith('https://')) return '#';
+  return clean.replace(/\(/g, '%28').replace(/\)/g, '%29');
+}
+
+/**
  * Generates tailored sub-search queries across 4 strategic dimensions.
+ * Preserves Unicode letters and numbers across Indic, Asian, and international scripts.
  * @param {string} topic 
  * @returns {Array<{ id: string, dimension: string, query: string, description: string }>}
  */
 export function generateResearchPlan(topic) {
-  const cleanTopic = topic.replace(/[^\w\s-]/gi, ' ').replace(/\s+/g, ' ').trim();
+  const cleanTopic = (topic || '')
+    .replace(/[^\p{L}\p{M}\p{N}\s-]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim() || (typeof topic === 'string' ? topic.trim() : 'General Technology');
 
   return [
     {
@@ -116,7 +132,7 @@ export function compileResearchReport(topic, planWithResults, sources, timestamp
 
     section.results.forEach((item) => {
       const sourceObj = sources.find(s => s.url === item.url);
-      const citationTag = sourceObj ? `[[${sourceObj.id}]](${sourceObj.url})` : '';
+      const citationTag = sourceObj ? `[[${sourceObj.id}]](${formatSafeMarkdownUrl(sourceObj.url)})` : '';
       const snippetClean = cleanText(item.snippet);
       const titleClean = cleanText(item.title);
 
@@ -189,7 +205,7 @@ export function compileResearchReport(topic, planWithResults, sources, timestamp
     report += `*No external sources referenced directly.*\n`;
   } else {
     sources.forEach(src => {
-      report += `[${src.id}] **[${cleanText(src.title)}](${src.url})**  \n`;
+      report += `[${src.id}] **[${cleanText(src.title)}](${formatSafeMarkdownUrl(src.url)})**  \n`;
       report += `&nbsp;&nbsp;&nbsp;&nbsp;*Category:* ${src.dimension}  \n`;
       if (src.snippet) {
         report += `&nbsp;&nbsp;&nbsp;&nbsp;*Snippet:* ${cleanText(src.snippet)}  \n`;

@@ -39,6 +39,35 @@ export function stripCdataAndDecode(str) {
 }
 
 /**
+ * Validates that a string is a well-formed HTTP or HTTPS URL (rejects javascript:, data:, file:)
+ */
+export function isValidHttpUrl(urlStr) {
+  if (!urlStr || typeof urlStr !== 'string') return false;
+  try {
+    const parsed = new URL(urlStr);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * SSRF Guard: Checks if a hostname resolves to private, loopback, or cloud metadata IP
+ */
+export function isPrivateOrLoopbackHost(hostname) {
+  if (!hostname || typeof hostname !== 'string') return true;
+  const clean = hostname.toLowerCase().trim();
+  if (clean === 'localhost' || clean === '127.0.0.1' || clean === '::1' || clean === '0.0.0.0') return true;
+  if (clean === '169.254.169.254' || clean === 'metadata.google.internal' || clean === 'instance-data') return true;
+  // RFC 1918 & link-local address validation
+  if (/^10\.\d+\.\d+\.\d+$/.test(clean)) return true;
+  if (/^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$/.test(clean)) return true;
+  if (/^192\.168\.\d+\.\d+$/.test(clean)) return true;
+  if (/^169\.254\.\d+\.\d+$/.test(clean)) return true;
+  return false;
+}
+
+/**
  * Robust RSS XML parser for Google News, Bing News, and BBC feeds
  * Extracts headlines, clean target URLs, pubDates, outlets, and descriptions.
  */
@@ -61,7 +90,7 @@ export function parseRssXml(xml, defaultSource = 'google-news', defaultOutlet = 
     let outlet = rawSourceMatch ? stripCdataAndDecode(rawSourceMatch[1]) : defaultOutlet;
     const rawDesc = rawDescMatch ? rawDescMatch[1] : '';
 
-    if (!title || !url) continue;
+    if (!title || !url || !isValidHttpUrl(url)) continue;
 
     // Extract direct target URL from Bing redirect or tracking URLs if present
     if (url.includes('url=')) {
@@ -618,7 +647,10 @@ export async function fetchGoogleNewsRss(query, maxResults = 5) {
  * ===================================================================== */
 
 export async function fetchTavily(query, maxResults = 5) {
-  const apiKey = process.env.TAVILY_API_KEY.trim();
+  const apiKey = (process.env.TAVILY_API_KEY || '').trim();
+  if (!apiKey) {
+    throw new Error('TAVILY_API_KEY is not configured.');
+  }
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 6000);
 
@@ -643,12 +675,15 @@ export async function fetchTavily(query, maxResults = 5) {
     }
 
     const data = await res.json();
-    const results = (data.results || []).slice(0, maxResults).map(r => ({
-      title: r.title || 'Untitled',
-      url: r.url || '',
-      snippet: r.content || r.snippet || '',
-      source: 'tavily'
-    }));
+    const results = (data.results || [])
+      .filter(r => r && isValidHttpUrl(r.url))
+      .slice(0, maxResults)
+      .map(r => ({
+        title: r.title || 'Untitled',
+        url: r.url || '',
+        snippet: r.content || r.snippet || '',
+        source: 'tavily'
+      }));
 
     return results;
   } catch (err) {
@@ -662,7 +697,10 @@ export async function fetchTavily(query, maxResults = 5) {
  * ===================================================================== */
 
 export async function fetchSerper(query, maxResults = 5) {
-  const apiKey = process.env.SERPER_API_KEY.trim();
+  const apiKey = (process.env.SERPER_API_KEY || '').trim();
+  if (!apiKey) {
+    throw new Error('SERPER_API_KEY is not configured.');
+  }
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 6000);
 
@@ -687,12 +725,15 @@ export async function fetchSerper(query, maxResults = 5) {
 
     const data = await res.json();
     const rawItems = data.organic || [];
-    const results = rawItems.slice(0, maxResults).map(r => ({
-      title: r.title || 'Untitled',
-      url: r.link || '',
-      snippet: r.snippet || '',
-      source: 'serper'
-    }));
+    const results = rawItems
+      .filter(r => r && isValidHttpUrl(r.link))
+      .slice(0, maxResults)
+      .map(r => ({
+        title: r.title || 'Untitled',
+        url: r.link || '',
+        snippet: r.snippet || '',
+        source: 'serper'
+      }));
 
     return results;
   } catch (err) {
@@ -1052,6 +1093,29 @@ export async function fetchUrlContent(url) {
   let cleanUrl = url.trim();
   if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
     cleanUrl = `https://${cleanUrl}`;
+  }
+
+  if (!isValidHttpUrl(cleanUrl)) {
+    return {
+      url: cleanUrl,
+      status: 400,
+      title: 'Invalid URL',
+      snippet: '',
+      content: '',
+      error: 'Invalid URL protocol. Only HTTP and HTTPS protocols are permitted.'
+    };
+  }
+
+  const parsedUrl = new URL(cleanUrl);
+  if (isPrivateOrLoopbackHost(parsedUrl.hostname)) {
+    return {
+      url: cleanUrl,
+      status: 403,
+      title: 'Access Restricted',
+      snippet: '',
+      content: '',
+      error: 'SSRF Protection: Requests to loopback, link-local, and private addresses are restricted.'
+    };
   }
 
   const controller = new AbortController();

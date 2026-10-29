@@ -9,6 +9,38 @@
  * - formatRagContext(rankedChunks) returning formatted Markdown citations.
  */
 
+const MAX_DOCUMENT_CHARS = 5 * 1024 * 1024; // 5 MB per document
+const MAX_TOTAL_CHUNKS = 1000; // Cap total indexed chunks to prevent OOM/event loop starvation
+
+/**
+ * Calculates Cosine Similarity between two term-frequency vector maps:
+ * Cosine(A, B) = (A • B) / (||A|| * ||B||)
+ * @param {Map<string, number>} tfMapA 
+ * @param {Map<string, number>} tfMapB 
+ * @returns {number} Normalized similarity in range [0, 1]
+ */
+export function calculateCosineSimilarity(tfMapA, tfMapB) {
+  if (!tfMapA || !tfMapB || tfMapA.size === 0 || tfMapB.size === 0) return 0;
+
+  let dotProduct = 0;
+  let normA = 0;
+  let normB = 0;
+
+  for (const [term, freqA] of tfMapA.entries()) {
+    normA += freqA * freqA;
+    const freqB = tfMapB.get(term) || 0;
+    dotProduct += freqA * freqB;
+  }
+
+  for (const freqB of tfMapB.values()) {
+    normB += freqB * freqB;
+  }
+
+  if (normA === 0 || normB === 0) return 0;
+  const similarity = dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+  return Number(Math.min(1.0, Math.max(0.0, similarity)).toFixed(4));
+}
+
 // Common English stop words to filter out for sharper BM25 matching
 const STOP_WORDS = new Set([
   'a', 'about', 'above', 'after', 'again', 'against', 'all', 'am', 'an', 'and', 'any', 'are', 'aren\'t',
@@ -120,7 +152,7 @@ export function chunkText(text, chunkSize = 500, chunkOverlap = 100) {
 }
 
 /**
- * Parse a standard CSV string into headers and rows, correctly handling quoted fields and commas.
+ * Parse a standard RFC 4180 CSV string into headers and rows, correctly handling quoted fields with embedded commas and newlines.
  * @param {string} csvText 
  * @returns {{ headers: string[], rows: string[][], tableMarkdown: string, summary: string }}
  */
@@ -129,45 +161,59 @@ export function parseCsv(csvText) {
     return { headers: [], rows: [], tableMarkdown: '', summary: '' };
   }
 
-  const lines = csvText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
   const parsedRows = [];
+  let currentRow = [];
+  let currentCell = '';
+  let insideQuote = false;
+  let i = 0;
 
-  for (const line of lines) {
-    if (!line.trim()) continue;
+  while (i < csvText.length) {
+    const char = csvText[i];
+    const nextChar = csvText[i + 1];
 
-    const row = [];
-    let insideQuote = false;
-    let currentCell = '';
-
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i];
-      const nextChar = line[i + 1];
-
-      if (char === '"') {
-        if (insideQuote && nextChar === '"') {
-          // Escaped quote
-          currentCell += '"';
-          i++;
-        } else {
-          // Toggle quote
-          insideQuote = !insideQuote;
-        }
-      } else if (char === ',' && !insideQuote) {
-        row.push(currentCell.trim());
-        currentCell = '';
-      } else {
-        currentCell += char;
+    if (char === '"') {
+      if (insideQuote && nextChar === '"') {
+        // Escaped quote: "" inside quotes becomes "
+        currentCell += '"';
+        i += 2;
+        continue;
       }
+      insideQuote = !insideQuote;
+      i++;
+    } else if (char === ',' && !insideQuote) {
+      currentRow.push(currentCell.trim());
+      currentCell = '';
+      i++;
+    } else if ((char === '\r' || char === '\n') && !insideQuote) {
+      if (char === '\r' && nextChar === '\n') {
+        i++;
+      }
+      currentRow.push(currentCell.trim());
+      if (currentRow.some(c => Boolean(c))) {
+        parsedRows.push(currentRow);
+      }
+      currentRow = [];
+      currentCell = '';
+      i++;
+    } else {
+      currentCell += char;
+      i++;
     }
-    row.push(currentCell.trim());
-    parsedRows.push(row);
+  }
+
+  // Push final remaining cell / row
+  if (currentCell || currentRow.length > 0) {
+    currentRow.push(currentCell.trim());
+    if (currentRow.some(c => Boolean(c))) {
+      parsedRows.push(currentRow);
+    }
   }
 
   if (parsedRows.length === 0) {
     return { headers: [], rows: [], tableMarkdown: '', summary: '' };
   }
 
-  const headers = parsedRows[0].map((h, i) => h || `Column_${i + 1}`);
+  const headers = parsedRows[0].map((h, idx) => h || `Column_${idx + 1}`);
   const dataRows = parsedRows.slice(1);
 
   // Generate markdown table representation (up to first 50 rows for token sanity)
@@ -175,7 +221,7 @@ export function parseCsv(csvText) {
   let tableMarkdown = `| ${headers.join(' | ')} |\n`;
   tableMarkdown += `| ${headers.map(() => '---').join(' | ')} |\n`;
   for (const row of previewRows) {
-    const rowValues = headers.map((_, i) => (row[i] !== undefined ? row[i].replace(/\|/g, '\\|') : ''));
+    const rowValues = headers.map((_, idx) => (row[idx] !== undefined ? String(row[idx]).replace(/\|/g, '\\|') : ''));
     tableMarkdown += `| ${rowValues.join(' | ')} |\n`;
   }
 
@@ -192,6 +238,7 @@ export function parseCsv(csvText) {
 /**
  * Transform a CSV document into structured, searchable RAG chunks.
  * Combines high-level schema summary, markdown table previews, and key-value records.
+ * Uses adaptive batch sizing to prevent thousands of small chunks from flooding memory.
  * @param {string} csvText 
  * @param {string} documentName 
  * @returns {string[]}
@@ -206,8 +253,8 @@ export function chunkCsv(csvText, documentName = 'data.csv') {
   let schemaChunk = `[Dataset Summary: ${documentName}]\n${summary}\n\n[Tabular View Sample]:\n${tableMarkdown}`;
   chunks.push(schemaChunk);
 
-  // Chunk remaining rows in batches (e.g. 5-10 rows per chunk) with explicit column labels
-  const batchSize = 5;
+  // Dynamically calculate batch size to avoid generating unbounded thousands of chunks
+  const batchSize = Math.max(5, Math.ceil(rows.length / 40));
   for (let i = 0; i < rows.length; i += batchSize) {
     const batch = rows.slice(i, i + batchSize);
     let recordChunk = `[Dataset Records ${i + 1} - ${i + batch.length} of ${rows.length} from ${documentName}]:\n`;
@@ -392,16 +439,24 @@ function prepareDocumentChunks(documents) {
       return;
     }
 
-    const isCsv = explicitType === 'csv' || isCsvDocument(name, content);
+    if (allChunks.length >= MAX_TOTAL_CHUNKS) {
+      return;
+    }
+
+    // Safety guard: Limit per-document length to prevent memory exhaustion & event loop freeze
+    const safeContent = content.length > MAX_DOCUMENT_CHARS ? content.slice(0, MAX_DOCUMENT_CHARS) : content;
+    const isCsv = explicitType === 'csv' || isCsvDocument(name, safeContent);
     let chunks = [];
 
     if (isCsv) {
-      chunks = chunkCsv(content, name);
+      chunks = chunkCsv(safeContent, name);
     } else {
-      chunks = chunkText(content, 500, 100);
+      chunks = chunkText(safeContent, 500, 100);
     }
 
-    chunks.forEach((chunkContent, chunkIndex) => {
+    for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
+      if (allChunks.length >= MAX_TOTAL_CHUNKS) break;
+      const chunkContent = chunks[chunkIndex];
       allChunks.push({
         id: `chunk_${docIndex + 1}_${chunkIndex + 1}`,
         documentName: name,
@@ -413,7 +468,7 @@ function prepareDocumentChunks(documents) {
           length: chunkContent.length
         }
       });
-    });
+    }
   });
 
   return allChunks;

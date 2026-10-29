@@ -85,6 +85,15 @@ app.use(morgan('dev'));
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 
+// HTTP Defense Security Headers
+app.use((_req, res, next) => {
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  next();
+});
+
 // Attach global auth middleware to decode JWT or LiteLLM Master Key
 app.use(authMiddleware);
 
@@ -151,9 +160,10 @@ app.get('/api/auth/me', async (req, res) => {
   if (!req.user) {
     return res.status(401).json({ success: false, error: 'Unauthorized. Please log in.' });
   }
-  const user = await getUserById(req.user.id);
+  let user = await getUserById(req.user.id);
   if (!user) {
-    return res.status(404).json({ success: false, error: 'User not found.' });
+    // If user authenticated via Supabase OAuth or Master Key, return verified user payload
+    user = req.user;
   }
   return res.status(200).json({ success: true, user });
 });
@@ -170,10 +180,24 @@ app.get('/api/auth/users', requireAdmin, async (req, res) => {
 
 // --- CHAT PERSISTENCE ROUTES (MongoDB & Persistent JSON Storage) ---
 
+// Helper: resolve active caller user/session ID
+function resolveCallerUserId(req) {
+  return req.user?.id || req.headers['x-session-id'] || req.headers['x-guest-id'] || 'guest-session';
+}
+
 // 1. Get chats for active user or guest session
 app.get('/api/chats', async (req, res) => {
   try {
-    const userId = req.user?.id || req.headers['x-session-id'] || req.headers['x-guest-id'] || req.query.userId || req.query.sessionId || 'guest';
+    const isSuperAdmin = req.user?.role === 'superadmin';
+    let userId = resolveCallerUserId(req);
+
+    if (req.query.userId === 'all') {
+      if (!isSuperAdmin) {
+        return res.status(403).json({ success: false, error: 'Forbidden: Super Admin access required to list all chats.' });
+      }
+      userId = 'all';
+    }
+
     const chats = await getChats(userId);
     return res.status(200).json({ success: true, count: chats.length, chats });
   } catch (err) {
@@ -185,10 +209,18 @@ app.get('/api/chats', async (req, res) => {
 app.post('/api/chats', async (req, res) => {
   try {
     const chatData = req.body || {};
-    const userId = req.user?.id || req.headers['x-session-id'] || req.headers['x-guest-id'] || req.query.sessionId || chatData.userId || 'guest';
-    if (!chatData.userId) {
-      chatData.userId = userId;
+    const userId = resolveCallerUserId(req);
+    const isSuperAdmin = req.user?.role === 'superadmin';
+
+    // Verify ownership if updating an existing chat session
+    if (chatData.id) {
+      const existing = await getChatById(chatData.id);
+      if (existing && existing.userId !== userId && !isSuperAdmin) {
+        return res.status(403).json({ success: false, error: 'Forbidden: You do not have permission to modify this conversation.' });
+      }
     }
+
+    chatData.userId = userId;
     const saved = await saveChat(chatData, userId);
     return res.status(200).json({ success: true, chat: saved });
   } catch (err) {
@@ -199,8 +231,16 @@ app.post('/api/chats', async (req, res) => {
 // 3. Get chat session by ID
 app.get('/api/chats/:id', async (req, res) => {
   try {
+    const userId = resolveCallerUserId(req);
+    const isSuperAdmin = req.user?.role === 'superadmin';
+
     const chat = await getChatById(req.params.id);
     if (!chat) return res.status(404).json({ success: false, error: 'Chat not found' });
+
+    if (!isSuperAdmin && chat.userId !== userId) {
+      return res.status(403).json({ success: false, error: 'Forbidden: Access denied to this conversation.' });
+    }
+
     return res.status(200).json({ success: true, chat });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
@@ -210,10 +250,19 @@ app.get('/api/chats/:id', async (req, res) => {
 // 4. Delete chat session by ID
 app.delete('/api/chats/:id', async (req, res) => {
   try {
-    const deleted = await deleteChat(req.params.id);
-    if (!deleted) {
+    const userId = resolveCallerUserId(req);
+    const isSuperAdmin = req.user?.role === 'superadmin';
+
+    const chat = await getChatById(req.params.id);
+    if (!chat) {
       return res.status(404).json({ success: false, error: 'Chat not found' });
     }
+
+    if (!isSuperAdmin && chat.userId !== userId) {
+      return res.status(403).json({ success: false, error: 'Forbidden: You do not have permission to delete this conversation.' });
+    }
+
+    const deleted = await deleteChat(req.params.id, isSuperAdmin ? null : userId);
     return res.status(200).json({ success: true, message: 'Chat deleted successfully.', id: req.params.id, deleted });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
@@ -229,10 +278,20 @@ app.put('/api/chats/:id/title', async (req, res) => {
     if (!effectiveTitle) {
       return res.status(400).json({ success: false, error: 'Title is required.' });
     }
-    const updated = await updateChatTitle(id, effectiveTitle);
-    if (!updated) {
+
+    const userId = resolveCallerUserId(req);
+    const isSuperAdmin = req.user?.role === 'superadmin';
+
+    const chat = await getChatById(id);
+    if (!chat) {
       return res.status(404).json({ success: false, error: 'Chat not found' });
     }
+
+    if (!isSuperAdmin && chat.userId !== userId) {
+      return res.status(403).json({ success: false, error: 'Forbidden: You do not have permission to modify this conversation.' });
+    }
+
+    const updated = await updateChatTitle(id, effectiveTitle, isSuperAdmin ? null : userId);
     return res.status(200).json({
       success: true,
       message: 'Chat title updated successfully.',
@@ -244,12 +303,31 @@ app.put('/api/chats/:id/title', async (req, res) => {
   }
 });
 
+// 5b. Clear all chats for active session
+app.post('/api/chats/clear', async (req, res) => {
+  try {
+    const userId = resolveCallerUserId(req);
+    await clearChats(userId);
+    return res.status(200).json({ success: true, message: 'Conversations cleared for current session.' });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // 6. DeepSeek Harness Chat Forking: Branch a conversation from any message
 app.post('/api/chats/:id/fork', async (req, res) => {
   try {
     const { id } = req.params;
     const { sourceMessageId, title } = req.body || {};
-    const userId = req.user?.id || req.headers['x-session-id'] || req.headers['x-guest-id'] || 'guest-session';
+    const userId = resolveCallerUserId(req);
+    const isSuperAdmin = req.user?.role === 'superadmin';
+
+    const chat = await getChatById(id);
+    if (!chat) return res.status(404).json({ success: false, error: 'Chat not found' });
+    if (!isSuperAdmin && chat.userId !== userId) {
+      return res.status(403).json({ success: false, error: 'Forbidden: Access denied to branch this conversation.' });
+    }
+
     const forkedChat = await forkConversation({ chatId: id, sourceMessageId, userId, newTitle: title });
     return res.status(201).json({
       success: true,
@@ -269,7 +347,16 @@ app.post('/api/chats/:id/rewind', async (req, res) => {
     if (!targetMessageId) {
       return res.status(400).json({ success: false, error: 'targetMessageId is required for rewind.' });
     }
-    const userId = req.user?.id || req.headers['x-session-id'] || req.headers['x-guest-id'] || 'guest-session';
+
+    const userId = resolveCallerUserId(req);
+    const isSuperAdmin = req.user?.role === 'superadmin';
+
+    const chat = await getChatById(id);
+    if (!chat) return res.status(404).json({ success: false, error: 'Chat not found' });
+    if (!isSuperAdmin && chat.userId !== userId) {
+      return res.status(403).json({ success: false, error: 'Forbidden: Access denied to rewind this conversation.' });
+    }
+
     const rewoundChat = await rewindConversation({ chatId: id, targetMessageId, userId });
     return res.status(200).json({
       success: true,
@@ -291,14 +378,16 @@ app.get('/api/mailer/verify', async (_req, res) => {
   }
 });
 
-// 5. Public Super Admin Credentials info (for 1-click evaluation & deployment login)
+// 5. Public Super Admin Credentials info (Non-production demo only; sanitized in production)
 app.get('/api/auth/superadmin-credentials', (_req, res) => {
+  const isDev = process.env.NODE_ENV !== 'production' && process.env.ENABLE_DEMO_CREDENTIALS === 'true';
   return res.status(200).json({
     email: SUPER_ADMIN_CREDENTIALS.email,
-    password: SUPER_ADMIN_CREDENTIALS.password,
+    password: isDev ? SUPER_ADMIN_CREDENTIALS.password : '••••••••••••',
     role: SUPER_ADMIN_CREDENTIALS.role,
     name: SUPER_ADMIN_CREDENTIALS.name,
-    isDefault: SUPER_ADMIN_CREDENTIALS.email === 'admin@namogpt.com'
+    isDefault: SUPER_ADMIN_CREDENTIALS.password === 'Admin@NamoGPT2026!',
+    demoEnabled: isDev
   });
 });
 
@@ -353,8 +442,18 @@ app.post('/api/usage/record', async (req, res) => {
 // 3. Reset usage statistics
 app.post('/api/usage/reset', async (req, res) => {
   try {
-    const userId = req.user?.id || req.headers['x-session-id'] || req.headers['x-guest-id'] || req.body?.userId || req.query?.userId || 'anonymous';
-    const result = await resetUsage({ userId });
+    const isSuperAdmin = req.user?.role === 'superadmin';
+    const callerId = resolveCallerUserId(req);
+    let targetUserId = callerId;
+
+    if (req.body?.userId && req.body.userId !== callerId) {
+      if (!isSuperAdmin) {
+        return res.status(403).json({ success: false, error: 'Forbidden: Super Admin privileges required to reset usage for other users.' });
+      }
+      targetUserId = req.body.userId;
+    }
+
+    const result = await resetUsage({ userId: targetUserId });
     return res.status(200).json({
       success: true,
       ...result
@@ -420,10 +519,21 @@ app.get('/api/admin/status', requireAdmin, (req, res) => {
 // Prometheus Standard Metrics Scrape Endpoint
 app.get('/metrics', getMetrics);
 
+// Helper: restrict outbound sidecar ping credentials to local loopback
+function isSafeLocalUrl(urlStr) {
+  try {
+    const u = new URL(urlStr);
+    const host = u.hostname.toLowerCase();
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1';
+  } catch {
+    return false;
+  }
+}
+
 // 9Router Live Connectivity Ping Helper (Local Sidecar + Production Cloud Bridge)
 app.get('/api/9router/ping', async (req, res) => {
   const baseUrl = (req.query.url || process.env.NINEROUTER_BASE_URL || 'http://localhost:20128/v1').replace(/\/$/, '');
-  const apiKey = req.query.apiKey || process.env.NINEROUTER_API_KEY || '';
+  const apiKey = req.query.apiKey || (isSafeLocalUrl(baseUrl) ? (process.env.NINEROUTER_API_KEY || '') : '');
   const startTime = Date.now();
   try {
     const axios = (await import('axios')).default;
@@ -896,6 +1006,29 @@ for (const cand of webDistCandidates) {
   }
 }
 
+// Quick 200 OK for Render / Kubernetes / Cloudflare healthcheck probes
+const HEALTH_PROBE_PATHS = new Set(['/', '/health', '/healthz', '/livez', '/readyz', '/ping', '/api/health']);
+
+app.head('*', (req, res, next) => {
+  const clean = req.path.replace(/\/$/, '') || '/';
+  if (HEALTH_PROBE_PATHS.has(clean) || clean.startsWith('/api/') || clean.startsWith('/v1/')) {
+    return res.status(200).end();
+  }
+  return res.status(200).end();
+});
+
+// Dedicated fast health check endpoints
+app.get(['/health', '/healthz', '/livez', '/readyz', '/ping', '/api/health'], (_req, res) => {
+  return res.status(200).json({
+    ok: true,
+    name: 'NamoGPT Server',
+    version: '1.0.0',
+    status: 'operational',
+    uptime: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString()
+  });
+});
+
 if (activeWebDist) {
   console.log(`Serving NamoGPT Web UI from: ${activeWebDist}`);
   app.use(express.static(activeWebDist));
@@ -906,24 +1039,17 @@ if (activeWebDist) {
     if (
       p.startsWith('/v1') ||
       p.startsWith('/api') ||
-      p === '/health' ||
+      HEALTH_PROBE_PATHS.has(p.replace(/\/$/, '') || '/') ||
       p.startsWith('/docs') ||
       p.startsWith('/openapi') ||
-      p.startsWith('/anthropic')
+      p.startsWith('/anthropic') ||
+      p === '/pools'
     ) {
       return next();
     }
     res.sendFile(path.join(activeWebDist, 'index.html'));
   });
 }
-
-// Quick 200 OK for Render / Cloudflare healthcheck probes
-app.head('*', (req, res, next) => {
-  if (req.path === '/' || req.path === '/health') {
-    return res.status(200).end();
-  }
-  next();
-});
 
 // Root route handler: Web UI or operational status
 app.get('/', (req, res, next) => {

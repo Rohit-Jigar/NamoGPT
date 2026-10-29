@@ -438,12 +438,17 @@ export default function ChatArea() {
                               <div className="flex items-stretch gap-2.5 overflow-x-auto py-1 no-scrollbar">
                                 {msg.sources.map((src, srcIdx) => {
                                   const domain = extractDomain(src.url);
+                                  const isSafeUrl = src.url && (src.url.startsWith('https://') || src.url.startsWith('http://'));
+                                  const safeHref = isSafeUrl ? src.url : '#';
                                   return (
                                     <a
                                       key={srcIdx}
-                                      href={src.url || '#'}
-                                      target="_blank"
+                                      href={safeHref}
+                                      target={isSafeUrl ? '_blank' : undefined}
                                       rel="noopener noreferrer"
+                                      onClick={(e) => {
+                                        if (!isSafeUrl) e.preventDefault();
+                                      }}
                                       className="group/card flex flex-col justify-between p-3 rounded-2xl bg-[#13100E] hover:bg-[#1A1613] border border-[#E5E4E2]/10 hover:border-[#E6E0F0]/40 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/40 text-left w-64 shrink-0"
                                     >
                                       <div className="space-y-1.5">
@@ -578,8 +583,22 @@ export default function ChatArea() {
                             <div className="prose-namo">
                               <ReactMarkdown
                                 remarkPlugins={[remarkGfm, remarkMath]}
-                                rehypePlugins={[rehypeKatex]}
+                                rehypePlugins={[[rehypeKatex, { strict: false, trust: false }]]}
                                 components={{
+                                  a({ node, href, children, ...props }) {
+                                    const isSafeHref = href && /^(https?:\/\/|mailto:)/i.test(href);
+                                    return (
+                                      <a
+                                        href={isSafeHref ? href : '#'}
+                                        target={isSafeHref ? '_blank' : undefined}
+                                        rel={isSafeHref ? 'noopener noreferrer' : undefined}
+                                        className="text-amber-400 hover:text-amber-300 underline underline-offset-2 transition-colors"
+                                        {...props}
+                                      >
+                                        {children}
+                                      </a>
+                                    );
+                                  },
                                   code({ node, inline, className, children, ...props }) {
                                     const match = /language-(\w+)/.exec(className || '');
                                     const codeStr = String(children).replace(/\n$/, '');
@@ -641,8 +660,8 @@ export default function ChatArea() {
                                               >
                                                 {copiedId === codeBlockId ? (
                                                   <>
-                                                    <Check className="w-3.5 h-3.5 text-emerald-400" />
-                                                    <span className="text-emerald-400">
+                                                    <Check className="w-3.5 h-3.5 text-[#E6E0F0]" />
+                                                    <span className="text-[#E6E0F0]">
                                                       Copied!
                                                     </span>
                                                   </>
@@ -683,7 +702,7 @@ export default function ChatArea() {
                                                   <span
                                                     className={
                                                       execOutput.success
-                                                        ? 'text-emerald-400 font-semibold flex items-center gap-1'
+                                                        ? 'text-[#E6E0F0] font-semibold flex items-center gap-1'
                                                         : 'text-rose-400 font-semibold flex items-center gap-1'
                                                     }
                                                   >
@@ -726,7 +745,7 @@ export default function ChatArea() {
                                               )}
                                               {execOutput.result !== null &&
                                                 execOutput.result !== undefined && (
-                                                  <div className="text-emerald-400 font-mono mt-1.5 pt-1.5 border-t border-[#E5E4E2]/10 text-[11px]">
+                                                  <div className="text-[#E6E0F0] font-mono mt-1.5 pt-1.5 border-t border-[#E5E4E2]/10 text-[11px]">
                                                     Return Value: {String(execOutput.result)}
                                                   </div>
                                                 )}
@@ -758,7 +777,7 @@ export default function ChatArea() {
                         <div
                           className={`flex items-center gap-1.5 mt-2 text-[#BDB8B3] text-xs transition-opacity ${
                             isUser
-                              ? 'justify-end opacity-0 group-hover:opacity-100'
+                              ? 'justify-end opacity-60 sm:opacity-0 sm:group-hover:opacity-100 group-hover:opacity-100'
                               : 'justify-start opacity-70 group-hover:opacity-100'
                           }`}
                         >
@@ -780,7 +799,7 @@ export default function ChatArea() {
                                 title="Copy prompt"
                               >
                                 {copiedId === (msg.id || index) ? (
-                                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                  <Check className="w-3.5 h-3.5 text-[#E6E0F0]" />
                                 ) : (
                                   <Copy className="w-3.5 h-3.5" />
                                 )}
@@ -794,7 +813,7 @@ export default function ChatArea() {
                                 title="Copy response"
                               >
                                 {copiedId === (msg.id || index) ? (
-                                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                  <Check className="w-3.5 h-3.5 text-[#E6E0F0]" />
                                 ) : (
                                   <Copy className="w-3.5 h-3.5" />
                                 )}
@@ -827,7 +846,7 @@ export default function ChatArea() {
                                 onClick={() => handleVote(msg.id || index, 'up')}
                                 className={`p-1.5 rounded-lg hover:bg-[#241E1A] transition-colors ${
                                   feedbackVotes[msg.id || index] === 'up'
-                                    ? 'text-emerald-400 bg-emerald-500/10'
+                                    ? 'text-[#E6E0F0] bg-[#6F4E37]/30'
                                     : 'hover:text-[#FAF9F8]'
                                 }`}
                                 title="Helpful"

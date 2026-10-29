@@ -9,10 +9,22 @@
 import vm from 'node:vm';
 import { spawn } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
+import os from 'node:os';
+import path from 'node:path';
+import fs from 'node:fs';
 
 const DEFAULT_JS_TIMEOUT_MS = 3000;
 const DEFAULT_PYTHON_TIMEOUT_MS = 5000;
 const MAX_OUTPUT_BUFFER_BYTES = 512 * 1024; // 512 KB
+
+// Forbidden Python constructs when running in sandboxed execution
+const FORBIDDEN_PYTHON_PATTERNS = [
+  /\bimport\s+(?:os|subprocess|sys|shutil|ctypes|socket|urllib|requests|http|ftplib|pty|multiprocessing)\b/i,
+  /\bfrom\s+(?:os|subprocess|sys|shutil|ctypes|socket|urllib|requests|http|ftplib|pty|multiprocessing)\b/i,
+  /\b(?:__import__|builtins|open|eval|exec|compile|getattr|setattr|delattr)\s*\(/i,
+  /\b(?:system|popen|spawn|execve|kill|fork)\s*\(/i,
+  /\b__subclasses__\b/i
+];
 
 /**
  * Format argument for sandbox console capture.
@@ -61,44 +73,20 @@ export async function executeJavaScript(code, timeoutMs = DEFAULT_JS_TIMEOUT_MS)
     error: (...args) => stderrParts.push(args.map(formatConsoleArg).join(' '))
   };
 
+  // Clean isolated sandbox context: DO NOT inject host Object, Array, String, Promise, etc.
+  // V8 automatically instantiates clean realm intrinsics isolated from host prototypes.
   const sandbox = {
     console: sandboxConsole,
-    Math,
-    Date,
-    JSON,
-    Array,
-    Object,
-    String,
-    Number,
-    Boolean,
-    RegExp,
-    Map,
-    Set,
-    WeakMap,
-    WeakSet,
-    Symbol,
-    Promise,
-    parseInt,
-    parseFloat,
-    isNaN,
-    isFinite,
-    encodeURI,
-    decodeURI,
-    encodeURIComponent,
-    decodeURIComponent,
-    // Block sensitive globals and node access
     process: undefined,
     require: undefined,
     module: undefined,
     exports: undefined,
     global: undefined,
+    globalThis: undefined,
     __dirname: undefined,
     __filename: undefined,
     fetch: undefined
   };
-
-  // Prevent prototype traversal escape
-  sandbox.globalThis = sandbox;
 
   try {
     const context = vm.createContext(sandbox, {
@@ -110,7 +98,8 @@ export async function executeJavaScript(code, timeoutMs = DEFAULT_JS_TIMEOUT_MS)
     });
 
     let rawResult = script.runInContext(context, {
-      timeout: effectiveTimeout
+      timeout: effectiveTimeout,
+      breakOnSigint: true
     });
 
     // Handle Promise / async results
@@ -165,13 +154,15 @@ export async function executeJavaScript(code, timeoutMs = DEFAULT_JS_TIMEOUT_MS)
 }
 
 /**
- * Spawns a child process for Python with timeout and buffer limits.
+ * Spawns a child process for Python with timeout and buffer limits in an isolated sandbox directory.
  * @param {string} cmd 
  * @param {string} code 
  * @param {number} effectiveTimeout 
+ * @param {number} startTime 
+ * @param {string} sandboxDir
  * @returns {Promise<{ success: boolean, stdout: string, stderr: string, result: any, executionTimeMs: number }>}
  */
-function spawnPythonProcess(cmd, code, effectiveTimeout, startTime) {
+function spawnPythonProcess(cmd, code, effectiveTimeout, startTime, sandboxDir) {
   return new Promise((resolve, reject) => {
     let stdoutData = '';
     let stderrData = '';
@@ -183,14 +174,17 @@ function spawnPythonProcess(cmd, code, effectiveTimeout, startTime) {
       PATH: process.env.PATH || '',
       SYSTEMROOT: process.env.SYSTEMROOT || '',
       WINDIR: process.env.WINDIR || '',
-      TEMP: process.env.TEMP || '',
-      TMP: process.env.TMP || '',
+      TEMP: sandboxDir,
+      TMP: sandboxDir,
       PYTHONUNBUFFERED: '1',
-      HOME: process.env.HOME || process.env.USERPROFILE || ''
+      PYTHONDONTWRITEBYTECODE: '1',
+      HOME: sandboxDir,
+      USERPROFILE: sandboxDir
     };
 
-    // Use python -u - (unbuffered mode reading from stdin)
+    // Use python -u - (unbuffered mode reading from stdin) in isolated sandbox directory
     const child = spawn(cmd, ['-u', '-'], {
+      cwd: sandboxDir,
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
       env: sanitizedEnv
@@ -282,7 +276,7 @@ function spawnPythonProcess(cmd, code, effectiveTimeout, startTime) {
 }
 
 /**
- * Executes Python code via child process with fallback support.
+ * Executes Python code via child process with fallback support and security restrictions.
  * 
  * @param {string} code 
  * @param {number} [timeoutMs=5000] 
@@ -292,37 +286,61 @@ export async function executePython(code, timeoutMs = DEFAULT_PYTHON_TIMEOUT_MS)
   const startTime = performance.now();
   const effectiveTimeout = Math.min(Math.max(100, Number(timeoutMs) || DEFAULT_PYTHON_TIMEOUT_MS), 15000);
 
-  // Try python first, then py, then python3
-  const commandsToTry = ['python', 'py', 'python3'];
-
-  for (const cmd of commandsToTry) {
-    try {
-      return await spawnPythonProcess(cmd, code, effectiveTimeout, startTime);
-    } catch (err) {
-      if (err.code === 'ENOENT') {
-        // Try next command candidate
-        continue;
-      }
-      const executionTimeMs = Number((performance.now() - startTime).toFixed(2));
+  // Security gate: block dangerous host commands, processes, and network socket operations
+  for (const pattern of FORBIDDEN_PYTHON_PATTERNS) {
+    if (pattern.test(code)) {
       return {
         success: false,
         stdout: '',
-        stderr: `Process error (${cmd}): ${err.message}`,
+        stderr: 'SecurityError: Direct access to system modules, processes, network sockets, and file I/O is restricted in sandbox.',
         result: null,
-        executionTimeMs
+        executionTimeMs: 0
       };
     }
   }
 
-  // If all python candidates failed with ENOENT:
-  const executionTimeMs = Number((performance.now() - startTime).toFixed(2));
-  return {
-    success: false,
-    stdout: '',
-    stderr: 'Python runtime is not installed or not available in the system PATH.',
-    result: null,
-    executionTimeMs
-  };
+  // Create isolated sandbox working directory
+  const sandboxDir = fs.mkdtempSync(path.join(os.tmpdir(), 'namogpt_sandbox_'));
+
+  try {
+    // Try python first, then py, then python3
+    const commandsToTry = ['python', 'py', 'python3'];
+
+    for (const cmd of commandsToTry) {
+      try {
+        return await spawnPythonProcess(cmd, code, effectiveTimeout, startTime, sandboxDir);
+      } catch (err) {
+        if (err.code === 'ENOENT') {
+          // Try next command candidate
+          continue;
+        }
+        const executionTimeMs = Number((performance.now() - startTime).toFixed(2));
+        return {
+          success: false,
+          stdout: '',
+          stderr: `Process error (${cmd}): ${err.message}`,
+          result: null,
+          executionTimeMs
+        };
+      }
+    }
+
+    // If all python candidates failed with ENOENT:
+    const executionTimeMs = Number((performance.now() - startTime).toFixed(2));
+    return {
+      success: false,
+      stdout: '',
+      stderr: 'Python runtime is not installed or not available in the system PATH.',
+      result: null,
+      executionTimeMs
+    };
+  } finally {
+    try {
+      fs.rmSync(sandboxDir, { recursive: true, force: true });
+    } catch (_cleanupErr) {
+      // Ignore cleanup error
+    }
+  }
 }
 
 /**

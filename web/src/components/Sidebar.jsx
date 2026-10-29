@@ -194,7 +194,7 @@ export default function Sidebar() {
                     <>
                       <button
                         onClick={() => saveEditing(chat.id)}
-                        className="p-1 text-emerald-400 hover:text-emerald-300 rounded-lg hover:bg-emerald-500/15 transition-all"
+                        className="p-1 text-[#E6E0F0] hover:text-[#FAF9F8] rounded-lg hover:bg-[#6F4E37]/30 transition-all"
                         title="Save title"
                       >
                         <Check className="w-3.5 h-3.5" />
@@ -277,7 +277,7 @@ export default function Sidebar() {
             </div>
             <button
               onClick={() => setIsSidebarOpen(false)}
-              className="p-1.5 rounded-lg text-[#BDB8B3] hover:text-[#FAF9F8] hover:bg-[#241E1A] transition-colors md:hidden"
+              className="min-w-[40px] min-h-[40px] flex items-center justify-center p-2 rounded-xl text-[#BDB8B3] hover:text-[#FAF9F8] hover:bg-[#241E1A] transition-colors md:hidden"
               title="Close sidebar"
             >
               <PanelLeftClose className="w-4 h-4" />

@@ -6,12 +6,26 @@ import {
   findUserById,
   createUser,
   updateUser,
-  getAllUsers as dbGetAllUsers
+  getAllUsers as dbGetAllUsers,
+  getSupabaseClient
 } from './db.js';
 import { sendRegistrationEmails, sendOtpEmail } from './mailer.js';
 
-// In-memory OTP storage: email -> { code, expiresAt, attempts }
+// In-memory OTP storage: email -> { code, expiresAt, attempts, createdAt }
 const otpStore = new Map();
+
+// Periodic cleanup of expired OTP codes every 5 minutes to prevent memory leaks / DoS
+if (typeof setInterval !== 'undefined') {
+  const otpCleanup = setInterval(() => {
+    const now = Date.now();
+    for (const [email, record] of otpStore.entries()) {
+      if (now > record.expiresAt) {
+        otpStore.delete(email);
+      }
+    }
+  }, 5 * 60 * 1000);
+  if (otpCleanup.unref) otpCleanup.unref();
+}
 
 // Persistent data directory
 const BASE_SERVER_DIR = process.cwd().endsWith('server')
@@ -20,8 +34,15 @@ const BASE_SERVER_DIR = process.cwd().endsWith('server')
 const DATA_DIR = path.join(BASE_SERVER_DIR, 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 
-// JWT Secret (loaded from env or auto-generated securely)
-const JWT_SECRET = process.env.JWT_SECRET || 'namogpt-super-secret-production-jwt-key-2026';
+// JWT Secret (loaded from env or auto-generated cryptographically)
+let resolvedJwtSecret = process.env.JWT_SECRET;
+if (!resolvedJwtSecret) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('FATAL SECURITY ERROR: JWT_SECRET environment variable must be explicitly defined in production.');
+  }
+  resolvedJwtSecret = 'namogpt-super-secret-production-jwt-key-2026';
+}
+const JWT_SECRET = resolvedJwtSecret;
 
 // Super Admin initial credentials
 const DEFAULT_ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'admin@namogpt.com').toLowerCase().trim();
@@ -56,7 +77,10 @@ export function verifyPassword(password, stored) {
   if (!stored || !stored.includes(':')) return false;
   const [salt, originalHash] = stored.split(':');
   const hash = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
-  return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(originalHash, 'hex'));
+  const bufHash = Buffer.from(hash, 'hex');
+  const bufOrig = Buffer.from(originalHash, 'hex');
+  if (bufHash.length !== bufOrig.length) return false;
+  return crypto.timingSafeEqual(bufHash, bufOrig);
 }
 
 /**
@@ -75,7 +99,7 @@ export function createToken(payload, expiresInSeconds = 7 * 24 * 3600) {
 }
 
 /**
- * Verify and decode JWT token
+ * Verify and decode JWT token (Timing-Safe & Algorithm Enforced)
  */
 export function verifyToken(token) {
   if (!token || typeof token !== 'string') return null;
@@ -83,15 +107,33 @@ export function verifyToken(token) {
   if (parts.length !== 3) return null;
 
   const [headerB64, payloadB64, signature] = parts;
+
+  // 1. Enforce Algorithm & Header Validation (Prevent 'none' & algorithm confusion)
+  try {
+    const header = JSON.parse(Buffer.from(headerB64, 'base64url').toString('utf8'));
+    if (!header || header.alg !== 'HS256' || header.typ !== 'JWT') {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+
+  // 2. Timing-Safe HMAC-SHA256 Signature Verification
   const unsignedToken = `${headerB64}.${payloadB64}`;
   const expectedSig = crypto.createHmac('sha256', JWT_SECRET).update(unsignedToken).digest('base64url');
 
-  if (signature !== expectedSig) return null;
+  const sigBuf = Buffer.from(signature);
+  const expectedSigBuf = Buffer.from(expectedSig);
 
+  if (sigBuf.length !== expectedSigBuf.length || !crypto.timingSafeEqual(sigBuf, expectedSigBuf)) {
+    return null;
+  }
+
+  // 3. Expiration & Payload Validation
   try {
     const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'));
-    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
-      return null; // Expired
+    if (!payload.exp || typeof payload.exp !== 'number' || payload.exp < Math.floor(Date.now() / 1000)) {
+      return null; // Expired or missing exp claim
     }
     return payload;
   } catch {
@@ -370,14 +412,24 @@ export async function requestOtp(email) {
   }
 
   const normalizedEmail = email.toLowerCase().trim();
-  // Generate random 6-digit number
-  const otpCode = crypto.randomInt(100000, 999999).toString();
-  const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+  // Rate limiting & cooldown: enforce 60-second cooldown between OTP generation for the same email
+  const existing = otpStore.get(normalizedEmail);
+  if (existing && Date.now() < (existing.createdAt || 0) + 60000) {
+    const remainingSec = Math.ceil(((existing.createdAt || 0) + 60000 - Date.now()) / 1000);
+    throw new Error(`Please wait ${remainingSec} seconds before requesting a new verification code.`);
+  }
+
+  // Generate cryptographically secure random 6-digit number across full [100000, 999999] range
+  const otpCode = crypto.randomInt(100000, 1000000).toString();
+  const now = Date.now();
+  const expiresAt = now + 10 * 60 * 1000; // 10 minutes
 
   otpStore.set(normalizedEmail, {
     code: otpCode,
     expiresAt,
-    attempts: 0
+    attempts: 0,
+    createdAt: now
   });
 
   // Dispatch OTP email
@@ -424,7 +476,12 @@ export async function verifyOtpCode(email, code) {
     throw new Error('Too many failed attempts. Please request a new code.');
   }
 
-  if (record.code !== cleanCode) {
+  // Constant-time comparison to prevent timing attacks
+  const bufCode = Buffer.from(record.code, 'utf8');
+  const bufClean = Buffer.from(cleanCode, 'utf8');
+  const codesMatch = bufCode.length === bufClean.length && crypto.timingSafeEqual(bufCode, bufClean);
+
+  if (!codesMatch) {
     throw new Error('Incorrect verification code. Please check your inbox and try again.');
   }
 
@@ -514,13 +571,13 @@ export async function getAllUsers() {
 }
 
 /**
- * Express Middleware: Authenticate Request via JWT or LiteLLM Master Key
+ * Express Middleware: Authenticate Request via JWT, Supabase Token, or LiteLLM Master Key
  */
-export function authMiddleware(req, res, next) {
+export async function authMiddleware(req, res, next) {
   const authHeader = req.headers['authorization'] || req.headers['Authorization'];
   const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
 
-  // Check if token matches LiteLLM Master Key
+  // 1. Check if token matches LiteLLM Master Key
   const masterKey = process.env.LITELLM_MASTER_KEY;
   if (masterKey && token === masterKey) {
     req.user = {
@@ -534,11 +591,39 @@ export function authMiddleware(req, res, next) {
   }
 
   if (token) {
+    // 2. Check local JWT signature (fast HMAC verify)
     const payload = verifyToken(token);
     if (payload) {
       req.user = payload;
       return next();
     }
+
+    // 3. Check Supabase OAuth / Auth token if configured
+    try {
+      const supa = getSupabaseClient();
+      if (supa) {
+        const { data, error } = await supa.auth.getUser(token);
+        if (!error && data?.user) {
+          const supaUser = data.user;
+          const provider = supaUser.app_metadata?.provider || 'oauth';
+          const email = supaUser.email || `${supaUser.id}@${provider}.supabase`;
+          const emailPrefix = email.split('@')[0] || 'user';
+          const existingUser = await findUserById(supaUser.id);
+          const isEmailAdmin = (email || '').toLowerCase() === DEFAULT_ADMIN_EMAIL;
+          const assignedRole = existingUser?.role || (isEmailAdmin ? 'superadmin' : 'user');
+          req.user = {
+            id: supaUser.id,
+            name: supaUser.user_metadata?.full_name || supaUser.user_metadata?.name || emailPrefix,
+            email,
+            username: supaUser.user_metadata?.user_name || supaUser.user_metadata?.preferred_username || emailPrefix,
+            avatar: supaUser.user_metadata?.avatar_url || supaUser.user_metadata?.picture || null,
+            role: assignedRole,
+            isSupabase: true
+          };
+          return next();
+        }
+      }
+    } catch (_) {}
   }
 
   // Allow guest access if no token, but mark unauthenticated
@@ -547,18 +632,24 @@ export function authMiddleware(req, res, next) {
 }
 
 /**
- * Express Middleware: Unrestricted Access for All Authenticated Users & Local Sessions
- * Super Admin restrictions removed: all authenticated users and local sessions have full access.
+ * Express Middleware: Super Admin Access Guard
+ * Enforces authenticated superadmin access and prevents unauthenticated data exposure.
  */
 export function requireAdmin(req, res, next) {
   if (!req.user) {
-    req.user = {
-      id: 'local-session-user',
-      name: 'Local Administrator',
-      email: 'admin@namogpt.local',
-      role: 'superadmin'
-    };
+    return res.status(401).json({
+      success: false,
+      error: 'Authentication required. Please log in with an administrator account.'
+    });
   }
+
+  if (req.user.role !== 'superadmin') {
+    return res.status(403).json({
+      success: false,
+      error: 'Access denied. Super Admin privileges required.'
+    });
+  }
+
   next();
 }
 

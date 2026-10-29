@@ -72,23 +72,23 @@ export default function ContextLimitWarning() {
       aria-label="Context window limit warning"
       className="max-w-3xl mx-auto w-full px-3 mb-2 animate-in fade-in slide-in-from-bottom-2 duration-300 select-none z-30"
     >
-      <div className="relative overflow-hidden rounded-2xl bg-zinc-950/95 border border-purple-500/35 backdrop-blur-2xl shadow-xl shadow-purple-500/5 p-3.5">
+      <div className="relative overflow-hidden rounded-2xl bg-[#13100E] border border-[#6F4E37]/50 backdrop-blur-2xl shadow-xl shadow-black/40 p-3.5">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="p-2 rounded-xl bg-purple-500/15 text-purple-400 border border-purple-500/30 shrink-0">
-              <Layers className="w-4 h-4" />
+            <div className="p-2 rounded-xl bg-[#6F4E37]/25 text-[#E6E0F0] border border-[#6F4E37] shrink-0">
+              <Layers className="w-4 h-4 text-[#E6E0F0]" />
             </div>
 
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-semibold text-zinc-100">
+                <span className="text-xs font-semibold text-[#FAF9F8]">
                   Context Window Warning: {usagePercentage}% Utilized
                 </span>
-                <span className="px-2 py-0.5 rounded-full bg-purple-500/15 border border-purple-500/30 text-purple-300 font-mono text-[10px]">
+                <span className="px-2 py-0.5 rounded-full bg-[#241E1A] border border-[#E5E4E2]/15 text-[#E5E4E2] font-mono text-[10px]">
                   ~{estimatedTokens.toLocaleString()} / {maxTokens.toLocaleString()} tokens
                 </span>
               </div>
-              <p className="text-[11px] text-zinc-300 truncate mt-0.5">
+              <p className="text-[11px] text-[#BDB8B3] truncate mt-0.5">
                 Approaching model capacity limit. Older message turns may be truncated by upstream inference.
               </p>
             </div>
@@ -98,15 +98,15 @@ export default function ContextLimitWarning() {
             <button
               onClick={handleSummarize}
               disabled={isSummarizing}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-semibold transition-all shadow-md shadow-purple-500/20 active:scale-95 disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#6F4E37] hover:bg-[#8C6549] text-[#FAF9F8] text-xs font-semibold transition-all shadow-md active:scale-95 disabled:opacity-50 border border-[#6F4E37]"
             >
-              <Sparkles className={`w-3.5 h-3.5 ${isSummarizing ? 'animate-spin' : ''}`} />
+              <Sparkles className={`w-3.5 h-3.5 text-[#E6E0F0] ${isSummarizing ? 'animate-spin' : ''}`} />
               <span>{isSummarizing ? 'Compressing...' : 'Summarize Chat to Free Context'}</span>
             </button>
 
             <button
               onClick={() => setIsDismissed(true)}
-              className="p-1 text-zinc-400 hover:text-zinc-100 rounded-lg hover:bg-zinc-800/80 transition-colors"
+              className="p-1 text-[#BDB8B3] hover:text-[#FAF9F8] rounded-lg hover:bg-[#241E1A] transition-colors"
               title="Dismiss warning"
             >
               <X className="w-3.5 h-3.5" />
@@ -115,14 +115,14 @@ export default function ContextLimitWarning() {
         </div>
 
         {/* Progress Bar */}
-        <div className="mt-2.5 w-full bg-zinc-800/60 rounded-full h-1 overflow-hidden">
+        <div className="mt-2.5 w-full bg-[#241E1A] rounded-full h-1 overflow-hidden border border-[#E5E4E2]/10">
           <div
             className={`h-full transition-all duration-500 ${
               usagePercentage >= 95
                 ? 'bg-rose-500'
                 : usagePercentage >= 85
-                ? 'bg-amber-500'
-                : 'bg-purple-500'
+                ? 'bg-[#AF8E73]'
+                : 'bg-[#6F4E37]'
             }`}
             style={{ width: `${Math.min(100, usagePercentage)}%` }}
           />

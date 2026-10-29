@@ -637,23 +637,7 @@ export function ChatProvider({ children }) {
           }));
 
           // Record usage telemetry to backend and reload usage stats
-          recordUsageAPI(token, {
-            model: effectiveModel,
-            promptTokens,
-            completionTokens,
-            totalTokens,
-            elapsedSec: Number(elapsedSec.toFixed(2)),
-            tps
-          }, settings.serverUrl)
-            .then((newStats) => {
-              if (newStats) setUsageStats(newStats);
-            })
-            .catch((err) => {
-              console.warn('[ChatContext] Failed to record usage stats:', err);
-            })
-            .finally(() => {
-              fetchUsageStats();
-            });
+          fetchUsageStats();
 
           const cleanedText = sanitizeClientText(fullText);
 

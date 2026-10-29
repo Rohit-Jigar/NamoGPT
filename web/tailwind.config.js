@@ -64,17 +64,6 @@ export default {
           platinum: '#E5E4E2',
           lavender: '#E6E0F0'
         },
-        // Backwards-compatible aliases mapping to the new Macha/Platinum/Lavender system
-        stitch: {
-          canvas: '#0D0B0A',
-          surface: '#1A1613',
-          surfaceElevated: '#241E1A',
-          border: 'rgba(229, 228, 226, 0.12)',
-          subtle: '#2D2621',
-          violet: '#E6E0F0', // Remapped to Pale Lavender
-          cyan: '#E5E4E2',   // Remapped to Platinum Silver
-          emerald: '#6F4E37' // Remapped to Macha Brown
-        },
         chatgpt: {
           main: '#1A1613',
           sidebar: '#13100E',

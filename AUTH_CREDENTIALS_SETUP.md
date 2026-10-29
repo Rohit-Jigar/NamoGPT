@@ -46,10 +46,11 @@ Every provider section includes direct, clickable hyperlinks to the exact consol
 5. Under **Authorized JavaScript origins**, add:
    - `https://namogpt.onrender.com`
    - `https://douzzpvsfvvjlaiuwoce.supabase.co`
-   - `http://localhost:3000` (for local development)
+   - `http://localhost:5173` (Vite dev server default)
+   - `http://localhost:3000` (production preview port)
 6. Under **Authorized redirect URIs**, add:
    - `https://douzzpvsfvvjlaiuwoce.supabase.co/auth/v1/callback`
-   - `https://namogpt.onrender.com/api/auth/callback`
+   *(Note: OAuth tokens are processed through Supabase callback and returned seamlessly to the frontend SPA).*
 7. Click **Create** and copy your **Client ID** and **Client Secret**.
 8. Go to your **[Supabase Google Provider Settings](https://supabase.com/dashboard/project/douzzpvsfvvjlaiuwoce/auth/providers)**.
 9. Toggle Google to **Enabled**, paste the **Client ID** and **Client Secret**, and click **Save**.
@@ -125,7 +126,7 @@ NamoGPT implements **dual-path email authentication**:
 3. Ensure **Confirm email** is enabled or disabled according to your policy (recommended: OFF for instant OTP login).
 4. Go to **[Supabase URL Configuration](https://supabase.com/dashboard/project/douzzpvsfvvjlaiuwoce/auth/url-configuration)**:
    - **Site URL**: `https://namogpt.onrender.com`
-   - **Redirect URLs**: Add `https://namogpt.onrender.com/**` and `http://localhost:3000/**`.
+   - **Redirect URLs**: Add `https://namogpt.onrender.com/**`, `http://localhost:5173/**`, and `http://localhost:3000/**`.
 
 ### Option B: Resend HTTPS API (Recommended for Cloud Hosting)
 Cloud container hosts (Render, Vercel, Railway, Fly) can block traditional SMTP TCP ports (25/465/587). Resend uses port 443 HTTPS, ensuring 100% reliable delivery.

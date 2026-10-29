@@ -34,6 +34,7 @@ const USAGE_FILE = path.join(DATA_DIR, 'usage.json');
 
 // Active Supabase Client
 let supabaseClient = null;
+let activeSupabaseUrl = '';
 let hasLoggedUsageSchemaNotice = false;
 
 function initSupabaseFromEnv() {
@@ -50,6 +51,8 @@ function initSupabaseFromEnv() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
     ''
   ).trim();
+
+  activeSupabaseUrl = url;
 
   if (url && key) {
     try {
@@ -272,7 +275,7 @@ function syncUsageToJson(usage) {
  */
 export async function connectDB() {
   if (supabaseClient) {
-    return { provider: 'supabase', url: SUPABASE_URL };
+    return { provider: 'supabase', url: activeSupabaseUrl || process.env.SUPABASE_URL };
   }
   return { provider: 'local-json', path: DATA_DIR };
 }
@@ -799,7 +802,7 @@ export async function getUserUsageRecords(userId = 'anonymous') {
 
       const { data, error } = await query.order('created_at', { ascending: false });
 
-      if (!error && Array.isArray(data)) {
+      if (!error && Array.isArray(data) && data.length > 0) {
         return data.map(toUsageRecord);
       }
       if (error) {

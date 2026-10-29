@@ -1,33 +1,33 @@
 model_list:
-  # Gemini Pool
+  # Gemini Pool (Multimodal Vision & Fast Reasoning)
   - model_name: gemini
     litellm_params:
-      model: gemini/gemini-3.8-flash
+      model: gemini/gemini-2.5-flash
       api_key: os.environ/GEMINI_API_KEY_1
 
   - model_name: gemini
     litellm_params:
-      model: gemini/gemini-3.8-flash
+      model: gemini/gemini-2.5-flash
       api_key: os.environ/GEMINI_API_KEY_2
 
   - model_name: gemini
     litellm_params:
-      model: gemini/gemini-3.8-flash
+      model: gemini/gemini-2.0-flash
       api_key: os.environ/GEMINI_API_KEY_3
 
   - model_name: gemini
     litellm_params:
-      model: gemini/gemini-3.8-flash
+      model: gemini/gemini-2.0-flash
       api_key: os.environ/GEMINI_API_KEY_4
 
   - model_name: gemini
     litellm_params:
-      model: gemini/gemini-3.8-flash
+      model: gemini/gemini-2.5-flash
       api_key: os.environ/GEMINI_API_KEY_5
 
   - model_name: gemini
     litellm_params:
-      model: gemini/gemini-3.8-flash
+      model: gemini/gemini-2.0-flash
       api_key: os.environ/GEMINI_API_KEY_6
 
   # Gemini Secondary Fallback (Key 1 compatible with 2.5)

@@ -2,6 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import http from 'node:http';
 import https from 'node:https';
+import { Transform } from 'node:stream';
+import { StringDecoder } from 'node:string_decoder';
 import yaml from 'js-yaml';
 import axios from 'axios';
 import anthropicHandler from './anthropic_adaptions.js';
@@ -24,6 +26,34 @@ const keepAliveHttpsAgent = new https.Agent({
   maxFreeSockets: 24,
   timeout: 60000
 });
+
+/**
+ * Key Quarantine & Circuit Breaker Map
+ * apiKey -> { reason: string, expiresAt: number }
+ */
+const keyQuarantine = new Map();
+
+export function quarantineKey(apiKey, reason = 'rate_limit', durationMs = 60000) {
+  if (!apiKey || typeof apiKey !== 'string') return;
+  const expiresAt = Date.now() + durationMs;
+  keyQuarantine.set(apiKey, { reason, expiresAt });
+  console.warn(`[NamoGPT CircuitBreaker] Key quarantined (${reason}) for ${Math.round(durationMs / 1000)}s.`);
+}
+
+export function isKeyQuarantined(apiKey) {
+  if (!apiKey || typeof apiKey !== 'string') return false;
+  const entry = keyQuarantine.get(apiKey);
+  if (!entry) return false;
+  if (Date.now() > entry.expiresAt) {
+    keyQuarantine.delete(apiKey);
+    return false;
+  }
+  return true;
+}
+
+export function clearQuarantine() {
+  keyQuarantine.clear();
+}
 
 /**
  * Heuristic token estimators when upstream provider does not return usage
@@ -69,6 +99,12 @@ export function loadConfig() {
   }
   
   try {
+    const serverConfig = path.resolve(process.cwd(), 'server', 'config.yaml');
+    if (fs.existsSync(serverConfig)) {
+      const raw = fs.readFileSync(serverConfig, 'utf8');
+      cachedConfig = yaml.load(raw);
+      return cachedConfig;
+    }
     const configPath = path.resolve(process.cwd(), 'config.yaml');
     if (fs.existsSync(configPath)) {
       const raw = fs.readFileSync(configPath, 'utf8');
@@ -200,14 +236,17 @@ function refillTokens(item) {
 function pickProvider(pool, overrideApiKey = null) {
   if (!pool || pool.items.length === 0) return null;
   
-  // Only rotate across items that actually have an API key or when client override is present
   const validItems = pool.items.filter(it => Boolean(overrideApiKey || it.apiKey));
   if (validItems.length === 0) return null;
   
-  const n = validItems.length;
+  // Prefer unquarantined items
+  const unquarantined = overrideApiKey ? validItems : validItems.filter(it => !isKeyQuarantined(it.apiKey));
+  const candidateItems = unquarantined.length > 0 ? unquarantined : validItems;
+
+  const n = candidateItems.length;
   for (let i = 0; i < n; i++) {
     const idx = (pool.rr + i) % n;
-    const item = validItems[idx];
+    const item = candidateItems[idx];
     
     refillTokens(item);
     if (item.tokens === null || item.tokens > 0) {
@@ -224,8 +263,7 @@ function pickProvider(pool, overrideApiKey = null) {
     }
   }
   
-  // Fallback to first valid item rather than dropping user
-  const fallbackItem = validItems[0];
+  const fallbackItem = candidateItems[0];
   return {
     item: overrideApiKey ? { ...fallbackItem, apiKey: overrideApiKey } : fallbackItem,
     idx: 0
@@ -346,22 +384,71 @@ function buildUpstreamBody(item, originalBody) {
   if (item.params && item.params.model) {
     body.model = modelForUpstream(item.params.model);
   }
+
+  // Parameter Normalization: max_completion_tokens -> max_tokens
+  if (body.max_completion_tokens !== undefined) {
+    if (body.max_tokens === undefined) {
+      body.max_tokens = body.max_completion_tokens;
+    }
+    delete body.max_completion_tokens;
+  }
+
+  // Clean internal proxy parameters to prevent 400 Bad Request on upstream endpoints
   delete body.model_name;
+  delete body.web_search;
+  delete body.webSearch;
+  delete body.userId;
+  delete body.sessionId;
+  delete body.topLevelSystem;
+  delete body.top_level_system;
 
   const topLevelSystem = body.system || body.system_prompt || body.systemPrompt || null;
   delete body.system;
   delete body.system_prompt;
   delete body.systemPrompt;
 
+  // Handle top-level image/images fields by injecting into last user message
+  const rawImage = body.image || body.images;
+  delete body.image;
+  delete body.images;
+
   // Enforce clean chronological multi-turn structure
   if (Array.isArray(body.messages)) {
+    if (rawImage) {
+      const imgUrls = Array.isArray(rawImage) ? rawImage : [rawImage];
+      for (let i = body.messages.length - 1; i >= 0; i--) {
+        if (body.messages[i].role === 'user') {
+          const userMsg = body.messages[i];
+          const existingContent = userMsg.content;
+          const imageParts = imgUrls.map(img => ({
+            type: 'image_url',
+            image_url: { url: typeof img === 'string' ? img : (img.url || '') }
+          }));
+          if (typeof existingContent === 'string') {
+            userMsg.content = [
+              { type: 'text', text: existingContent },
+              ...imageParts
+            ];
+          } else if (Array.isArray(existingContent)) {
+            userMsg.content = [...existingContent, ...imageParts];
+          }
+          break;
+        }
+      }
+    }
+
     body.messages = structureChatMessages(body.messages, topLevelSystem);
+  }
+
+  // Request final usage statistics in streaming responses for accurate token telemetry
+  if (body.stream === true && !body.stream_options) {
+    body.stream_options = { include_usage: true };
   }
 
   return body;
 }
 
-async function forwardRequest(item, forwardPath, originalReq) {
+async function forwardRequest(item, forwardPath, originalReq, abortSignal = null) {
   const base = item.apiBase || inferApiBaseFromModel(item.params?.model) || 'https://api.openai.com/v1';
   const normalizedBase = base.replace(/\/$/, '');
   const normalizedPath = '/' + forwardPath.replace(/^\//, '');
@@ -389,10 +476,11 @@ async function forwardRequest(item, forwardPath, originalReq) {
       headers,
       data: isMultipart ? originalReq : buildUpstreamBody(item, originalReq.body),
       maxBodyLength: Infinity,
-      timeout: 30000,
+      timeout: 15000, // 15-second failover timeout
       httpAgent: keepAliveHttpAgent,
       httpsAgent: keepAliveHttpsAgent,
       responseType: wantsStream ? 'stream' : 'arraybuffer',
+      signal: abortSignal,
       validateStatus: () => true
     });
     return resp;
@@ -506,9 +594,10 @@ async function handleDemoFallback(req, res, modelName, searchResults = null) {
   }
 
   // Stream output with realistic chunks
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
 
   const words = greeting.split(' ');
   let i = 0;
@@ -568,31 +657,29 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  const cleanPath = req.url ? req.url.split('?')[0] : '';
+  const cleanPath = req.url ? req.url.split('?')[0].replace(/\/$/, '') || '/' : '/';
 
-  // Immediate 200 OK for root probes, health checks, or HEAD requests (e.g. Render / Cloudflare healthchecks)
-  if (cleanPath === '/' || cleanPath === '' || req.method === 'HEAD') {
+  // 1. Immediate 200 OK for health checks and probes (HEAD or GET)
+  const isHealthProbe = (
+    cleanPath === '/' ||
+    cleanPath === '/health' ||
+    cleanPath === '/healthz' ||
+    cleanPath === '/livez' ||
+    cleanPath === '/readyz' ||
+    cleanPath === '/ping' ||
+    cleanPath === '/api/health' ||
+    cleanPath === '/api/hello' ||
+    cleanPath === '/v1/api/hello' ||
+    req.method === 'HEAD'
+  );
+
+  if (isHealthProbe) {
     if (req.method === 'HEAD') return res.status(200).end();
     return res.status(200).json({ ok: true, name: 'NamoGPT LiteLLM Proxy', version: '1.0.0', status: 'operational' });
   }
 
-  // Public Health & Models Info
-  if (cleanPath === '/health' || cleanPath === '/api/hello' || cleanPath === '/v1/api/hello') {
-    return res.status(200).json({ ok: true, name: 'NamoGPT LiteLLM Proxy', version: '1.0.0', status: 'operational' });
-  }
-
-  // Reject POST requests missing messages array before attempting upstream forward
-  if (req.method === 'POST' && (!req.body || !req.body.messages || !Array.isArray(req.body.messages) || req.body.messages.length === 0)) {
-    return res.status(400).json({
-      error: {
-        message: 'Missing or invalid "messages" parameter. A non-empty messages array is required.',
-        type: 'invalid_request_error',
-        code: 'missing_messages'
-      }
-    });
-  }
-
-  if (cleanPath === '/api/models' || cleanPath === '/v1/models' || cleanPath === '/pools') {
+  // 2. Models Catalog & Pools endpoints
+  if (cleanPath === '/api/models' || cleanPath === '/v1/models' || cleanPath === '/pools' || cleanPath === '/models') {
     try {
       const cfg = loadConfig();
       const pools = buildPools(cfg);
@@ -615,6 +702,42 @@ export default async function handler(req, res) {
     } catch (e) {
       return res.status(200).json({ object: 'list', data: AVAILABLE_MODELS });
     }
+  }
+
+  // 3. Strict Route & Method Validation
+  const isChatCompletionRoute = (cleanPath === '/v1/chat/completions' || cleanPath === '/chat/completions');
+  const isEmbeddingRoute = (cleanPath === '/v1/embeddings' || cleanPath === '/embeddings');
+  const isAnthropicRoute = (cleanPath === '/anthropic/models' || cleanPath.startsWith('/anthropic') || cleanPath.startsWith('/v1/messages'));
+
+  if (isChatCompletionRoute && req.method !== 'POST') {
+    return res.status(405).json({
+      error: {
+        message: 'Method Not Allowed. /v1/chat/completions requires HTTP POST.',
+        type: 'invalid_request_error',
+        code: 'method_not_allowed'
+      }
+    });
+  }
+
+  if (isChatCompletionRoute && (!req.body || !req.body.messages || !Array.isArray(req.body.messages) || req.body.messages.length === 0)) {
+    return res.status(400).json({
+      error: {
+        message: 'Missing or invalid "messages" parameter. A non-empty messages array is required.',
+        type: 'invalid_request_error',
+        code: 'missing_messages'
+      }
+    });
+  }
+
+  // Reject unrecognized paths early without triggering upstream cascade storms
+  if (!isChatCompletionRoute && !isEmbeddingRoute && !isAnthropicRoute) {
+    return res.status(404).json({
+      error: {
+        message: `Endpoint not found: ${cleanPath}`,
+        type: 'invalid_request_error',
+        code: 'not_found'
+      }
+    });
   }
 
   // Master Key Authorization Check (Optional if not set)
@@ -641,6 +764,7 @@ export default async function handler(req, res) {
   }
 
   const reqStartTime = Date.now();
+  const hrStartTime = process.hrtime.bigint();
   try {
     const cfg = loadConfig();
     const pools = buildPools(cfg);
@@ -726,8 +850,12 @@ export default async function handler(req, res) {
       }
     }
 
-    // Provider client key resolver
-    const getClientKeyForPool = (pName) => {
+    // Provider client key resolver (checks model prefix to prevent misrouting keys)
+    const getClientKeyForPool = (pName, pool = null) => {
+      const firstModel = pool?.items?.[0]?.params?.model || '';
+      if (firstModel.startsWith('gemini/')) return req.headers['x-gemini-key'] || req.headers['x-groq-key'] || null;
+      if (firstModel.startsWith('groq/')) return req.headers['x-groq-key'] || null;
+
       if (pName.startsWith('gemini')) return req.headers['x-gemini-key'] || null;
       if (pName.startsWith('groq')) return req.headers['x-groq-key'] || null;
       if (pName.includes('openrouter')) return req.headers['x-openrouter-key'] || null;
@@ -741,7 +869,7 @@ export default async function handler(req, res) {
     const isPoolActive = (pName) => {
       const p = pools[pName];
       if (!p || !p.items) return false;
-      return p.items.some(item => Boolean(getClientKeyForPool(pName) || item.apiKey));
+      return p.items.some(item => Boolean(getClientKeyForPool(pName, p) || item.apiKey));
     };
 
     let selectedPrimaryPool = 'groq';
@@ -749,13 +877,13 @@ export default async function handler(req, res) {
 
     if (isAuto) {
       if (isVisionIntent) {
-        // Vision/images: route to groq-vision or gemini
+        // Vision/images: route exclusively to vision-capable models
         if (isPoolActive('groq-vision')) {
           selectedPrimaryPool = 'groq-vision';
-          fallbackCandidates = ['groq-vision', 'gemini', '9router', 'omnirouter', 'groq'];
+          fallbackCandidates = ['groq-vision', 'gemini', 'omnirouter', '9router'];
         } else {
           selectedPrimaryPool = 'gemini';
-          fallbackCandidates = ['gemini', 'groq-vision', '9router', 'omnirouter', 'groq'];
+          fallbackCandidates = ['gemini', 'groq-vision', 'omnirouter', '9router'];
         }
       } else if (isRealTimeNewsWeather) {
         // Real-time/news/weather: auto-augment with searchWeb and route to active fast model (groq or gemini)
@@ -810,7 +938,12 @@ export default async function handler(req, res) {
       else if (explicitModel === 'omnirouter' || explicitModel.includes('omnirouter')) explicitModel = 'omnirouter';
 
       selectedPrimaryPool = explicitModel;
-      fallbackCandidates = [explicitModel, 'groq', 'gemini', 'openrouter', 'nvidia', 'aion-2.0', 'cloudflare'];
+      // If user requested vision, exclude text-only models from fallback candidates
+      if (isVisionIntent) {
+        fallbackCandidates = [explicitModel, 'gemini', 'groq-vision', 'omnirouter', '9router'];
+      } else {
+        fallbackCandidates = [explicitModel, 'groq', 'gemini', 'openrouter', 'nvidia', 'aion-2.0', 'cloudflare'];
+      }
     }
 
     // Build ordered list of candidate pools to try
@@ -822,9 +955,12 @@ export default async function handler(req, res) {
         candidatePoolsList.push(p);
       }
     }
-    // Also include any other pool that is active as emergency cascade
+    // Also include any other pool that is active as emergency cascade (vision-safe)
     for (const p of Object.keys(pools)) {
       if (!seenPools.has(p) && isPoolActive(p)) {
+        if (isVisionIntent && !['gemini', 'groq-vision', 'omnirouter', '9router'].includes(p)) {
+          continue; // Skip text-only models for vision requests
+        }
         seenPools.add(p);
         candidatePoolsList.push(p);
       }
@@ -837,36 +973,61 @@ export default async function handler(req, res) {
       return await handleDemoFallback(req, res, selectedPrimaryPool, injectedSearchResults);
     }
 
-    // Robust LiteLLM key & pool cascade failover:
-    // If primary key in pool returns 400/404/429/500, cascade to next key and next active pool without dropping the user
+    // Setup AbortController for client disconnect mid-flight (listen to res close)
+    const abortController = new AbortController();
+    let upstreamStreamRef = null;
+    let clientDisconnected = false;
+
+    res.on('close', () => {
+      if (!res.writableEnded) {
+        clientDisconnected = true;
+        abortController.abort();
+        if (upstreamStreamRef && typeof upstreamStreamRef.destroy === 'function') {
+          upstreamStreamRef.destroy();
+        }
+      }
+    });
+
+    // Robust LiteLLM key & pool cascade failover
     let requestSucceeded = false;
     let lastErr = null;
     const attemptedCascades = [];
 
     for (const currentPoolName of candidatePoolsList) {
+      if (clientDisconnected) break;
       const pool = pools[currentPoolName];
       if (!pool || !pool.items || pool.items.length === 0) continue;
 
-      const poolClientKey = getClientKeyForPool(currentPoolName);
+      const poolClientKey = getClientKeyForPool(currentPoolName, pool);
       const validItems = pool.items.filter(it => Boolean(poolClientKey || it.apiKey));
       if (validItems.length === 0) continue;
 
-      const n = validItems.length;
+      // Filter out quarantined items unless all items are quarantined
+      const unquarantined = poolClientKey ? validItems : validItems.filter(it => !isKeyQuarantined(it.apiKey));
+      const itemsToTry = unquarantined.length > 0 ? unquarantined : validItems;
+
+      const n = itemsToTry.length;
       const startIdx = pool.rr || 0;
 
       for (let k = 0; k < n; k++) {
+        if (clientDisconnected) break;
         const itemIdx = (startIdx + k) % n;
-        const baseItem = validItems[itemIdx];
+        const baseItem = itemsToTry[itemIdx];
         refillTokens(baseItem);
 
         const effectiveKey = poolClientKey || baseItem.apiKey;
         if (!effectiveKey) continue;
 
+        // Skip quarantined key if other healthy keys are available
+        if (!poolClientKey && isKeyQuarantined(effectiveKey) && unquarantined.length > 0) {
+          continue;
+        }
+
         const item = { ...baseItem, apiKey: effectiveKey };
         attemptedCascades.push({ pool: currentPoolName, idx: itemIdx, apiBase: item.apiBase || null });
 
         try {
-          const resp = await forwardRequest(item, forwardPath, req);
+          const resp = await forwardRequest(item, forwardPath, req, abortController.signal);
 
           // Success: only 2xx is considered successful
           if (resp.status >= 200 && resp.status < 300) {
@@ -883,15 +1044,27 @@ export default async function handler(req, res) {
             }
 
             if (typeof resp.data?.pipe === 'function') {
-              const { Transform } = await import('stream');
+              upstreamStreamRef = resp.data;
+              res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+              res.setHeader('Cache-Control', 'no-cache, no-transform');
+              res.setHeader('Connection', 'keep-alive');
+              res.setHeader('X-Accel-Buffering', 'no');
+
               let accumulatedCompletionText = '';
               let streamUsage = null;
+              const decoder = new StringDecoder('utf8');
+              let lineBuffer = '';
+              let emittedDone = false;
 
               const sanitizeStream = new Transform({
                 transform(chunk, encoding, callback) {
                   try {
-                    const chunkStr = chunk.toString();
-                    const lines = chunkStr.split('\n');
+                    const text = decoder.write(chunk);
+                    lineBuffer += text;
+                    const lines = lineBuffer.split('\n');
+                    lineBuffer = lines.pop() || ''; // Keep incomplete trailing piece
+
+                    const outputLines = [];
                     for (const line of lines) {
                       const trimmed = line.trim();
                       if (trimmed.startsWith('data: ') && !trimmed.includes('[DONE]')) {
@@ -900,32 +1073,62 @@ export default async function handler(req, res) {
                           if (parsed.usage) {
                             streamUsage = parsed.usage;
                           }
-                          const deltaContent = parsed.choices?.[0]?.delta?.content;
-                          if (deltaContent) {
-                            accumulatedCompletionText += deltaContent;
+                          const deltaContent = parsed.choices?.[0]?.delta?.content || '';
+                          const deltaReasoning = parsed.choices?.[0]?.delta?.reasoning_content || parsed.choices?.[0]?.delta?.reasoning || '';
+                          if (deltaContent || deltaReasoning) {
+                            accumulatedCompletionText += (deltaReasoning ? deltaReasoning + ' ' : '') + deltaContent;
                           }
                         } catch (_) {}
+                      } else if (trimmed === 'data: [DONE]') {
+                        emittedDone = true;
                       }
+                      outputLines.push(sanitizeCompletionText(line));
                     }
-                    const sanitized = sanitizeCompletionText(chunkStr);
-                    callback(null, Buffer.from(sanitized));
-                  } catch {
+
+                    if (outputLines.length > 0) {
+                      callback(null, Buffer.from(outputLines.join('\n') + '\n'));
+                    } else {
+                      callback();
+                    }
+                  } catch (err) {
                     callback(null, chunk);
+                  }
+                },
+                flush(callback) {
+                  try {
+                    const remaining = lineBuffer + decoder.end();
+                    const outputs = [];
+                    if (remaining.trim()) {
+                      if (remaining.trim() === 'data: [DONE]') {
+                        emittedDone = true;
+                      }
+                      outputs.push(sanitizeCompletionText(remaining));
+                    }
+                    if (!emittedDone) {
+                      outputs.push('data: [DONE]\n');
+                    }
+                    callback(null, Buffer.from(outputs.join('\n')));
+                  } catch {
+                    callback();
                   }
                 }
               });
 
               resp.data.on('end', () => {
                 try {
-                  const durationSec = Math.max(0.01, (Date.now() - reqStartTime) / 1000);
-                  let promptTokens = streamUsage?.prompt_tokens;
-                  let completionTokens = streamUsage?.completion_tokens;
+                  const durationSec = Math.max(0.05, Number(process.hrtime.bigint() - hrStartTime) / 1e9);
+                  let promptTokens = streamUsage?.prompt_tokens ?? streamUsage?.input_tokens ?? streamUsage?.promptTokenCount;
+                  let completionTokens = streamUsage?.completion_tokens ?? streamUsage?.output_tokens ?? streamUsage?.candidatesTokenCount;
+                  let totalTokens = streamUsage?.total_tokens ?? streamUsage?.totalTokenCount;
 
                   if (promptTokens === undefined || promptTokens === null) {
                     promptTokens = estimatePromptTokens(messages);
                   }
                   if (completionTokens === undefined || completionTokens === null) {
                     completionTokens = estimateTokensFromText(accumulatedCompletionText);
+                  }
+                  if (totalTokens === undefined || totalTokens === null) {
+                    totalTokens = promptTokens + completionTokens;
                   }
 
                   const activeUser = req.user?.id || req.headers['x-session-id'] || req.headers['x-guest-id'] || req.query?.userId || req.query?.sessionId || 'anonymous';
@@ -935,6 +1138,7 @@ export default async function handler(req, res) {
                     model: currentPoolName,
                     promptTokens,
                     completionTokens,
+                    totalTokens,
                     cachedTokens: cacheInfo.cachedTokens,
                     durationSec
                   }).catch(err => console.warn('[Usage Telemetry] Stream recordUsage notice:', err.message));
@@ -947,8 +1151,17 @@ export default async function handler(req, res) {
 
               resp.data.on('error', (streamErr) => {
                 console.error('[NamoGPT Stream] Upstream stream error:', streamErr.message);
-                res.destroy(streamErr);
+                if (!res.headersSent) {
+                  res.status(502).json({ error: { message: streamErr.message, type: 'upstream_error' } });
+                } else {
+                  res.destroy(streamErr);
+                }
               });
+
+              sanitizeStream.on('error', (err) => {
+                console.warn('[NamoGPT Stream] Transform error:', err.message);
+              });
+
               return resp.data.pipe(sanitizeStream).pipe(res);
             }
 
@@ -967,9 +1180,10 @@ export default async function handler(req, res) {
 
             // Estimate/parse tokens and record usage telemetry for non-streaming response
             try {
-              const durationSec = Math.max(0.01, (Date.now() - reqStartTime) / 1000);
-              let promptTokens = json?.usage?.prompt_tokens;
-              let completionTokens = json?.usage?.completion_tokens;
+              const durationSec = Math.max(0.05, Number(process.hrtime.bigint() - hrStartTime) / 1e9);
+              let promptTokens = json?.usage?.prompt_tokens ?? json?.usage?.input_tokens ?? json?.usageMetadata?.promptTokenCount;
+              let completionTokens = json?.usage?.completion_tokens ?? json?.usage?.output_tokens ?? json?.usageMetadata?.candidatesTokenCount;
+              let totalTokens = json?.usage?.total_tokens ?? json?.usageMetadata?.totalTokenCount;
 
               if (promptTokens === undefined || promptTokens === null) {
                 promptTokens = estimatePromptTokens(messages);
@@ -977,11 +1191,14 @@ export default async function handler(req, res) {
               if (completionTokens === undefined || completionTokens === null) {
                 let completionText = '';
                 if (json?.choices && Array.isArray(json.choices)) {
-                  completionText = json.choices.map(c => c.message?.content || '').join(' ');
+                  completionText = json.choices.map(c => (c.message?.reasoning_content ? c.message.reasoning_content + ' ' : '') + (c.message?.content || '')).join(' ');
                 } else if (typeof responseData === 'string') {
                   completionText = responseData;
                 }
                 completionTokens = estimateTokensFromText(completionText);
+              }
+              if (totalTokens === undefined || totalTokens === null) {
+                totalTokens = promptTokens + completionTokens;
               }
 
               const activeUser = req.user?.id || req.headers['x-session-id'] || req.headers['x-guest-id'] || req.query?.userId || req.query?.sessionId || 'anonymous';
@@ -991,6 +1208,7 @@ export default async function handler(req, res) {
                 model: currentPoolName,
                 promptTokens,
                 completionTokens,
+                totalTokens,
                 cachedTokens: cacheInfo.cachedTokens,
                 durationSec
               }).catch(err => console.warn('[Usage Telemetry] Non-stream recordUsage notice:', err.message));
@@ -1019,9 +1237,47 @@ export default async function handler(req, res) {
             resp.data.destroy();
           }
 
-          console.warn(`[NamoGPT Failover] Upstream status ${resp.status} for pool '${currentPoolName}' (key idx ${itemIdx}). Cascading to next available key/pool...`);
-          lastErr = new Error(`upstream status ${resp.status}`);
+          // Advance pool.rr so subsequent requests rotate away from failing key
+          pool.rr = (itemIdx + 1) % n;
+
+          let upstreamErrorJson = null;
+          if (Buffer.isBuffer(resp.data)) {
+            try { upstreamErrorJson = JSON.parse(resp.data.toString('utf8')); } catch (_) {}
+          } else if (typeof resp.data === 'object' && resp.data !== null) {
+            upstreamErrorJson = resp.data;
+          }
+
+          console.warn(`[NamoGPT Failover] Upstream status ${resp.status} for pool '${currentPoolName}' (key idx ${itemIdx}).`);
+          lastErr = upstreamErrorJson || new Error(`upstream status ${resp.status}`);
+
+          // Status 401: Unauthorized (Key expired or revoked)
+          if (resp.status === 401) {
+            quarantineKey(effectiveKey, 'unauthorized', 15 * 60 * 1000); // 15 min quarantine
+            continue; // Try next key in pool
+          }
+
+          // Status 429: Rate Limit Exceeded
+          if (resp.status === 429) {
+            const retryAfterSec = Number(resp.headers?.['retry-after']) || 60;
+            quarantineKey(effectiveKey, 'rate_limit', retryAfterSec * 1000);
+            continue; // Try next key in pool
+          }
+
+          // Status 404: Model Not Found on Provider
+          if (resp.status === 404) {
+            // Model does not exist on this provider - rotating keys within same pool will not fix 404!
+            console.warn(`[NamoGPT Failover] Model 404 on pool '${currentPoolName}'. Skipping remaining keys in pool.`);
+            break; // Break inner key loop, cascade to NEXT candidate pool
+          }
+
+          // Status 400: Bad Request / Rejected Parameters
+          if (resp.status === 400) {
+            // Request payload rejected by provider - rotating keys on same provider is futile
+            console.warn(`[NamoGPT Failover] Upstream 400 Bad Request on pool '${currentPoolName}'. Skipping remaining keys in pool.`);
+            break; // Break inner key loop, try at most one fallback pool
+          }
         } catch (err) {
+          pool.rr = (itemIdx + 1) % n;
           console.warn(`[NamoGPT Failover] Upstream request exception for pool '${currentPoolName}' (key idx ${itemIdx}): ${err.message}. Cascading...`);
           lastErr = err;
         }
@@ -1031,6 +1287,19 @@ export default async function handler(req, res) {
     }
 
     if (!requestSucceeded) {
+      if (clientDisconnected) return;
+
+      // If the error was a 400 Bad Request from upstream, return 400 error rather than a 200 demo fallback!
+      if (lastErr && (lastErr.error || lastErr.message?.includes('400') || (typeof lastErr === 'object' && lastErr.type === 'invalid_request_error'))) {
+        return res.status(400).json(lastErr.error ? lastErr : {
+          error: {
+            message: lastErr.message || 'Bad Request: Upstream provider rejected request payload.',
+            type: 'invalid_request_error',
+            code: 'bad_request'
+          }
+        });
+      }
+
       console.log(`[NamoGPT] Notice: All upstream keys & pools failed. Serving smart demo fallback without dropping user.`);
       return await handleDemoFallback(req, res, selectedPrimaryPool || 'auto', injectedSearchResults);
     }

@@ -74,12 +74,12 @@ function refillTokens(item) {
 
 function pickProvider(pool) {
   if (!pool || pool.items.length === 0) return null;
-  
-  const n = pool.items.length;
+  const validItems = pool.items.filter(it => Boolean(it.apiKey));
+  if (validItems.length === 0) return null;
+  const n = validItems.length;
   for (let i = 0; i < n; i++) {
     const idx = (pool.rr + i) % n;
-    const item = pool.items[idx];
-    
+    const item = validItems[idx];
     refillTokens(item);
     if (item.tokens === null || item.tokens > 0) {
       pool.rr = (idx + 1) % n;
@@ -87,8 +87,7 @@ function pickProvider(pool) {
       return { item, idx };
     }
   }
-  
-  return null;
+  return { item: validItems[0], idx: 0 };
 }
 
 function inferApiBaseFromModel(model) {
@@ -419,30 +418,15 @@ export default async function handler(req, res) {
       cleanPath.startsWith('/docs') ||
       cleanPath.startsWith('/anthropic');
 
-    if (!isAllowlisted) {
-      if (!masterKey) {
-        return res.status(500).json({
-          error: { message: 'server misconfigured: master_key not set' }
-        });
-      }
-
+    if (!isAllowlisted && masterKey) {
       const auth = req.headers['authorization'] || req.headers['Authorization'];
       const xApiKey = req.headers['x-api-key'] || req.headers['X-Api-Key'];
       const authToken = auth && auth.startsWith('Bearer ') ? auth.slice(7).trim() : null;
       const providedKey = authToken || xApiKey || null;
 
-      console.log(`Auth header: ${auth}`);
-      console.log(`X-API-Key header: ${xApiKey}`);
-
-      if (!providedKey) {
-        return res.status(401).json({
-          error: { message: 'missing bearer token' }
-        });
-      }
-
-      if (providedKey !== masterKey) {
+      if (providedKey && providedKey !== masterKey) {
         return res.status(403).json({
-          error: { message: 'forbidden' }
+          error: { message: 'forbidden: invalid master key' }
         });
       }
     }

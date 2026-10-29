@@ -56,13 +56,13 @@ export default function ExportModal() {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm select-none">
-      <div className="bg-[#171717] border border-[#303030] rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#303030]">
-          <h2 className="text-base font-semibold text-white">Export Conversation</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md select-none">
+      <div className="bg-[#13100E] border border-[#E5E4E2]/15 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#E5E4E2]/10 bg-[#1A1613]">
+          <h2 className="text-base font-semibold text-[#FAF9F8]">Export Conversation</h2>
           <button
             onClick={() => setIsExportOpen(false)}
-            className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+            className="p-1.5 rounded-lg text-[#BDB8B3] hover:text-[#FAF9F8] hover:bg-[#241E1A] transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -74,57 +74,57 @@ export default function ExportModal() {
               onClick={() => setFormat('markdown')}
               className={`p-3 rounded-xl border flex flex-col items-center gap-1.5 transition-all ${
                 format === 'markdown'
-                  ? 'border-emerald-500 bg-emerald-500/10 text-white font-medium'
-                  : 'border-zinc-800 bg-[#212121] text-zinc-400 hover:text-white'
+                  ? 'border-[#6F4E37] bg-[#6F4E37]/25 text-[#FAF9F8] font-medium'
+                  : 'border-[#E5E4E2]/10 bg-[#1A1613] text-[#BDB8B3] hover:text-[#FAF9F8] hover:bg-[#241E1A]'
               }`}
             >
-              <FileCode className="w-5 h-5 text-emerald-400" />
+              <FileCode className="w-5 h-5 text-[#E6E0F0]" />
               <span className="text-xs">Markdown</span>
             </button>
             <button
               onClick={() => setFormat('json')}
               className={`p-3 rounded-xl border flex flex-col items-center gap-1.5 transition-all ${
                 format === 'json'
-                  ? 'border-emerald-500 bg-emerald-500/10 text-white font-medium'
-                  : 'border-zinc-800 bg-[#212121] text-zinc-400 hover:text-white'
+                  ? 'border-[#6F4E37] bg-[#6F4E37]/25 text-[#FAF9F8] font-medium'
+                  : 'border-[#E5E4E2]/10 bg-[#1A1613] text-[#BDB8B3] hover:text-[#FAF9F8] hover:bg-[#241E1A]'
               }`}
             >
-              <Database className="w-5 h-5 text-blue-400" />
+              <Database className="w-5 h-5 text-[#E5E4E2]" />
               <span className="text-xs">JSON</span>
             </button>
             <button
               onClick={() => setFormat('text')}
               className={`p-3 rounded-xl border flex flex-col items-center gap-1.5 transition-all ${
                 format === 'text'
-                  ? 'border-emerald-500 bg-emerald-500/10 text-white font-medium'
-                  : 'border-zinc-800 bg-[#212121] text-zinc-400 hover:text-white'
+                  ? 'border-[#6F4E37] bg-[#6F4E37]/25 text-[#FAF9F8] font-medium'
+                  : 'border-[#E5E4E2]/10 bg-[#1A1613] text-[#BDB8B3] hover:text-[#FAF9F8] hover:bg-[#241E1A]'
               }`}
             >
-              <FileText className="w-5 h-5 text-amber-400" />
+              <FileText className="w-5 h-5 text-[#E6E0F0]" />
               <span className="text-xs">Plain Text</span>
             </button>
           </div>
 
           <div className="relative">
-            <pre className="p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-mono text-zinc-300 max-h-48 overflow-y-auto whitespace-pre-wrap">
+            <pre className="p-3.5 bg-[#0D0B0A] border border-[#E5E4E2]/12 rounded-xl text-xs font-mono text-[#E5E4E2] max-h-48 overflow-y-auto whitespace-pre-wrap">
               {exportText}
             </pre>
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[#303030] bg-[#141414]">
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[#E5E4E2]/10 bg-[#1A1613]">
           <button
             onClick={handleCopy}
-            className="flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-medium border border-zinc-700 transition-colors"
+            className="flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-[#241E1A] hover:bg-[#2D2520] text-[#E5E4E2] hover:text-white text-xs font-medium border border-[#E5E4E2]/15 transition-colors"
           >
-            {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+            {copied ? <Check className="w-3.5 h-3.5 text-[#E6E0F0]" /> : <Copy className="w-3.5 h-3.5 text-[#FAF9F8]" />}
             <span>{copied ? 'Copied!' : 'Copy to Clipboard'}</span>
           </button>
           <button
             onClick={handleDownload}
-            className="flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md transition-all hover:scale-[1.02]"
+            className="flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-[#6F4E37] hover:bg-[#8C6549] text-[#FAF9F8] text-xs font-semibold shadow-md border border-[#6F4E37] transition-all hover:scale-[1.02]"
           >
-            <Download className="w-3.5 h-3.5" />
+            <Download className="w-3.5 h-3.5 text-[#FAF9F8]" />
             <span>Download File</span>
           </button>
         </div>

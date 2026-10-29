@@ -194,7 +194,7 @@ export default function ChatInput() {
   }, [prompt]);
 
   return (
-    <div className="p-3 sm:p-4 bg-gradient-to-t from-[#0D0B0A] via-[#0D0B0A]/95 to-transparent shrink-0 select-none z-20">
+    <div className="p-3 sm:p-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-gradient-to-t from-[#0D0B0A] via-[#0D0B0A]/95 to-transparent shrink-0 select-none z-20">
       <div className="max-w-4xl mx-auto w-full space-y-2">
         {/* File Size Error Alert */}
         {fileError && (
@@ -279,7 +279,7 @@ export default function ChatInput() {
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="p-2 rounded-xl text-[#BDB8B3] hover:text-[#FAF9F8] hover:bg-[#241E1A] transition-colors"
+                className="min-w-[36px] min-h-[36px] flex items-center justify-center p-2 rounded-xl text-[#BDB8B3] hover:text-[#FAF9F8] hover:bg-[#241E1A] transition-colors"
                 title="Attach image for Multimodal Vision or PDF/CSV/TXT for RAG context (Max 15MB)"
               >
                 <Paperclip className="w-4 h-4" />
@@ -289,7 +289,7 @@ export default function ChatInput() {
               <button
                 type="button"
                 onClick={toggleSpeech}
-                className={`p-2 rounded-xl transition-all ${
+                className={`min-w-[36px] min-h-[36px] flex items-center justify-center p-2 rounded-xl transition-all ${
                   isListening
                     ? 'text-rose-300 bg-rose-500/25 border border-rose-500/50 ring-2 ring-rose-500/30 animate-pulse shadow-md shadow-rose-950/40'
                     : 'text-[#BDB8B3] hover:text-[#FAF9F8] hover:bg-[#241E1A] border border-transparent'
@@ -311,7 +311,7 @@ export default function ChatInput() {
               <button
                 type="button"
                 onClick={() => setIsWebSearchEnabled(!isWebSearchEnabled)}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-medium transition-all ${
+                className={`min-h-[36px] flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
                   isWebSearchEnabled
                     ? 'bg-[#6F4E37]/40 text-[#FAF9F8] border border-[#6F4E37] shadow-sm'
                     : 'text-[#BDB8B3] hover:text-[#FAF9F8] hover:bg-[#241E1A] border border-transparent'
@@ -330,7 +330,7 @@ export default function ChatInput() {
               <button
                 type="button"
                 onClick={() => setIsThinkingModeEnabled(!isThinkingModeEnabled)}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-medium transition-all ${
+                className={`min-h-[36px] flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
                   isThinkingModeEnabled
                     ? 'bg-[#241E1A] text-[#E6E0F0] border border-[#E6E0F0]/50 shadow-sm'
                     : 'text-[#BDB8B3] hover:text-[#FAF9F8] hover:bg-[#241E1A] border border-transparent'
@@ -384,7 +384,7 @@ export default function ChatInput() {
               <button
                 onClick={handleSubmit}
                 disabled={!isGenerating && !prompt.trim() && !attachment}
-                className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-all duration-200 ${
+                className={`w-9 h-9 sm:w-8.5 sm:h-8.5 min-w-[36px] min-h-[36px] rounded-xl flex items-center justify-center shrink-0 transition-all duration-200 ${
                   isGenerating
                     ? 'bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 border border-rose-500/40 shadow-md active:scale-95'
                     : prompt.trim() || attachment

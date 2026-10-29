@@ -122,21 +122,51 @@ export function AuthProvider({ children }) {
 
   // Supabase Auth State Listener (GitHub, Google, Apple SSO)
   useEffect(() => {
+    // Detect and handle OAuth provider cancellation or callback errors from URL hash
+    try {
+      const hash = window.location.hash;
+      const search = window.location.search;
+      if (hash.includes('error=') || search.includes('error=')) {
+        const params = new URLSearchParams(hash.startsWith('#') ? hash.slice(1) : search);
+        const error = params.get('error') || params.get('error_code');
+        const desc = params.get('error_description');
+        if (error || desc) {
+          console.warn('[OAuth Callback] Provider returned error:', error, desc);
+          // Clean URL hash without reloading page
+          window.history.replaceState(null, '', window.location.pathname);
+        }
+      }
+    } catch (_) {}
+
     if (!supabase) return;
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setToken(null);
+        return;
+      }
+
       if (session?.user) {
         const supaUser = session.user;
         const provider = supaUser.app_metadata?.provider || 'oauth';
+        const userEmail = supaUser.email || `${supaUser.id}@${provider}.supabase`;
+        const emailPrefix = userEmail.split('@')[0] || `${provider}_user`;
         const mappedUser = {
           id: supaUser.id,
-          name: supaUser.user_metadata?.full_name || supaUser.user_metadata?.name || supaUser.user_metadata?.user_name || supaUser.email?.split('@')[0] || `${provider} User`,
-          email: supaUser.email || `${supaUser.id}@${provider}.supabase`,
-          username: supaUser.user_metadata?.user_name || supaUser.user_metadata?.preferred_username || supaUser.email?.split('@')[0] || `${provider}_user`,
+          name: supaUser.user_metadata?.full_name || supaUser.user_metadata?.name || supaUser.user_metadata?.user_name || emailPrefix,
+          email: userEmail,
+          username: supaUser.user_metadata?.user_name || supaUser.user_metadata?.preferred_username || emailPrefix,
+          avatar: supaUser.user_metadata?.avatar_url || supaUser.user_metadata?.picture || null,
           role: 'superadmin'
         };
         setUser(mappedUser);
         setToken(session.access_token);
         setIsAuthModalOpen(false);
+
+        // Clean up hash fragment from URL
+        if (window.location.hash && window.location.hash.includes('access_token')) {
+          window.history.replaceState(null, '', window.location.pathname);
+        }
       }
     });
 
@@ -260,6 +290,16 @@ export function AuthProvider({ children }) {
       // 1. First attempt backend OTP via hardened SMTP / Resend
       try {
         const backendRes = await sendOtpApi(serverUrl, email);
+        if (backendRes.delivered === false && isSupabaseClientAvailable()) {
+          console.log('[Auth] Backend OTP delivery pending; triggering Supabase Auth OTP fallback...');
+          const supaRes = await supaSignInWithOtp(email);
+          if (supaRes.success) {
+            return {
+              success: true,
+              message: `Verification code sent to ${email} via Supabase Auth.`
+            };
+          }
+        }
         return { success: true, ...backendRes };
       } catch (backendErr) {
         // 2. If backend OTP failed and Supabase is configured, fallback to Supabase OTP
@@ -298,11 +338,14 @@ export function AuthProvider({ children }) {
           const supaRes = await supaVerifyOtp({ email, token: code, type: 'email' });
           if (supaRes.success && supaRes.session) {
             const supaUser = supaRes.user;
+            const userEmail = supaUser.email || `${supaUser.id}@supabase.auth`;
+            const emailPrefix = userEmail.split('@')[0] || 'user';
             const mappedUser = {
               id: supaUser.id,
-              name: supaUser.user_metadata?.full_name || supaUser.email.split('@')[0],
-              email: supaUser.email,
-              username: supaUser.email.split('@')[0],
+              name: supaUser.user_metadata?.full_name || supaUser.user_metadata?.name || emailPrefix,
+              email: userEmail,
+              username: supaUser.user_metadata?.user_name || emailPrefix,
+              avatar: supaUser.user_metadata?.avatar_url || supaUser.user_metadata?.picture || null,
               role: 'superadmin'
             };
             setToken(supaRes.session.access_token);

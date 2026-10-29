@@ -10,8 +10,21 @@ import { saveUsageRecord, getUserUsageRecords, clearUserUsage } from './db.js';
 
 // OpenAI GPT-4o standard reference pricing (per 1,000,000 tokens)
 export const GPT4O_PRICING = {
+  name: 'OpenAI GPT-4o',
   promptCostPerMillion: 2.50,       // $2.50 / 1M prompt tokens
   completionCostPerMillion: 10.00    // $10.00 / 1M completion tokens
+};
+
+// Anthropic Claude 3.5 Sonnet reference pricing (per 1,000,000 tokens)
+export const CLAUDE_SONNET_PRICING = {
+  name: 'Claude 3.5 Sonnet',
+  promptCostPerMillion: 3.00,       // $3.00 / 1M prompt tokens
+  completionCostPerMillion: 15.00    // $15.00 / 1M completion tokens
+};
+
+export const COMMERCIAL_PRICING = {
+  gpt4o: GPT4O_PRICING,
+  claudeSonnet: CLAUDE_SONNET_PRICING
 };
 
 // Provider Free Tier Quota Limits
@@ -37,19 +50,42 @@ export const QUOTA_LIMITS = {
 };
 
 /**
- * Calculate cost savings compared to OpenAI GPT-4o
+ * Calculate cost savings compared to OpenAI GPT-4o or Claude 3.5 Sonnet
  *
  * @param {number} promptTokens
  * @param {number} completionTokens
+ * @param {Object} [pricing=GPT4O_PRICING]
  * @returns {number} Cost savings in USD
  */
-export function calculateCostSavings(promptTokens = 0, completionTokens = 0) {
-  const pTokens = Math.max(0, Number(promptTokens) || 0);
-  const cTokens = Math.max(0, Number(completionTokens) || 0);
-  const promptSavings = (pTokens / 1_000_000) * GPT4O_PRICING.promptCostPerMillion;
-  const completionSavings = (cTokens / 1_000_000) * GPT4O_PRICING.completionCostPerMillion;
-  const total = promptSavings + completionSavings;
+export function calculateCostSavings(promptTokens = 0, completionTokens = 0, pricing = GPT4O_PRICING) {
+  const pTokens = Math.max(0, Math.round(Number(promptTokens) || 0));
+  const cTokens = Math.max(0, Math.round(Number(completionTokens) || 0));
+  const pRate = pricing?.promptCostPerMillion ?? GPT4O_PRICING.promptCostPerMillion;
+  const cRate = pricing?.completionCostPerMillion ?? GPT4O_PRICING.completionCostPerMillion;
+  const promptSavings = (pTokens / 1_000_000) * pRate;
+  const completionSavings = (cTokens / 1_000_000) * cRate;
+  const total = Math.max(0, promptSavings + completionSavings);
   return Number(total.toFixed(6));
+}
+
+/**
+ * Calculate commercial cost savings comparison across both GPT-4o and Claude 3.5 Sonnet
+ *
+ * @param {number} promptTokens
+ * @param {number} completionTokens
+ * @returns {{ gpt4oUSD: number, claudeSonnetUSD: number, averageSavingsUSD: number }}
+ */
+export function calculateCommercialComparison(promptTokens = 0, completionTokens = 0) {
+  const pTokens = Math.max(0, Math.round(Number(promptTokens) || 0));
+  const cTokens = Math.max(0, Math.round(Number(completionTokens) || 0));
+  const gpt4oUSD = calculateCostSavings(pTokens, cTokens, GPT4O_PRICING);
+  const claudeSonnetUSD = calculateCostSavings(pTokens, cTokens, CLAUDE_SONNET_PRICING);
+  const averageSavingsUSD = Number(((gpt4oUSD + claudeSonnetUSD) / 2).toFixed(6));
+  return {
+    gpt4oUSD,
+    claudeSonnetUSD,
+    averageSavingsUSD
+  };
 }
 
 /**
@@ -57,7 +93,8 @@ export function calculateCostSavings(promptTokens = 0, completionTokens = 0) {
  */
 export function isGroqModel(model) {
   const m = String(model || '').toLowerCase();
-  return m.includes('groq') || m.includes('llama') || m.includes('mixtral') || m.includes('gemma');
+  if (isOpenRouterModel(m) || isNvidiaModel(m) || isGeminiModel(m)) return false;
+  return m.includes('groq') || m.includes('llama') || m.includes('mixtral') || m.includes('gemma') || m.includes('gpt-oss') || m.includes('groq-r1') || m === 'deepseek-r1';
 }
 
 export function isGeminiModel(model) {
@@ -72,6 +109,8 @@ export function isOpenRouterModel(model) {
 
 export function isNvidiaModel(model) {
   const m = String(model || '').toLowerCase();
+  // Disambiguate: OpenRouter models that forward to nemotron belong to OpenRouter quota
+  if (isOpenRouterModel(m)) return false;
   return m.includes('nvidia') || m.includes('nim') || m.includes('nemotron');
 }
 
@@ -138,7 +177,7 @@ export function calculateQuotaStatus(records = []) {
       usedRpm: groqRequestsMin,
       remainingRequestsDay: Math.max(0, QUOTA_LIMITS.groq.requestsPerDay - groqRequestsDay),
       remainingRpm: Math.max(0, QUOTA_LIMITS.groq.requestsPerMinute - groqRequestsMin),
-      percentUsedDay: Number(((groqRequestsDay / QUOTA_LIMITS.groq.requestsPerDay) * 100).toFixed(2))
+      percentUsedDay: Math.min(100, Math.max(0, Number(((groqRequestsDay / QUOTA_LIMITS.groq.requestsPerDay) * 100).toFixed(2))))
     },
     geminiFlash: {
       provider: 'Google Gemini',
@@ -150,8 +189,8 @@ export function calculateQuotaStatus(records = []) {
       usedTpm: geminiTokensMin,
       remainingRpm: Math.max(0, QUOTA_LIMITS.geminiFlash.requestsPerMinute - geminiRequestsMin),
       remainingTpm: Math.max(0, QUOTA_LIMITS.geminiFlash.tokensPerMinute - geminiTokensMin),
-      percentUsedRpm: Number(((geminiRequestsMin / QUOTA_LIMITS.geminiFlash.requestsPerMinute) * 100).toFixed(2)),
-      percentUsedTpm: Number(((geminiTokensMin / QUOTA_LIMITS.geminiFlash.tokensPerMinute) * 100).toFixed(2))
+      percentUsedRpm: Math.min(100, Math.max(0, Number(((geminiRequestsMin / QUOTA_LIMITS.geminiFlash.requestsPerMinute) * 100).toFixed(2)))),
+      percentUsedTpm: Math.min(100, Math.max(0, Number(((geminiTokensMin / QUOTA_LIMITS.geminiFlash.tokensPerMinute) * 100).toFixed(2))))
     },
     openRouterFree: {
       provider: 'OpenRouter',
@@ -159,7 +198,7 @@ export function calculateQuotaStatus(records = []) {
       limitRequestsDay: QUOTA_LIMITS.openRouterFree.requestsPerDay,
       usedRequestsDay: openRouterRequestsDay,
       remainingRequestsDay: Math.max(0, QUOTA_LIMITS.openRouterFree.requestsPerDay - openRouterRequestsDay),
-      percentUsedDay: Number(((openRouterRequestsDay / QUOTA_LIMITS.openRouterFree.requestsPerDay) * 100).toFixed(2))
+      percentUsedDay: Math.min(100, Math.max(0, Number(((openRouterRequestsDay / QUOTA_LIMITS.openRouterFree.requestsPerDay) * 100).toFixed(2))))
     },
     nvidiaNim: {
       provider: 'NVIDIA NIM',
@@ -167,7 +206,7 @@ export function calculateQuotaStatus(records = []) {
       totalCredits: QUOTA_LIMITS.nvidiaNim.totalCredits,
       usedCredits: nvidiaCreditsUsed,
       remainingCredits: Math.max(0, QUOTA_LIMITS.nvidiaNim.totalCredits - nvidiaCreditsUsed),
-      percentUsed: Number(((nvidiaCreditsUsed / QUOTA_LIMITS.nvidiaNim.totalCredits) * 100).toFixed(2))
+      percentUsed: Math.min(100, Math.max(0, Number(((nvidiaCreditsUsed / QUOTA_LIMITS.nvidiaNim.totalCredits) * 100).toFixed(2))))
     }
   };
 }
@@ -215,13 +254,17 @@ export async function recordUsage({
   };
 
   const saved = await saveUsageRecord(record);
-  const speed = durSec > 0 ? Number((cTokens / durSec).toFixed(2)) : 0;
-  const costSavingsUSD = calculateCostSavings(pTokens + cacheTokens, cTokens);
+  // Enforce safe minimum divisor (50ms) to prevent Infinity or astronomical speeds
+  const speed = durSec > 0 ? Number((cTokens / Math.max(0.05, durSec)).toFixed(2)) : 0;
+  const costSavingsUSD = calculateCostSavings(pTokens + cacheTokens, cTokens, GPT4O_PRICING);
+  const claudeSavingsUSD = calculateCostSavings(pTokens + cacheTokens, cTokens, CLAUDE_SONNET_PRICING);
 
   return {
     ...saved,
     speed,
     costSavingsUSD,
+    claudeSavingsUSD,
+    commercialComparison: calculateCommercialComparison(pTokens + cacheTokens, cTokens),
     cachedTokens: cacheTokens
   };
 }
@@ -309,8 +352,9 @@ export async function getUsageStats({ userId = 'anonymous' } = {}) {
       completionTokens: mData.completionTokens,
       cachedTokens: mData.cachedTokens,
       totalRequests: mData.totalRequests,
-      costSavingsUSD: calculateCostSavings(mData.promptTokens + mData.cachedTokens, mData.completionTokens),
-      averageSpeed: mData.totalDurationSec > 0 ? Number((mData.completionTokens / mData.totalDurationSec).toFixed(2)) : 0
+      costSavingsUSD: calculateCostSavings(mData.promptTokens + mData.cachedTokens, mData.completionTokens, GPT4O_PRICING),
+      claudeSavingsUSD: calculateCostSavings(mData.promptTokens + mData.cachedTokens, mData.completionTokens, CLAUDE_SONNET_PRICING),
+      averageSpeed: mData.totalDurationSec > 0 ? Number((mData.completionTokens / Math.max(0.05, mData.totalDurationSec)).toFixed(2)) : 0
     };
   }
 
@@ -318,13 +362,15 @@ export async function getUsageStats({ userId = 'anonymous' } = {}) {
   const dailyStats = Object.values(dailyMap)
     .map(d => ({
       ...d,
-      costSavingsUSD: calculateCostSavings(d.promptTokens + d.cachedTokens, d.completionTokens)
+      costSavingsUSD: calculateCostSavings(d.promptTokens + d.cachedTokens, d.completionTokens, GPT4O_PRICING),
+      claudeSavingsUSD: calculateCostSavings(d.promptTokens + d.cachedTokens, d.completionTokens, CLAUDE_SONNET_PRICING)
     }))
     .sort((a, b) => b.date.localeCompare(a.date));
 
-  const costSavingsUSD = calculateCostSavings(totalPromptTokens + totalCachedTokens, totalCompletionTokens);
-  const cacheSavingsUSD = calculateCostSavings(totalCachedTokens, 0);
-  const averageSpeed = totalDurationSec > 0 ? Number((totalCompletionTokens / totalDurationSec).toFixed(2)) : 0;
+  const costSavingsUSD = calculateCostSavings(totalPromptTokens + totalCachedTokens, totalCompletionTokens, GPT4O_PRICING);
+  const claudeSavingsUSD = calculateCostSavings(totalPromptTokens + totalCachedTokens, totalCompletionTokens, CLAUDE_SONNET_PRICING);
+  const cacheSavingsUSD = calculateCostSavings(totalCachedTokens, 0, GPT4O_PRICING);
+  const averageSpeed = totalDurationSec > 0 ? Number((totalCompletionTokens / Math.max(0.05, totalDurationSec)).toFixed(2)) : 0;
   const quotaStatus = calculateQuotaStatus(records);
 
   return {
@@ -335,6 +381,12 @@ export async function getUsageStats({ userId = 'anonymous' } = {}) {
     cacheSavingsUSD,
     totalRequests,
     costSavingsUSD,
+    claudeSavingsUSD,
+    commercialComparison: {
+      gpt4oUSD: costSavingsUSD,
+      claudeSonnetUSD: claudeSavingsUSD,
+      averageSavingsUSD: Number(((costSavingsUSD + claudeSavingsUSD) / 2).toFixed(6))
+    },
     averageSpeed,
     dailyStats,
     modelBreakdown,
@@ -361,8 +413,11 @@ export async function resetUsage({ userId = 'anonymous' } = {}) {
 
 export default {
   GPT4O_PRICING,
+  CLAUDE_SONNET_PRICING,
+  COMMERCIAL_PRICING,
   QUOTA_LIMITS,
   calculateCostSavings,
+  calculateCommercialComparison,
   calculateQuotaStatus,
   recordUsage,
   getUsageStats,

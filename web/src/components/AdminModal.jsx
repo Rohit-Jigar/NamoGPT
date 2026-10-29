@@ -77,22 +77,22 @@ export default function AdminModal() {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md select-none animate-in fade-in duration-200">
-      <div className="bg-[#171717] border border-amber-500/30 rounded-3xl w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+      <div className="bg-[#13100E] border border-[#6F4E37]/35 rounded-3xl w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
         {/* Header */}
-        <div className="p-5 border-b border-[#303030] flex items-center justify-between bg-gradient-to-r from-amber-950/20 via-[#212121] to-[#171717]">
+        <div className="p-5 border-b border-[#241E1A] flex items-center justify-between bg-gradient-to-r from-[#241E1A] via-[#1A1613] to-[#13100E]">
           <div className="flex items-center space-x-3">
-            <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+            <div className="w-9 h-9 rounded-xl bg-[#6F4E37]/20 border border-[#6F4E37]/40 flex items-center justify-center text-[#E6E0F0]">
               <Crown className="w-5 h-5 fill-current" />
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h2 className="text-base font-bold text-white">Super Admin Console</h2>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                <h2 className="text-base font-bold text-[#FAF9F8]">Super Admin Console</h2>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#6F4E37]/25 text-[#FAF9F8] border border-[#6F4E37]/40">
                   Full Access
                 </span>
               </div>
-              <p className="text-xs text-zinc-400">
-                Inspect LiteLLM proxy status, configured keys in <code className="text-amber-300 font-mono">.env</code>, and user directory.
+              <p className="text-xs text-[#BDB8B3]">
+                Inspect LiteLLM proxy status, configured keys in <code className="text-[#E6E0F0] font-mono">.env</code>, and user directory.
               </p>
             </div>
           </div>
@@ -101,15 +101,16 @@ export default function AdminModal() {
             <button
               onClick={loadData}
               disabled={isLoading}
-              className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+              className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-xl text-[#BDB8B3] hover:text-[#FAF9F8] hover:bg-[#241E1A] transition-colors"
               title="Refresh Telemetry"
             >
-              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-amber-400' : ''}`} />
+              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-[#E6E0F0]' : ''}`} />
             </button>
             <button
               onClick={() => setIsAdminModalOpen(false)}
-              className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+              className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-xl text-[#BDB8B3] hover:text-[#FAF9F8] hover:bg-[#241E1A] transition-colors"
               title="Close"
+              aria-label="Close Admin Modal"
             >
               <X className="w-5 h-5" />
             </button>
@@ -117,13 +118,13 @@ export default function AdminModal() {
         </div>
 
         {/* Tab Selection */}
-        <div className="flex items-center space-x-2 px-6 pt-3 border-b border-[#303030]/60 bg-[#1c1c1c]">
+        <div className="flex items-center space-x-2 px-6 pt-3 border-b border-[#241E1A] bg-[#100D0B]">
           <button
             onClick={() => setActiveTab('telemetry')}
             className={`flex items-center space-x-2 px-3 py-2 text-xs font-semibold border-b-2 transition-colors ${
               activeTab === 'telemetry'
-                ? 'border-amber-400 text-amber-300'
-                : 'border-transparent text-zinc-400 hover:text-white'
+                ? 'border-[#6F4E37] text-[#E6E0F0]'
+                : 'border-transparent text-[#BDB8B3] hover:text-[#FAF9F8]'
             }`}
           >
             <Activity className="w-3.5 h-3.5" />
@@ -133,8 +134,8 @@ export default function AdminModal() {
             onClick={() => setActiveTab('users')}
             className={`flex items-center space-x-2 px-3 py-2 text-xs font-semibold border-b-2 transition-colors ${
               activeTab === 'users'
-                ? 'border-amber-400 text-amber-300'
-                : 'border-transparent text-zinc-400 hover:text-white'
+                ? 'border-[#6F4E37] text-[#E6E0F0]'
+                : 'border-transparent text-[#BDB8B3] hover:text-[#FAF9F8]'
             }`}
           >
             <Users className="w-3.5 h-3.5" />
@@ -155,50 +156,50 @@ export default function AdminModal() {
             <>
               {/* Server Stats Banner */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="p-3.5 rounded-2xl bg-[#212121] border border-zinc-800 space-y-1">
-                  <div className="text-[11px] text-zinc-400 flex items-center gap-1.5">
-                    <Server className="w-3.5 h-3.5 text-emerald-400" /> Uptime
+                <div className="p-3.5 rounded-2xl bg-[#1A1613] border border-[#2D2621] space-y-1">
+                  <div className="text-[11px] text-[#8C827A] flex items-center gap-1.5">
+                    <Server className="w-3.5 h-3.5 text-[#E6E0F0]" /> Uptime
                   </div>
-                  <div className="text-sm font-bold text-white font-mono">
+                  <div className="text-sm font-bold text-[#FAF9F8] font-mono">
                     {formatUptime(statusData.server?.uptime)}
                   </div>
                 </div>
 
-                <div className="p-3.5 rounded-2xl bg-[#212121] border border-zinc-800 space-y-1">
-                  <div className="text-[11px] text-zinc-400 flex items-center gap-1.5">
-                    <Cpu className="w-3.5 h-3.5 text-blue-400" /> Memory (RSS)
+                <div className="p-3.5 rounded-2xl bg-[#1A1613] border border-[#2D2621] space-y-1">
+                  <div className="text-[11px] text-[#8C827A] flex items-center gap-1.5">
+                    <Cpu className="w-3.5 h-3.5 text-[#E6E0F0]" /> Memory (RSS)
                   </div>
-                  <div className="text-sm font-bold text-white font-mono">
+                  <div className="text-sm font-bold text-[#FAF9F8] font-mono">
                     {formatBytes(statusData.server?.memory?.rss)}
                   </div>
                 </div>
 
-                <div className="p-3.5 rounded-2xl bg-[#212121] border border-zinc-800 space-y-1">
-                  <div className="text-[11px] text-zinc-400 flex items-center gap-1.5">
-                    <Shield className="w-3.5 h-3.5 text-amber-400" /> Master Key
+                <div className="p-3.5 rounded-2xl bg-[#1A1613] border border-[#2D2621] space-y-1">
+                  <div className="text-[11px] text-[#8C827A] flex items-center gap-1.5">
+                    <Shield className="w-3.5 h-3.5 text-[#6F4E37]" /> Master Key
                   </div>
                   <div className="text-sm font-bold font-mono">
                     {statusData.server?.masterKeyConfigured ? (
-                      <span className="text-emerald-400 flex items-center gap-1">
+                      <span className="text-[#E6E0F0] flex items-center gap-1">
                         <CheckCircle2 className="w-3.5 h-3.5" /> Enforced
                       </span>
                     ) : (
-                      <span className="text-zinc-400 text-xs">Optional</span>
+                      <span className="text-[#8C827A] text-xs">Optional</span>
                     )}
                   </div>
                 </div>
 
-                <div className="p-3.5 rounded-2xl bg-[#212121] border border-zinc-800 space-y-1">
-                  <div className="text-[11px] text-zinc-400 flex items-center gap-1.5">
-                    <Globe className="w-3.5 h-3.5 text-orange-400" /> Cloudflare Acc
+                <div className="p-3.5 rounded-2xl bg-[#1A1613] border border-[#2D2621] space-y-1">
+                  <div className="text-[11px] text-[#8C827A] flex items-center gap-1.5">
+                    <Globe className="w-3.5 h-3.5 text-[#E5E4E2]" /> Cloudflare Acc
                   </div>
                   <div className="text-sm font-bold font-mono">
                     {statusData.server?.cloudflareAccountIdConfigured ? (
-                      <span className="text-emerald-400 text-xs flex items-center gap-1">
+                      <span className="text-[#E6E0F0] text-xs flex items-center gap-1">
                         <CheckCircle2 className="w-3.5 h-3.5" /> Bound
                       </span>
                     ) : (
-                      <span className="text-zinc-400 text-xs">Standard</span>
+                      <span className="text-[#8C827A] text-xs">Standard</span>
                     )}
                   </div>
                 </div>
@@ -207,11 +208,11 @@ export default function AdminModal() {
               {/* Provider Keys Detection Matrix */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
-                    <Key className="w-4 h-4 text-emerald-400" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#BDB8B3] flex items-center gap-2">
+                    <Key className="w-4 h-4 text-[#E6E0F0]" />
                     <span>Upstream Providers & Loaded .env Keys</span>
                   </h3>
-                  <span className="text-[11px] text-zinc-400 font-mono">
+                  <span className="text-[11px] text-[#8C827A] font-mono">
                     Keys masked for security
                   </span>
                 </div>
@@ -226,28 +227,28 @@ export default function AdminModal() {
                         key={prov.id}
                         className={`p-4 rounded-2xl border transition-all ${
                           isConfigured
-                            ? 'bg-[#1e261e]/50 border-emerald-500/30'
-                            : 'bg-[#212121] border-zinc-800'
+                            ? 'bg-[#241E1A] border-[#6F4E37]/40'
+                            : 'bg-[#1A1613] border-[#2D2621]'
                         }`}
                       >
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center space-x-2">
                             <span>{prov.icon}</span>
-                            <span className="font-semibold text-xs text-white">{prov.name}</span>
+                            <span className="font-semibold text-xs text-[#FAF9F8]">{prov.name}</span>
                           </div>
                           <span
                             className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
                               isConfigured
-                                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                                : 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                                ? 'bg-[#6F4E37]/25 text-[#FAF9F8] border-[#6F4E37]/40'
+                                : 'bg-[#241E1A] text-[#8C827A] border-[#2D2621]'
                             }`}
                           >
                             {isConfigured ? `${detectedKeys.length} key(s) active` : '0 keys in .env'}
                           </span>
                         </div>
 
-                        <div className="text-[11px] text-zinc-400 font-mono mb-2">
-                          Env template: <span className="text-zinc-300">{prov.envVar}</span>
+                        <div className="text-[11px] text-[#8C827A] font-mono mb-2">
+                          Env template: <span className="text-[#FAF9F8]">{prov.envVar}</span>
                         </div>
 
                         {isConfigured ? (
@@ -255,7 +256,7 @@ export default function AdminModal() {
                             {detectedKeys.map((masked, idx) => (
                               <div
                                 key={idx}
-                                className="text-[10px] font-mono text-emerald-300 bg-emerald-950/40 px-2.5 py-1 rounded border border-emerald-500/20 flex items-center justify-between"
+                                className="text-[10px] font-mono text-[#FAF9F8] bg-[#13100E] px-2.5 py-1 rounded border border-[#6F4E37]/30 flex items-center justify-between"
                               >
                                 <span>Key #{idx + 1}</span>
                                 <span>{masked}</span>
@@ -263,7 +264,7 @@ export default function AdminModal() {
                             ))}
                           </div>
                         ) : (
-                          <p className="text-[11px] text-zinc-500 italic">
+                          <p className="text-[11px] text-[#8C827A] italic">
                             No keys detected. Client fallback guidance or Settings key will be used.
                           </p>
                         )}
@@ -277,14 +278,14 @@ export default function AdminModal() {
 
           {activeTab === 'users' && (
             <div className="space-y-3">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
-                <Users className="w-4 h-4 text-amber-400" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-[#BDB8B3] flex items-center gap-2">
+                <Users className="w-4 h-4 text-[#E6E0F0]" />
                 <span>Registered Users Directory</span>
               </h3>
 
-              <div className="rounded-2xl border border-zinc-800 overflow-hidden bg-[#212121]">
+              <div className="rounded-2xl border border-[#2D2621] overflow-hidden bg-[#1A1613]">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-[#171717] border-b border-zinc-800 text-zinc-400 font-semibold uppercase text-[10px]">
+                  <thead className="bg-[#13100E] border-b border-[#2D2621] text-[#8C827A] font-semibold uppercase text-[10px]">
                     <tr>
                       <th className="px-4 py-3">User</th>
                       <th className="px-4 py-3">Role</th>
@@ -292,28 +293,28 @@ export default function AdminModal() {
                       <th className="px-4 py-3">Last Login</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-zinc-800">
+                  <tbody className="divide-y divide-[#2D2621]">
                     {usersList.map((u) => (
-                      <tr key={u.id} className="hover:bg-zinc-800/40">
+                      <tr key={u.id} className="hover:bg-[#241E1A] transition-colors">
                         <td className="px-4 py-3">
-                          <div className="font-semibold text-white">{u.name}</div>
-                          <div className="text-[11px] text-zinc-400 font-mono">{u.email}</div>
+                          <div className="font-semibold text-[#FAF9F8]">{u.name}</div>
+                          <div className="text-[11px] text-[#8C827A] font-mono">{u.email}</div>
                         </td>
                         <td className="px-4 py-3">
                           <span
                             className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-mono font-medium ${
                               u.role === 'superadmin'
-                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                                : 'bg-zinc-800 text-zinc-300 border border-zinc-700'
+                                ? 'bg-[#6F4E37]/25 text-[#FAF9F8] border border-[#6F4E37]/40'
+                                : 'bg-[#241E1A] text-[#BDB8B3] border border-[#2D2621]'
                             }`}
                           >
                             {u.role === 'superadmin' ? '👑 Super Admin' : '👤 User'}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-zinc-400 font-mono text-[11px]">
+                        <td className="px-4 py-3 text-[#8C827A] font-mono text-[11px]">
                           {new Date(u.createdAt).toLocaleDateString()}
                         </td>
-                        <td className="px-4 py-3 text-zinc-400 font-mono text-[11px]">
+                        <td className="px-4 py-3 text-[#8C827A] font-mono text-[11px]">
                           {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleTimeString() : 'Never'}
                         </td>
                       </tr>
@@ -326,13 +327,13 @@ export default function AdminModal() {
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-[#303030] bg-[#141414] flex items-center justify-between text-xs text-zinc-400">
+        <div className="p-4 border-t border-[#241E1A] bg-[#13100E] flex items-center justify-between text-xs text-[#8C827A]">
           <div>
-            NamoGPT Super Admin Console • Connected to <code className="text-zinc-300 font-mono">{serverUrl}</code>
+            NamoGPT Super Admin Console • Connected to <code className="text-[#E6E0F0] font-mono">{serverUrl}</code>
           </div>
           <button
             onClick={() => setIsAdminModalOpen(false)}
-            className="px-4 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white font-medium transition-colors"
+            className="px-4 py-1.5 rounded-xl bg-[#241E1A] hover:bg-[#2D2621] text-[#FAF9F8] border border-[#2D2621] font-medium transition-colors"
           >
             Close
           </button>

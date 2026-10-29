@@ -120,7 +120,7 @@ export default function Header() {
       <div className="flex items-center space-x-2 sm:space-x-3">
         <button
           onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          className="p-2 rounded-xl text-[#BDB8B3] hover:text-[#FAF9F8] hover:bg-[#241E1A] border border-transparent hover:border-[#E5E4E2]/10 transition-all"
+          className="min-w-[40px] min-h-[40px] flex items-center justify-center p-2 rounded-xl text-[#BDB8B3] hover:text-[#FAF9F8] hover:bg-[#241E1A] border border-transparent hover:border-[#E5E4E2]/10 transition-all"
           title={isSidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
         >
           <PanelLeft className="w-4 h-4" />
@@ -130,7 +130,7 @@ export default function Header() {
         <div className="relative" ref={dropdownRef}>
           <button
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-            className="flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-[#1A1613] hover:bg-[#241E1A] border border-[#E5E4E2]/15 hover:border-[#E6E0F0]/30 text-[#FAF9F8] font-medium text-xs sm:text-sm tracking-tight transition-all duration-200 shadow-sm group"
+            className="min-h-[40px] flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-[#1A1613] hover:bg-[#241E1A] border border-[#E5E4E2]/15 hover:border-[#E6E0F0]/30 text-[#FAF9F8] font-medium text-xs sm:text-sm tracking-tight transition-all duration-200 shadow-sm group"
           >
             <div className="w-2 h-2 rounded-full bg-[#E6E0F0] animate-pulse shadow-sm shadow-[#E6E0F0]/50 shrink-0" />
             <span className="truncate max-w-[130px] sm:max-w-[200px] md:max-w-none font-semibold text-[#FAF9F8]">
@@ -264,7 +264,7 @@ export default function Header() {
         {/* New Chat Button */}
         <button
           onClick={() => createNewChat()}
-          className="flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-[#1A1613] hover:bg-[#241E1A] border border-[#E5E4E2]/15 hover:border-[#E6E0F0]/30 text-[#FAF9F8] text-xs font-medium transition-all"
+          className="min-h-[38px] flex items-center space-x-1 px-2.5 sm:px-3 py-1.5 rounded-xl bg-[#1A1613] hover:bg-[#241E1A] border border-[#E5E4E2]/15 hover:border-[#E6E0F0]/30 text-[#FAF9F8] text-xs font-medium transition-all"
           title="New Chat (Ctrl+N)"
         >
           <Plus className="w-3.5 h-3.5 text-[#E6E0F0]" />
@@ -274,7 +274,7 @@ export default function Header() {
         {/* MCP Tools Button */}
         <button
           onClick={() => setIsMcpOpen(true)}
-          className="hidden sm:flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-[#241E1A] hover:bg-[#2D2520] text-[#E5E4E2] border border-[#E5E4E2]/15 text-xs font-semibold transition-all hover:scale-105"
+          className="hidden sm:flex min-h-[38px] items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-[#241E1A] hover:bg-[#2D2520] text-[#E5E4E2] border border-[#E5E4E2]/15 text-xs font-semibold transition-all hover:scale-105"
           title="Model Context Protocol (MCP) Tools Registry"
         >
           <Cpu className="w-3.5 h-3.5 text-[#E6E0F0]" />
@@ -284,7 +284,7 @@ export default function Header() {
         {/* Autonomous Deep Research Button */}
         <button
           onClick={() => setIsDeepResearchOpen(true)}
-          className="hidden md:flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-[#6F4E37]/30 hover:bg-[#6F4E37]/50 text-[#FAF9F8] border border-[#6F4E37] text-xs font-semibold transition-all hover:scale-105"
+          className="hidden md:flex min-h-[38px] items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-[#6F4E37]/30 hover:bg-[#6F4E37]/50 text-[#FAF9F8] border border-[#6F4E37] text-xs font-semibold transition-all hover:scale-105"
           title="Autonomous Deep Research Mode"
         >
           <Compass className="w-3.5 h-3.5 text-[#E6E0F0]" />
@@ -294,7 +294,7 @@ export default function Header() {
         {/* Export Conversation Button */}
         <button
           onClick={() => setIsExportOpen(true)}
-          className="flex items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-[#BDB8B3] hover:text-[#FAF9F8] bg-[#1A1613] hover:bg-[#241E1A] border border-[#E5E4E2]/15 text-xs font-medium transition-all"
+          className="flex min-h-[38px] items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-[#BDB8B3] hover:text-[#FAF9F8] bg-[#1A1613] hover:bg-[#241E1A] border border-[#E5E4E2]/15 text-xs font-medium transition-all"
           title="Export conversation"
         >
           <Share2 className="w-3.5 h-3.5 text-[#BDB8B3]" />
@@ -304,7 +304,7 @@ export default function Header() {
         {/* Settings Gear Button */}
         <button
           onClick={() => setIsSettingsOpen(true)}
-          className="p-2 rounded-xl text-[#BDB8B3] hover:text-[#FAF9F8] bg-[#1A1613] hover:bg-[#241E1A] border border-[#E5E4E2]/15 transition-all"
+          className="min-w-[38px] min-h-[38px] flex items-center justify-center p-2 rounded-xl text-[#BDB8B3] hover:text-[#FAF9F8] bg-[#1A1613] hover:bg-[#241E1A] border border-[#E5E4E2]/15 transition-all"
           title="Settings & Keys"
         >
           <SettingsIcon className="w-4 h-4" />
