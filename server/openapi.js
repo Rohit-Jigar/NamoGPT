@@ -1,9 +1,9 @@
 export default {
   openapi: '3.0.3',
   info: {
-    title: 'LiteLLM Proxy API',
+    title: 'NamoGPT Unified API',
     version: '1.0.0',
-    description: 'Multi-provider LLM proxy with provider selection through model_name.'
+    description: 'NamoGPT - Full-featured ChatGPT alternative powered by LiteLLM proxy with multi-model support.'
   },
   servers: [{ url: '/' }],
   security: [

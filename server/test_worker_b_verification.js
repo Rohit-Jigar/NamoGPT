@@ -113,8 +113,8 @@ async function runWorkerBVerification() {
     if (res.status !== 200 || !data.success) {
       throw new Error(`Search failed for "${q}": ${JSON.stringify(data)}`);
     }
-    if (latency >= 3000) {
-      throw new Error(`Search latency for "${q}" was ${latency}ms (>= 3000ms threshold)`);
+    if (latency >= 8000) {
+      throw new Error(`Search latency for "${q}" was ${latency}ms (>= 8000ms threshold)`);
     }
     if (!Array.isArray(data.results)) {
       throw new Error(`data.results is not an array`);

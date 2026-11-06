@@ -195,6 +195,7 @@ export function toChatRecord(row) {
     model: row.model || 'auto',
     messages: Array.isArray(row.messages) ? row.messages : [],
     isPinned: Boolean(row.is_pinned !== undefined ? row.is_pinned : row.isPinned),
+    forkedFrom: row.forked_from || row.forkedFrom || null,
     createdAt: row.created_at || row.createdAt || new Date(),
     updatedAt: row.updated_at || row.updatedAt || new Date()
   };
@@ -500,6 +501,8 @@ export async function saveChat(chatData, userId = null) {
     model: chatData.model || 'auto',
     messages: Array.isArray(chatData.messages) ? chatData.messages : [],
     is_pinned: Boolean(chatData.isPinned),
+    forked_from: chatData.forkedFrom || null,
+    forkedFrom: chatData.forkedFrom || null,
     created_at: chatData.createdAt ? new Date(chatData.createdAt).toISOString() : new Date().toISOString(),
     updated_at: new Date().toISOString()
   };

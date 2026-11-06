@@ -1,0 +1,1357 @@
+{
+  "title": "NamoGPT Strict Multi-Worker Master QA Audit Report",
+  "timestamp": "2026-11-06T18:56:11.769Z",
+  "targetEnvironment": "http://localhost:3001",
+  "summary": {
+    "totalWorkers": 13,
+    "totalAssertions": 210,
+    "passedAssertions": 210,
+    "failedAssertions": 0,
+    "passRate": "100.0%",
+    "durationSeconds": "153.89",
+    "overallStatus": "PASSED"
+  },
+  "workers": [
+    {
+      "workerId": 1,
+      "name": "Server Gateway & Security",
+      "domain": "Core HTTP, Health Probes & Defense Headers",
+      "status": "PASSED",
+      "startTime": 1793991217878,
+      "durationMs": 86,
+      "assertions": [
+        {
+          "title": "HEAD / returns HTTP 200",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        },
+        {
+          "title": "HEAD / probe response is ultra-fast (32ms < 250ms)",
+          "passed": true,
+          "metadata": {
+            "headLatency": 32
+          }
+        },
+        {
+          "title": "Health check endpoint '/health' returns HTTP 200",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        },
+        {
+          "title": "Health check '/health' body indicates operational status",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Health check endpoint '/healthz' returns HTTP 200",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        },
+        {
+          "title": "Health check '/healthz' body indicates operational status",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Health check endpoint '/livez' returns HTTP 200",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        },
+        {
+          "title": "Health check '/livez' body indicates operational status",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Health check endpoint '/readyz' returns HTTP 200",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        },
+        {
+          "title": "Health check '/readyz' body indicates operational status",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Health check endpoint '/ping' returns HTTP 200",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        },
+        {
+          "title": "Health check '/ping' body indicates operational status",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Health check endpoint '/api/health' returns HTTP 200",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        },
+        {
+          "title": "Health check '/api/health' body indicates operational status",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Security Header X-Frame-Options is SAMEORIGIN",
+          "passed": true,
+          "metadata": {
+            "xFrame": "SAMEORIGIN"
+          }
+        },
+        {
+          "title": "Security Header X-Content-Type-Options is nosniff",
+          "passed": true,
+          "metadata": {
+            "xContentType": "nosniff"
+          }
+        },
+        {
+          "title": "Security Header Referrer-Policy is strict-origin-when-cross-origin",
+          "passed": true,
+          "metadata": {
+            "referrerPolicy": "strict-origin-when-cross-origin"
+          }
+        },
+        {
+          "title": "Security Header X-XSS-Protection is 1; mode=block",
+          "passed": true,
+          "metadata": {
+            "xssProtect": "1; mode=block"
+          }
+        },
+        {
+          "title": "CORS Header Access-Control-Allow-Origin is configured (*)",
+          "passed": true,
+          "metadata": {
+            "corsOrigin": "*"
+          }
+        },
+        {
+          "title": "OpenAPI JSON schema endpoint returns HTTP 200",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        },
+        {
+          "title": "OpenAPI specification contains valid schema & title",
+          "passed": true,
+          "metadata": {
+            "title": "NamoGPT Unified API"
+          }
+        },
+        {
+          "title": "OpenAPI specification includes /v1/chat/completions path",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Swagger API documentation /docs returns HTTP 200",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Swagger UI client bundle rendered in /docs",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "POST /v1/chat/completions with empty body rejected with HTTP 400 Bad Request",
+          "passed": true,
+          "metadata": {
+            "status": 400
+          }
+        },
+        {
+          "title": "Rejection error explicitly mentions missing \"messages\" parameter",
+          "passed": true,
+          "metadata": {}
+        }
+      ],
+      "passedCount": 26,
+      "failedCount": 0,
+      "details": {}
+    },
+    {
+      "workerId": 2,
+      "name": "LiteLLM Proxy & Failover",
+      "domain": "Upstream Key Rotation, Circuit Breaker & SSE Streaming",
+      "status": "PASSED",
+      "startTime": 1793991217964,
+      "durationMs": 1466,
+      "assertions": [
+        {
+          "title": "POST /v1/chat/completions returned HTTP 200 OK",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        },
+        {
+          "title": "Chat completion returned non-empty content string",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Finish reason is \"stop\"",
+          "passed": true,
+          "metadata": {
+            "finish_reason": "stop"
+          }
+        },
+        {
+          "title": "Response model identifier is set: openai/gpt-oss-120b",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Streaming request returned HTTP 200 OK",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        },
+        {
+          "title": "Content-Type header is text/event-stream",
+          "passed": true,
+          "metadata": {
+            "contentType": "text/event-stream; charset=utf-8"
+          }
+        },
+        {
+          "title": "Cache-Control header is no-cache",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "SSE Stream yielded 7 chunks",
+          "passed": true,
+          "metadata": {
+            "chunkCount": 7
+          }
+        },
+        {
+          "title": "SSE Stream terminated properly with data: [DONE]",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Stream buffer contains valid SSE data: prefixes",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Request with max_completion_tokens parameter normalized without error",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        }
+      ],
+      "passedCount": 11,
+      "failedCount": 0,
+      "details": {}
+    },
+    {
+      "workerId": 3,
+      "name": "Multi-Model Catalog & Routing",
+      "domain": "All 11 Model Slugs, Metadata & Reasoning Accordion",
+      "status": "PASSED",
+      "startTime": 1793991219431,
+      "durationMs": 1742,
+      "assertions": [
+        {
+          "title": "GET /api/models returns HTTP 200",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        },
+        {
+          "title": "Models catalog returns array of available models",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Catalog lists at least 10 free AI models (actual: 14)",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "GET /api/keys/status returns HTTP 200",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        },
+        {
+          "title": "Keys status returns structured diagnostic dictionary",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Groq status is reported: active",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Gemini status is reported: active",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Model slug 'auto' responds with HTTP 200 OK",
+          "passed": true,
+          "metadata": {
+            "status": 200,
+            "returnedModel": "qwen/qwen3.8-27b"
+          }
+        },
+        {
+          "title": "Model slug 'auto' produces valid output message",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Model slug 'groq' responds with HTTP 200 OK",
+          "passed": true,
+          "metadata": {
+            "status": 200,
+            "returnedModel": "openai/gpt-oss-120b"
+          }
+        },
+        {
+          "title": "Model slug 'groq' produces valid output message",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Model slug 'deepseek-r1' responds with HTTP 200 OK",
+          "passed": true,
+          "metadata": {
+            "status": 200,
+            "returnedModel": "qwen/qwen3.8-27b"
+          }
+        },
+        {
+          "title": "Model slug 'deepseek-r1' produces valid output message",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Model slug '9router' responds with HTTP 200 OK",
+          "passed": true,
+          "metadata": {
+            "status": 200,
+            "returnedModel": "openai/gpt-oss-120b"
+          }
+        },
+        {
+          "title": "Model slug '9router' produces valid output message",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Reasoning extraction accurately captures inside <thought> tag",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Clean content strips <thought> block correctly",
+          "passed": true,
+          "metadata": {}
+        }
+      ],
+      "passedCount": 17,
+      "failedCount": 0,
+      "details": {}
+    },
+    {
+      "workerId": 4,
+      "name": "Authentication, Identity & RBAC",
+      "domain": "Credentials, Password Hashing, JWT & Route Guardrails",
+      "status": "PASSED",
+      "startTime": 1793991221174,
+      "durationMs": 55562,
+      "assertions": [
+        {
+          "title": "POST /api/auth/register returns HTTP 201 Created",
+          "passed": true,
+          "metadata": {
+            "status": 201
+          }
+        },
+        {
+          "title": "Registration succeeded with success: true",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Auto-generated username formatted with name prefix: @qa_worker_four_932",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Auto-generated secure password created: Namo#4P@au",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Valid JWT token issued on registration",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "User Date of Birth persisted in record",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "POST /api/auth/login succeeds with username + password",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        },
+        {
+          "title": "JWT token returned on username login",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Logged-in user profile email matches registered email",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "POST /api/auth/login succeeds with email + password",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        },
+        {
+          "title": "GET /api/auth/me returns HTTP 200 for valid JWT session",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Profile session returns authenticated user email",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Super Admin login verified with pre-seeded credentials",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        },
+        {
+          "title": "Super Admin role verified as \"superadmin\"",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "GET /api/auth/users rejects standard role with HTTP 403 Forbidden",
+          "passed": true,
+          "metadata": {
+            "status": 403
+          }
+        },
+        {
+          "title": "GET /api/auth/users authorizes Super Admin with HTTP 200 OK",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        },
+        {
+          "title": "Users directory accessible to Super Admin",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "GET /api/admin/status rejects unauthenticated requests with HTTP 401 Unauthorized",
+          "passed": true,
+          "metadata": {
+            "status": 401
+          }
+        }
+      ],
+      "passedCount": 18,
+      "failedCount": 0,
+      "details": {}
+    },
+    {
+      "workerId": 5,
+      "name": "Real-Time Search & RSS",
+      "domain": "Intent Detection, Multi-Source Waterfall & Citations",
+      "status": "PASSED",
+      "startTime": 1793991276737,
+      "durationMs": 3214,
+      "assertions": [
+        {
+          "title": "Intent detection for \"breaking news today in space exploration\" (news/today) matches expected: true",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Intent detection for \"current bitcoin price in USD\" (crypto) matches expected: true",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Intent detection for \"weather forecast for Tokyo tomorrow\" (weather) matches expected: true",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Intent detection for \"who won the cricket match yesterday\" (sports) matches expected: true",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Intent detection for \"latest tech developments in 2026\" (year/2026) matches expected: true",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Intent detection for \"explain how quicksort works in python\" (static coding) matches expected: false",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Live Binance Crypto ticker fetched: \"Bitcoin (BTC) Live Price: $75,786.78 USDT (-0.50%)\"",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Live Open-Meteo Weather observation fetched: \"Live Weather in London, England, United Kingdom: 10.2°C (50.4°F), Mainly clear\"",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "GET /api/search returned HTTP 200 OK",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        },
+        {
+          "title": "Search response indicates success: true",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Search response contains results array",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Search returned 3 live results",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "First search result has title and valid URL: \"Technology\"",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "formatSearchContext includes structured header",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "formatSearchContext includes source title and URL",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "formatSearchContext includes strict Markdown citation instructions",
+          "passed": true,
+          "metadata": {}
+        }
+      ],
+      "passedCount": 16,
+      "failedCount": 0,
+      "details": {}
+    },
+    {
+      "workerId": 6,
+      "name": "Document Intelligence & RAG",
+      "domain": "Okapi BM25, Text Chunking, CSV Parsing & Top-K Ranking",
+      "status": "PASSED",
+      "startTime": 1793991279952,
+      "durationMs": 13,
+      "assertions": [
+        {
+          "title": "Cosine similarity between matching vectors is high (0.98 > 0.9)",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Cosine similarity between disjoint vectors is 0 (0)",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "CSV parser generated 2 structured chunk(s)",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "CSV chunks contain tabular data values (Priya Patel)",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "CSV chunks contain schema dataset summary",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "queryRag returns ranked array of results",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "queryRag respected topK=2 parameter (returned 2)",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Top-ranked document is security.md (actual: security.md)",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Ranked chunk has positive BM25 score (4.81)",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "formatRagContext outputs standard structured header",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Formatted RAG context mentions matched document name",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "POST /api/rag/query returns HTTP 200 OK",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        },
+        {
+          "title": "RAG endpoint returns success: true",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "HTTP RAG ranked architecture.md as top result",
+          "passed": true,
+          "metadata": {}
+        }
+      ],
+      "passedCount": 14,
+      "failedCount": 0,
+      "details": {}
+    },
+    {
+      "workerId": 7,
+      "name": "Secure Sandbox & Code Execution",
+      "domain": "Node.js Isolated VM, Timeout Enforcement & Boundaries",
+      "status": "PASSED",
+      "startTime": 1793991279965,
+      "durationMs": 515,
+      "assertions": [
+        {
+          "title": "executeJavaScript completed successfully",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Return value is 100 (actual: 100)",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Console stdout captured: \"Calculated sum: 100\"",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Execution runtime recorded: 1.79ms",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Infinite loop was intercepted and prevented from hanging process",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Error details indicate timeout: \"Script execution timed out after 500ms\"",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Access to process.exit securely blocked inside VM context",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "POST /api/code/execute returns HTTP 200 OK",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        },
+        {
+          "title": "Sandbox API response indicates success: true",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Sandbox API captures stdout",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Sandbox API computes accurate return expression",
+          "passed": true,
+          "metadata": {}
+        }
+      ],
+      "passedCount": 11,
+      "failedCount": 0,
+      "details": {}
+    },
+    {
+      "workerId": 8,
+      "name": "Deep Research & Personas System",
+      "domain": "Multi-Vector Synthesis, Deduplication & System Prompts",
+      "status": "PASSED",
+      "startTime": 1793991280480,
+      "durationMs": 886,
+      "assertions": [
+        {
+          "title": "generateResearchPlan returns array of sub-tasks",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Plan formulates exactly 4 research vectors (actual: 4)",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Plan includes \"market_size\" vector",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Plan includes \"competitive_landscape\" vector",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Plan includes \"risks_challenges\" vector",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Plan includes \"recent_trends\" vector",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Escapes parentheses in markdown citation URLs",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Blocks non-http/https protocols",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Persona definition 'Software Architect' is verified",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Persona definition 'Academic Researcher' is verified",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Persona definition 'Financial Analyst' is verified",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Persona definition 'Socratic Tutor' is verified",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Persona definition 'Senior Data Scientist' is verified",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "POST /api/research returns HTTP 200 OK",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        },
+        {
+          "title": "Research synthesis returned success: true",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Research report body is populated",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Sources array returned with research dossier",
+          "passed": true,
+          "metadata": {}
+        }
+      ],
+      "passedCount": 17,
+      "failedCount": 0,
+      "details": {}
+    },
+    {
+      "workerId": 9,
+      "name": "Database Persistence & Forking",
+      "domain": "Chat CRUD, Supabase/JSON Fallback, Branching & Rewind",
+      "status": "PASSED",
+      "startTime": 1793991281367,
+      "durationMs": 72102,
+      "assertions": [
+        {
+          "title": "POST /api/chats returns HTTP 200 OK",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        },
+        {
+          "title": "Chat creation returns success: true",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Created chat ID matches requested ID",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "GET /api/chats returns HTTP 200 OK",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        },
+        {
+          "title": "Chats listing returns array",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Newly created chat is returned in user chat listing",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "GET /api/chats/:id returns HTTP 200 OK",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        },
+        {
+          "title": "Retrieved chat title matches",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Retrieved chat contains 2 preserved messages",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "PUT /api/chats/:id/title returns HTTP 200 OK",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        },
+        {
+          "title": "Title successfully updated in response",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "POST /api/chats/:id/fork returns HTTP 200/201 Created",
+          "passed": true,
+          "metadata": {
+            "status": 201
+          }
+        },
+        {
+          "title": "Fork conversation succeeded",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Fork created new unique chat ID",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Fork records original parentChatId lineage",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Fork preserved history up to sourceMessageId (1 message)",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "DELETE /api/chats/:id returns HTTP 200 OK",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        },
+        {
+          "title": "Deleted chat returns HTTP 404 Not Found",
+          "passed": true,
+          "metadata": {}
+        }
+      ],
+      "passedCount": 18,
+      "failedCount": 0,
+      "details": {}
+    },
+    {
+      "workerId": 10,
+      "name": "Transactional Mailer & OTP",
+      "domain": "Resend/SMTP Failover, 6-Digit OTP, Cooldown & Lockout",
+      "status": "PASSED",
+      "startTime": 1793991353470,
+      "durationMs": 3673,
+      "assertions": [
+        {
+          "title": "GET /api/mailer/verify returns HTTP 200 OK",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        },
+        {
+          "title": "Mailer engine status is operational",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "POST /api/auth/send-otp returns HTTP 200 OK",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        },
+        {
+          "title": "OTP dispatch reported success: true",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "OTP expiration set to 600s (10 minutes)",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Immediate re-request rejected by rate limiter",
+          "passed": true,
+          "metadata": {
+            "status": 400
+          }
+        },
+        {
+          "title": "Error message warns user to wait before re-requesting OTP",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Invalid OTP code rejected with HTTP 400",
+          "passed": true,
+          "metadata": {
+            "status": 400
+          }
+        },
+        {
+          "title": "Error message indicates code was incorrect",
+          "passed": true,
+          "metadata": {}
+        }
+      ],
+      "passedCount": 9,
+      "failedCount": 0,
+      "details": {}
+    },
+    {
+      "workerId": 11,
+      "name": "Token Usage & Telemetry",
+      "domain": "Prometheus /metrics, Cost Savings vs GPT-4o & Quotas",
+      "status": "PASSED",
+      "startTime": 1793991357143,
+      "durationMs": 14607,
+      "assertions": [
+        {
+          "title": "GET /metrics returns HTTP 200 OK",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        },
+        {
+          "title": "Prometheus metrics text format includes standard telemetry counters",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Cost savings calculated accurately: $0.0750 USD",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Quotas calculated for Groq",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Quotas calculated for Gemini Flash",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Quotas calculated for OpenRouter",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "POST /api/usage/record returns HTTP 200 OK",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        },
+        {
+          "title": "Recorded totalTokens matches 500",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "GET /api/usage/stats returns HTTP 200 OK",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        },
+        {
+          "title": "Usage stats reports at least 1 request",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Usage stats reports at least 500 tokens",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "POST /api/usage/reset succeeds with Super Admin authentication",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        }
+      ],
+      "passedCount": 12,
+      "failedCount": 0,
+      "details": {}
+    },
+    {
+      "workerId": 12,
+      "name": "OmniRouter & MCP Plugins",
+      "domain": "Universal Cloud Bridge & 8 Extensible Architecture Plugins",
+      "status": "PASSED",
+      "startTime": 1793991371750,
+      "durationMs": 18,
+      "assertions": [
+        {
+          "title": "GET /api/9router/ping returns HTTP 200 OK",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        },
+        {
+          "title": "9Router status is success",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "GET /api/omnirouter/ping returns HTTP 200 OK",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        },
+        {
+          "title": "OmniRouter status is success",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "GET /api/9router/models returns HTTP 200 OK",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        },
+        {
+          "title": "9Router provides models catalogue",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "listPlugins returns array",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Plugin registry has at least 8 registered plugins (actual: 8)",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Plugin registry contains \"web_search\" plugin",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Plugin registry contains \"mcp_web_fetcher\" plugin",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Plugin registry contains \"weather\" plugin",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Plugin registry contains \"math_eval\" plugin",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Plugin registry contains \"context7\" plugin",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Plugin registry contains \"chrome-devtools\" plugin",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Plugin registry contains \"sentry\" plugin",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Plugin registry contains \"supabase\" plugin",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "GET /api/plugins/list returns HTTP 200 OK",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        },
+        {
+          "title": "Plugins list returns success: true",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "API plugins list exposes all registered plugins",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "POST /api/plugins/invoke (math_eval) returns HTTP 200 OK",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        },
+        {
+          "title": "math_eval computed: 12 * 12 + 10 = 154 (actual: 154)",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "POST /api/plugins/invoke (context7) returns HTTP 200 OK",
+          "passed": true,
+          "metadata": {
+            "status": 200
+          }
+        },
+        {
+          "title": "context7 plugin execution status is success",
+          "passed": true,
+          "metadata": {}
+        }
+      ],
+      "passedCount": 23,
+      "failedCount": 0,
+      "details": {}
+    },
+    {
+      "workerId": 13,
+      "name": "Web Frontend & PWA Integrity",
+      "domain": "Vite Production Artifacts, Vendor Chunks, Manifest & Assets",
+      "status": "PASSED",
+      "startTime": 1793991371768,
+      "durationMs": 1,
+      "assertions": [
+        {
+          "title": "Production dist directory exists at: D:\\NamoGPT\\web\\dist",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "dist/index.html exists",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "dist/index.html contains NamoGPT title",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "dist/index.html links to PWA manifest",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "dist/assets directory exists",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Compiled main entry JS chunk exists (index-*.js)",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Compiled main CSS bundle exists (index-*.css)",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Optimized React vendor chunk exists (vendor-react-*.js)",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Markdown rendering vendor chunk exists (vendor-markdown-*.js)",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "LaTeX KaTeX math vendor chunk exists (vendor-katex-*.js)",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Lucide icons vendor chunk exists (vendor-icons-*.js)",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "PWA Manifest exists at: D:\\NamoGPT\\web\\public\\manifest.json",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "PWA Manifest contains valid JSON",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "PWA Manifest name is \"NamoGPT\" (actual: NamoGPT)",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "PWA Manifest short_name is \"NamoGPT\"",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "PWA Manifest display mode is \"standalone\" for fullscreen native feel",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "PWA Manifest defines required responsive icon sizes (2 sizes)",
+          "passed": true,
+          "metadata": {}
+        },
+        {
+          "title": "Service worker sw.js implements standard caching lifecycle",
+          "passed": true,
+          "metadata": {}
+        }
+      ],
+      "passedCount": 18,
+      "failedCount": 0,
+      "details": {}
+    }
+  ]
+}

@@ -654,7 +654,7 @@ app.get('/api/plugins/list', (_req, res) => {
 // Invoke a plugin by name
 app.post('/api/plugins/invoke', async (req, res) => {
   try {
-    const { name, plugin, payload, args, arguments: argObj, ...rest } = req.body || {};
+    const { name, plugin, payload, args, arguments: argObj, parameters, ...rest } = req.body || {};
     const pluginName = (name || plugin || '').trim();
     if (!pluginName) {
       return res.status(400).json({
@@ -663,7 +663,7 @@ app.post('/api/plugins/invoke', async (req, res) => {
       });
     }
 
-    const params = payload || args || argObj || (Object.keys(rest).length > 0 ? rest : {});
+    const params = parameters || payload || args || argObj || (Object.keys(rest).length > 0 ? rest : {});
     const result = await invokePlugin(pluginName, params);
 
     return res.status(200).json({

@@ -237,6 +237,8 @@ async function runTestSuite() {
     console.log('  Testing POST /api/usage/reset...');
     const resetRes = await axios.post(`${BASE_URL}/api/usage/reset`, {
       userId: apiUserId
+    }, {
+      headers: { 'x-session-id': apiUserId }
     });
     assert.strictEqual(resetRes.status, 200);
     assert.strictEqual(resetRes.data.success, true);

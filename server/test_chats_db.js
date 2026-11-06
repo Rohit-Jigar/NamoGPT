@@ -246,38 +246,59 @@ async function runTests() {
     assert(deletedDbChat === null, 'Chat is removed from database storage');
 
     // -------------------------------------------------------------------------
-    // SUITE 5: Super Admin Restrictions Removal Verification
+    // SUITE 5: Super Admin RBAC & Route Protection Verification
     // -------------------------------------------------------------------------
-    console.log('\n[SUITE 5] Super Admin Restrictions Removal Verification');
+    console.log('\n[SUITE 5] Super Admin RBAC & Route Protection Verification');
 
-    // 1. /api/admin/status without token (unrestricted local access)
-    console.log('--- 1. Testing /api/admin/status (Unrestricted Access) ---');
-    const adminStatusRes = await axios.get(`${BASE_URL}/api/admin/status`);
-    assert(adminStatusRes.status === 200, 'GET /api/admin/status returns HTTP 200 without admin credentials');
+    // 1. /api/admin/status without token (must reject with 401)
+    console.log('--- 1. Testing /api/admin/status (Unauthorized Rejection) ---');
+    try {
+      await axios.get(`${BASE_URL}/api/admin/status`);
+      assert(false, 'Should have rejected unauthenticated request');
+    } catch (err) {
+      assert(err.response?.status === 401, 'GET /api/admin/status rejects unauthenticated requests with HTTP 401');
+    }
+
+    // 2. /api/admin/status with superadmin token (must succeed with 200)
+    console.log('--- 2. Testing /api/admin/status (Super Admin Access) ---');
+    const adminToken = createToken({
+      id: 'super-admin-qa',
+      email: 'admin@namogpt.com',
+      role: 'superadmin'
+    });
+    const adminStatusRes = await axios.get(`${BASE_URL}/api/admin/status`, {
+      headers: { Authorization: `Bearer ${adminToken}` }
+    });
+    assert(adminStatusRes.status === 200, 'GET /api/admin/status returns HTTP 200 for superadmin');
     assert(adminStatusRes.data.success === true, 'GET /api/admin/status returns success: true');
-    assert(Boolean(adminStatusRes.data.server), 'Server telemetry is accessible');
-    assert(Boolean(adminStatusRes.data.keysDetected), 'Keys detected status is accessible');
+    assert(Boolean(adminStatusRes.data.server), 'Server telemetry is accessible to superadmin');
 
-    // 2. /api/auth/users with standard non-admin user
-    console.log('\n--- 2. Testing /api/auth/users (Standard User Access) ---');
+    // 3. /api/auth/users with standard non-admin user (must reject with 403)
+    console.log('\n--- 3. Testing /api/auth/users (Standard User Forbidden) ---');
     const regularUserToken = createToken({
       id: 'regular-user-worker2',
       email: 'regular@worker2.test',
       name: 'Regular Test User',
-      role: 'user' // Standard user role (NOT admin, NOT superadmin)
+      role: 'user'
     });
 
-    const usersRes = await axios.get(`${BASE_URL}/api/auth/users`, {
-      headers: { Authorization: `Bearer ${regularUserToken}` }
-    });
-    assert(usersRes.status === 200, 'GET /api/auth/users returns HTTP 200 for standard role: "user"');
-    assert(usersRes.data.success === true, 'GET /api/auth/users returns success: true');
-    assert(Array.isArray(usersRes.data.users), 'Users array is accessible to all authenticated users');
+    try {
+      await axios.get(`${BASE_URL}/api/auth/users`, {
+        headers: { Authorization: `Bearer ${regularUserToken}` }
+      });
+      assert(false, 'Should have rejected regular user');
+    } catch (err) {
+      assert(err.response?.status === 403, 'GET /api/auth/users rejects standard role with HTTP 403');
+    }
 
-    // 3. /api/auth/users without token (unrestricted local session)
-    const localUsersRes = await axios.get(`${BASE_URL}/api/auth/users`);
-    assert(localUsersRes.status === 200, 'GET /api/auth/users returns HTTP 200 for unauthenticated local sessions');
-    assert(localUsersRes.data.success === true, 'User catalog is completely unlocked');
+    // 4. /api/auth/users with superadmin token (must succeed with 200)
+    console.log('--- 4. Testing /api/auth/users (Super Admin Authorized) ---');
+    const adminUsersRes = await axios.get(`${BASE_URL}/api/auth/users`, {
+      headers: { Authorization: `Bearer ${adminToken}` }
+    });
+    assert(adminUsersRes.status === 200, 'GET /api/auth/users returns HTTP 200 for superadmin');
+    assert(adminUsersRes.data.success === true, 'GET /api/auth/users returns success: true');
+    assert(Array.isArray(adminUsersRes.data.users), 'Users array is accessible to superadmin');
 
     console.log('\n======================================================================');
     console.log(`🎉 ALL ASSERTIONS PASSED! (${passedCount} passed, ${failedCount} failed)`);
