@@ -87,8 +87,8 @@ console.log('Mock upstream server listening on http://127.0.0.1:29999');
 process.env.TEST_MODE = 'true';
 process.env.PROXY_PORT = '29998';
 // Override provider keys to point to our mock upstream server
-process.env.GROQ_API_KEY_1 = 'gsk_mock_groq_key_1';
-process.env.GROQ_API_KEY_2 = 'gsk_mock_groq_key_2';
+process.env.GROQ_API_KEY_1 = 'mock_groq_key_1';
+process.env.GROQ_API_KEY_2 = 'mock_groq_key_2';
 process.env.GEMINI_API_KEY_1 = 'gemini_mock_key_1';
 process.env.GEMINI_API_KEY_2 = 'gemini_mock_key_2';
 
